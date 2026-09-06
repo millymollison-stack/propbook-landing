@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hobbit House - Virginia</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Inter', sans-serif; background: transparent; min-height: 100vh; display: flex; justify-content: center; align-items: center; margin: 0; padding: 0; }
+        .p-bg { position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: url('hero.jpg') center/cover no-repeat; z-index: 0; }
+        .p-bg::after { content: ''; position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.15); }
+        .p-nav { position: absolute; top: 0; left: 0; right: 0; display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; z-index: 20; background: linear-gradient(to bottom, rgba(0,0,0,0.4), transparent); }
+        .p-nav-logo { display: flex; align-items: center; gap: 6px; }
+        .p-nav-icon { font-size: 1rem; color: white; }
+        .p-nav-brand { font-size: 0.75rem; font-weight: 500; color: white; letter-spacing: 0.02em; }
+        .p-nav-links { display: flex; align-items: center; gap: 8px; }
+        .p-nav-link { font-size: 0.65rem; color: rgba(255, 255, 255, 0.9); text-decoration: none; font-weight: 400; }
+        .p-nav-cta { padding: 4px 10px; background: rgba(255, 255, 255, 0.25); backdrop-filter: blur(8px); border-radius: 4px; border: 1px solid rgba(255, 255, 255, 0.2); }
+        .p-bottom { position: absolute; bottom: 52px; left: 0; right: 0; padding: 16px 14px; background: rgba(0, 0, 0, 0.3); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); z-index: 10; }
+        .p-title { font-family: 'Inter', sans-serif; font-size: 1rem; font-weight: 400; letter-spacing: 0.02em; text-transform: uppercase; color: white; margin-bottom: 4px; line-height: 1.2; }
+        .p-location { font-size: 0.65rem; color: rgba(255, 255, 255, 0.65); margin-bottom: 8px; }
+        .p-price { font-size: 1.1rem; font-weight: 600; color: white; margin-bottom: 8px; }
+        .p-price span { font-size: 0.65rem; font-weight: 400; color: rgba(255, 255, 255, 0.7); }
+        .p-description { font-size: 0.65rem; color: rgba(255, 255, 255, 0.85); line-height: 1.4; margin-bottom: 8px; }
+        .p-details { display: flex; gap: 8px; flex-wrap: nowrap; overflow-x: auto; justify-content: flex-start; }
+        .p-detail { display: flex; align-items: center; gap: 4px; font-size: 0.6rem; color: rgba(255, 255, 255, 0.9); background: rgba(255, 255, 255, 0.15); padding: 3px 8px; border-radius: 4px; }
+        .p-detail svg { width: 10px; height: 10px; }
+        .p-banner { position: absolute; bottom: 0; left: 0; right: 0; padding: 16px 14px; background: #000000; z-index: 10; display: flex; align-items: center; justify-content: space-between; }
+        .p-banner-left { display: flex; align-items: center; gap: 8px; }
+        .p-banner-stars { display: flex; gap: 2px; }
+        .p-banner-stars svg { width: 12px; height: 12px; fill: #fbbf24; }
+        .p-banner-text { font-size: 0.6rem; color: rgba(255, 255, 255, 0.8); }
+        .p-book-btn { padding: 8px 20px; background: #ff5a5f; color: white; font-size: 0.75rem; font-weight: 600; text-decoration: none; border-radius: 6px; border: none; cursor: pointer; transition: all 0.2s ease; }
+        .p-book-btn:hover { background: #ff474c; transform: translateY(-1px); }
+    </style>
+</head>
+<body>
+    <div class="p-bg"></div>
+    <nav class="p-nav">
+        <div class="p-nav-logo"><span class="p-nav-icon">◈</span><span class="p-nav-brand">YourLogoHere.Pro</span></div>
+        <div class="p-nav-links"><a href="#" class="p-nav-link p-nav-cta">Sign up</a></div>
+    </nav>
+    <div class="p-bottom">
+        <h1 class="p-title">Hobbit Style Underground Cabin</h1>
+        <p class="p-location">Broadway, Virginia</p>
+        <div class="p-price">$195 <span>/ night</span></div>
+        <p class="p-description">A whimsical Hobbit House nestled among greenery, featuring a rounded entrance with a vibrant round window and a wooden door.</p>
+        <div class="p-details">
+            <div class="p-detail"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>2 Guests</div>
+            <div class="p-detail"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 4v16h20V4H2zM2 8h20M12 12v8"/></svg>1 Bed</div>
+            <div class="p-detail"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l9 6-9 6V6z"/></svg>1 Bath</div>
+            <div class="p-detail"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>WiFi</div>
+        </div>
+    </div>
+    <div class="p-banner">
+        <div class="p-banner-left">
+            <div class="p-banner-stars"><svg viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg><svg viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg><svg viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg><svg viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg><svg viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg></div>
+            <span class="p-banner-text">848 reviews</span>
+        </div>
+        <button class="p-book-btn">Book Now</button>
+    </div>
+</body>
+</html>

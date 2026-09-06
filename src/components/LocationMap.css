@@ -1,0 +1,98 @@
+.location-address-block {
+  margin-top: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.location-area {
+  color: #6b7280;
+  font-size: 0.875rem;
+}
+.location-address-text {
+  color: #000000;
+  font-size: 1rem;
+  font-weight: 400;
+  margin-top: 0.75rem;
+}
+
+.location-map-modal h1 {
+  color: #000000;
+  font-family: var(--font-accent);
+  font-size: clamp(1.5rem, 2.8vw, 1.875rem);
+  font-weight: 400;
+}
+
+.location-edit-label {
+  color: #000000;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.location-edit-text {
+  color: #000000;
+  font-size: 0.875rem;
+  font-weight: 400;
+  margin-left: 6px;
+}
+
+/* Edit Location button (val-color, matches sidebar-btn-edit) */
+.edit-location-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--brand);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: all 0.15s;
+}
+.edit-location-btn:hover {
+  background: #f5f5f5;
+  color: var(--brand-hover);
+}
+.edit-location-btn svg { width: 14px; height: 14px; }
+
+/* Cancel & Save buttons in location edit mode (match sidebar-btn-cancel / sidebar-btn-save) */
+.location-edit-cancel-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--brand);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: all 0.15s;
+}
+.location-edit-cancel-btn:hover {
+  color: #6b7280;
+  background: #f5f5f5;
+}
+
+.location-edit-save-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #16a34a;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: all 0.15s;
+}
+
+.location-edit-container {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}

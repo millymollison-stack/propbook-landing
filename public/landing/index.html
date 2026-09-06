@@ -1,0 +1,834 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>propbook.pro</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+
+    <style>
+        /* ============================================================
+           VARIABLES
+        ============================================================ */
+        :root {
+            --primary:       #C47756;
+            --primary-dark:  #a85f40;
+            --text-light:     #ffffff;
+            --text-muted:     rgba(255, 255, 255, 0.7);
+            --glass:          rgba(255, 255, 255, 0.12);
+            --glass-border:   rgba(255, 255, 255, 0.08);
+            --bg:             #0a0a0a;
+            --surface:        #1a1a2e;
+            --radius:         8px;
+        }
+
+        /* ============================================================
+           RESET & BASE
+        ============================================================ */
+        *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+        html { scroll-behavior: smooth; }
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            font-size: 16px;
+            line-height: 1.5;
+            color: var(--text-light);
+            background: var(--bg);
+        }
+        a      { text-decoration: none; color: inherit; }
+        ul     { list-style: none; }
+        img    { display: block; max-width: 100%; }
+        svg    { display: block; }
+
+        /* ============================================================
+           LAYOUT
+        ============================================================ */
+        .container { max-width: 900px; margin: 0 auto; }
+        .section    { padding: 80px 24px; }
+        .section--dark { background: var(--bg); }
+
+        /* ============================================================
+           NAV
+        ============================================================ */
+        .nav {
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: clamp(16px, 4vw, 28px) clamp(20px, 5vw, 40px);
+            z-index: 100;
+        }
+        .nav__logo  { display: flex; align-items: center; gap: 10px; }
+        .nav__icon  { font-size: clamp(1.2rem, 3vw, 1.6rem); opacity: 0.9; }
+        .nav__brand { font-size: clamp(0.9rem, 2.2vw, 1.2rem); font-weight: 500; letter-spacing: 0.02em; }
+        .nav__links { display: flex; align-items: center; gap: 20px; }
+        .nav__link {
+            font-size: clamp(0.7rem, 1.5vw, 0.85rem);
+            color: rgba(255, 255, 255, 0.85);
+            font-weight: 400;
+            transition: color 0.3s;
+        }
+        .nav__link:hover { color: var(--text-light); }
+        .nav__cta {
+            padding: 8px 18px;
+            background: rgba(255, 255, 255, 0.2);
+            backdrop-filter: blur(8px);
+            border-radius: 4px;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            transition: background 0.3s;
+        }
+        .nav__cta:hover { background: rgba(255, 255, 255, 0.3); }
+
+        /* ============================================================
+           HERO
+        ============================================================ */
+        .hero {
+            position: relative;
+            height: 900px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            padding: 60px 24px;
+            overflow: hidden;
+        }
+        .hero__bg {
+            position: absolute; inset: 0;
+            background: url('hero-bg.jpg') center/cover no-repeat;
+            z-index: -2;
+        }
+        .hero__bg::after {
+            content: '';
+            position: absolute; inset: 0;
+            background: rgba(0, 0, 0, 0.15);
+        }
+        .hero__content {
+            position: relative; z-index: 1;
+            max-width: 500px; width: 84%;
+            padding: clamp(24px, 5vw, 50px) clamp(16px, 3vw, 32px);
+            background: rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(4px);
+            border-radius: var(--radius);
+        }
+        .hero__title {
+            font-size: clamp(1.1rem, 2.8vw, 1.6rem);
+            font-weight: 400;
+            letter-spacing: 0.02em;
+            text-transform: uppercase;
+            margin-bottom: 10px;
+            color: rgba(255, 255, 255, 0.9);
+        }
+        .hero__desc {
+            font-size: clamp(0.72rem, 1.6vw, 0.88rem);
+            color: var(--text-muted);
+            font-weight: 300;
+            margin-bottom: 20px;
+            max-width: 400px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        .hero__tagline {
+            font-size: clamp(0.86rem, 1.92vw, 1.06rem);
+            color: var(--text-light);
+            display: block;
+        }
+        .hero__cta {
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .hero__input-wrap {
+            position: relative;
+            width: 45%;
+            display: flex;
+            align-items: center;
+        }
+        .hero__input {
+            width: 100%;
+            padding: 12px 40px 12px 16px;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 4px;
+            background: rgba(255, 255, 255, 0.15);
+            backdrop-filter: blur(8px);
+            color: var(--text-light);
+            font-size: 0.8rem;
+            transition: background 0.3s, border-color 0.3s;
+        }
+        .hero__input::placeholder { color: rgba(255, 255, 255, 0.6); }
+        .hero__input:focus {
+            outline: none;
+            background: rgba(255, 255, 255, 0.25);
+            border-color: var(--primary);
+        }
+        .hero__icon {
+            position: absolute;
+            right: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 20px; height: 20px;
+            opacity: 0.5;
+            transition: opacity 0.3s, filter 0.3s;
+        }
+        .hero__icon svg { width: 100%; height: 100%; stroke: var(--text-light); }
+        .hero__icon--glow {
+            opacity: 1;
+            filter: drop-shadow(0 0 6px rgba(255, 255, 255, 0.8));
+        }
+        .hero__hint {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            margin-top: 12px;
+            opacity: 0.7;
+        }
+        .hero__scroll {
+            position: absolute;
+            bottom: 40px;
+            left: 50%;
+            transform: translateX(-50%);
+            animation: bounce 2s infinite;
+        }
+        .hero__scroll svg { width: 24px; height: 24px; stroke: var(--text-light); opacity: 0.5; }
+        @keyframes bounce {
+            0%, 20%, 50%, 80%, 100% { transform: translateX(-50%) translateY(0); }
+            40%  { transform: translateX(-50%) translateY(-6px); }
+            60%  { transform: translateX(-50%) translateY(-3px); }
+        }
+
+        /* ============================================================
+           BUTTONS
+        ============================================================ */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 12px 24px;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            font-weight: 500;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+            border: none;
+            cursor: pointer;
+            transition: background 0.3s, transform 0.3s, color 0.3s;
+        }
+        .btn--primary   { background: var(--primary); color: var(--text-light); }
+        .btn--primary:hover { background: var(--primary-dark); transform: translateY(-1px); }
+        .btn--secondary {
+            background: rgba(255, 255, 255, 0.25);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.25);
+            color: var(--text-light);
+        }
+        .btn--secondary:hover { background: rgba(255, 255, 255, 0.45); transform: translateY(-1px); }
+        .btn--white     { background: var(--text-light); color: var(--primary); padding: 12px 28px; font-weight: 600; }
+        .btn--white:hover { background: rgba(255, 255, 255, 0.92); transform: translateY(-1px); }
+        .btn--full      { width: 100%; text-align: center; }
+
+        /* ============================================================
+           SECTION HEADER
+        ============================================================ */
+        .section-header {
+            text-align: center;
+            margin-bottom: 50px;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        .section-header__title {
+            font-size: clamp(1.2rem, 2.7vw, 1.65rem);
+            font-weight: 400;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            margin-bottom: 8px;
+            color: rgba(255, 255, 255, 0.85);
+        }
+        .section-header__sub {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            font-weight: 300;
+        }
+
+        /* ============================================================
+           FEATURES
+        ============================================================ */
+        .features {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 16px;
+        }
+        .feature-card {
+            background: var(--glass);
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--glass-border);
+            border-radius: var(--radius);
+            padding: 24px;
+            text-align: center;
+            transition: background 0.3s, transform 0.3s;
+        }
+        .feature-card:hover {
+            background: rgba(255, 255, 255, 0.18);
+            transform: translateY(-2px);
+        }
+        .feature-card__icon {
+            width: 42px; height: 42px;
+            background: var(--primary);
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 14px;
+        }
+        .feature-card__icon svg { width: 22px; height: 22px; stroke: var(--text-light); fill: none; }
+        .feature-card__title {
+            font-size: 0.9rem;
+            font-weight: 500;
+            margin-bottom: 6px;
+            letter-spacing: 0.03em;
+        }
+        .feature-card__text {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            line-height: 1.5;
+        }
+
+        /* ============================================================
+           EXAMPLES / PHONE FRAMES
+           The inline iframe styles are intentionally kept inline so you
+           can tweak the phone-frame preview scaling directly in the HTML.
+        ============================================================ */
+        .examples {
+            position: relative;
+            padding: 80px 24px;
+            background: var(--bg);
+        }
+        .examples__bg {
+            position: absolute; inset: 0;
+            background: url('hero-bg.jpg') center/cover no-repeat;
+            opacity: 0.08;
+            z-index: 0;
+        }
+        .examples__inner { position: relative; z-index: 1; }
+        .example-cards {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+        .example-cards > .example-card { width: 241px; }
+        .example-card__link {
+            display: block;
+            background: var(--surface);
+            border-radius: var(--radius);
+            overflow: hidden;
+            border: 2px solid #111;
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
+            transition: transform 0.3s, box-shadow 0.3s;
+        }
+        .example-card__link:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 20px 55px rgba(0, 0, 0, 0.5);
+        }
+        .example-card__view {
+            display: block;
+            text-align: center;
+            margin-top: 10px;
+            font-size: 0.8rem;
+            font-weight: 500;
+            letter-spacing: 0.04em;
+            color: rgba(255, 255, 255, 0.7);
+            transition: color 0.3s;
+        }
+        .example-card__view:hover { color: var(--text-light); }
+
+        /* ============================================================
+           PRICING
+        ============================================================ */
+        .pricing-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 16px;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        .pricing-card {
+            position: relative;
+            background: rgba(255, 255, 255, 0.25);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            padding: 28px 20px;
+            text-align: center;
+            transition: transform 0.3s;
+        }
+        .pricing-card:hover { transform: translateY(-2px); }
+        .pricing-card--featured {
+            border-color: var(--primary);
+            transform: scale(1.02);
+        }
+        .pricing-card--featured:hover { transform: scale(1.03); }
+        .pricing-card--featured::before {
+            content: 'Popular';
+            position: absolute;
+            top: -10px; left: 50%;
+            transform: translateX(-50%);
+            background: var(--primary);
+            padding: 3px 10px;
+            border-radius: 12px;
+            font-size: 0.65rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .pricing-card__name {
+            font-size: 0.9rem;
+            font-weight: 500;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+            margin-bottom: 4px;
+        }
+        .pricing-card__price {
+            font-size: 2rem;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+        .pricing-card__price span { font-size: 0.75rem; color: var(--text-muted); font-weight: 400; }
+        .pricing-card__features { margin: 16px 0; text-align: left; }
+        .pricing-card__features li {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 5px 0;
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+        .pricing-card__features li::before {
+            content: '✓';
+            color: var(--primary);
+            font-weight: bold;
+            font-size: 0.7rem;
+        }
+
+        /* ============================================================
+           CTA
+        ============================================================ */
+        .cta {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+            text-align: center;
+            padding: 60px 24px;
+        }
+        .cta__title {
+            font-size: clamp(1.25rem, 3vw, 1.75rem);
+            font-weight: 400;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            margin-bottom: 10px;
+        }
+        .cta__sub { margin-bottom: 24px; font-size: 0.9rem; font-weight: 300; opacity: 0.9; }
+
+        /* ============================================================
+           FOOTER
+        ============================================================ */
+        footer {
+            background: var(--bg);
+            padding: 28px 24px;
+            text-align: center;
+            border-top: 1px solid rgba(255, 255, 255, 0.06);
+        }
+        footer p { font-size: 0.75rem; color: var(--text-muted); font-weight: 300; }
+
+        /* ============================================================
+           MODAL
+        ============================================================ */
+        .modal-overlay {
+            display: none;
+            position: fixed; inset: 0;
+            background: rgba(0, 0, 0, 0.85);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .modal-overlay.is-open { display: flex; }
+        .modal {
+            background: var(--surface);
+            border-radius: 12px;
+            max-width: 380px;
+            width: 100%;
+            animation: modalIn 0.3s ease;
+        }
+        @keyframes modalIn {
+            from { opacity: 0; transform: scale(0.96); }
+            to   { opacity: 1; transform: scale(1); }
+        }
+        .modal__header {
+            padding: 18px 20px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .modal__title { font-size: 1.1rem; font-weight: 500; }
+        .modal__close {
+            background: none;
+            border: none;
+            color: var(--text-light);
+            cursor: pointer;
+            padding: 4px;
+            opacity: 0.5;
+            transition: opacity 0.3s;
+        }
+        .modal__close:hover { opacity: 1; }
+        .modal__body { padding: 20px; }
+        .form-group { margin-bottom: 14px; }
+        .form-group label { display: block; margin-bottom: 5px; font-size: 0.8rem; font-weight: 500; }
+        .form-group input {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: 4px;
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--text-light);
+            font-size: 0.9rem;
+            transition: border-color 0.3s;
+        }
+        .form-group input:focus { outline: none; border-color: var(--primary); }
+        .form-group input::placeholder { color: rgba(255, 255, 255, 0.35); }
+        .form-submit {
+            width: 100%;
+            padding: 12px;
+            background: var(--primary);
+            border: none;
+            border-radius: 4px;
+            color: var(--text-light);
+            font-size: 0.85rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        .form-submit:hover { background: var(--primary-dark); }
+
+        /* ============================================================
+           MOBILE
+        ============================================================ */
+        @media (max-width: 540px) {
+            .hero            { padding: 50px 18px; }
+            .hero__title     { font-size: 1.4rem; }
+            .hero__desc      { font-size: 0.85rem; }
+            .hero__cta       { flex-direction: column; }
+            .hero__input-wrap { width: 100%; }
+            .btn             { width: 100%; text-align: center; }
+            .section         { padding: 50px 18px; }
+            .pricing-card--featured { transform: none; }
+            .pricing-card--featured:hover { transform: none; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- NAV -->
+    <nav class="nav">
+        <div class="nav__logo">
+            <span class="nav__icon">◈</span>
+            <span class="nav__brand">propbook.pro</span>
+        </div>
+        <div class="nav__links">
+            <a href="#login" class="nav__link">Sign in</a>
+            <a href="#signup" class="nav__link nav__cta">Sign up</a>
+        </div>
+    </nav>
+
+    <!-- HERO -->
+    <section class="hero">
+        <div class="hero__bg"></div>
+        <div class="hero__content">
+            <h1 class="hero__title">Your Property Deserves Its Own Spotlight</h1>
+            <p class="hero__desc">
+                <span class="hero__tagline">Showcase your space without competing against thousands of other listings.</span><br>
+                Paste your Airbnb link, to see how your property looks with its very own standalone booking website.
+            </p>
+            <div class="hero__cta">
+                <div class="hero__input-wrap">
+                    <input type="text" class="hero__input" id="airbnbInput" placeholder="Paste your Airbnb URL" autocomplete="off" spellcheck="false">
+                    <span class="hero__icon" id="uploadIcon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                            <polyline points="17 8 12 3 7 8"/>
+                            <line x1="12" y1="3" x2="12" y2="15"/>
+                        </svg>
+                    </span>
+                </div>
+                <a href="#signup" class="btn btn--primary">View it now</a>
+            </div>
+            <p class="hero__hint">Manually upload your property photo later to view it on its own website</p>
+        </div>
+        <div class="hero__scroll">
+            <svg viewBox="0 0 24 24" fill="none" stroke-width="2">
+                <path d="M7 13l5 5 5-5M7 6l5 5 5-5"/>
+            </svg>
+        </div>
+    </section>
+
+    <!-- FEATURES -->
+    <section id="features" class="section section--dark">
+        <div class="container">
+            <div class="section-header">
+                <h2 class="section-header__title">Show up in AI searches and free yourself from platform constraints at the same time</h2>
+            </div>
+            <div class="features">
+                <div class="feature-card">
+                    <div class="feature-card__icon">
+                        <svg viewBox="0 0 24 24" stroke-width="2">
+                            <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+                        </svg>
+                    </div>
+                    <h3 class="feature-card__title">No Airbnb Fees</h3>
+                    <p class="feature-card__text">Keep 100% of your booking revenue.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-card__icon">
+                        <svg viewBox="0 0 24 24" stroke-width="2">
+                            <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+                        </svg>
+                    </div>
+                    <h3 class="feature-card__title">Your Own Brand</h3>
+                    <p class="feature-card__text">Custom domain, colors, and logo.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-card__icon">
+                        <svg viewBox="0 0 24 24" stroke-width="2">
+                            <rect x="3" y="4" width="18" height="18" rx="2"/>
+                            <line x1="16" y1="2" x2="16" y2="6"/>
+                            <line x1="8" y1="2" x2="8" y2="6"/>
+                        </svg>
+                    </div>
+                    <h3 class="feature-card__title">Easy Management</h3>
+                    <p class="feature-card__text">Simple calendar and emailed booking requests.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-card__icon">
+                        <svg viewBox="0 0 24 24" stroke-width="2">
+                            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                            <circle cx="9" cy="7" r="4"/>
+                        </svg>
+                    </div>
+                    <h3 class="feature-card__title">Guest Reviews</h3>
+                    <p class="feature-card__text">Build trust with verified reviews.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-card__icon">
+                        <svg viewBox="0 0 24 24" stroke-width="2">
+                            <rect x="1" y="4" width="22" height="16" rx="2"/>
+                            <line x1="1" y1="10" x2="23" y2="10"/>
+                        </svg>
+                    </div>
+                    <h3 class="feature-card__title">Secure Payments</h3>
+                    <p class="feature-card__text">Accept all major credit cards.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-card__icon">
+                        <svg viewBox="0 0 24 24" stroke-width="2">
+                            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                        </svg>
+                    </div>
+                    <h3 class="feature-card__title">Direct Messaging</h3>
+                    <p class="feature-card__text">Your customer, your relationship.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- EXAMPLES -->
+    <!--
+        Phone-frame iframes keep their inline styles for the
+        scale/overflow/pointer-events controls — edit those directly here.
+    -->
+    <section class="examples">
+        <div class="examples__bg"></div>
+        <div class="examples__inner">
+            <div class="section-header">
+                <h2 class="section-header__title">See What Others Have Built</h2>
+                <p class="section-header__sub">Beautiful websites created with our template</p>
+            </div>
+            <div class="example-cards">
+
+                <div class="example-card">
+                    <a href="https://www.propbook.pro/props/surfhousebajaa6/" target="_blank" rel="noopener" class="example-card__link">
+                        <div class="phone-frame" style="overflow:hidden; position:relative; width:241px; height:433px; background:#1a1a2e; border-radius:8px;">
+                            <iframe
+                                src="https://www.propbook.pro/props/surfhousebajaa6/"
+                                loading="lazy"
+                                title="Surf House Baja"
+                                scrolling="no"
+                                style="position:absolute; top:0; left:0; width:383px; height:687px; border:none; pointer-events:none; display:block; overflow:hidden !important; transform:scale(0.63); transform-origin:top left;">
+                            </iframe>
+                        </div>
+                    </a>
+                    <a href="https://www.propbook.pro/props/surfhousebajaa6/" target="_blank" rel="noopener" class="example-card__view">View →</a>
+                </div>
+
+                <div class="example-card">
+                    <a href="https://www.propbook.pro/props/ravesnwortha1/" target="_blank" rel="noopener" class="example-card__link">
+                        <div class="phone-frame" style="overflow:hidden; position:relative; width:241px; height:433px; background:#1a1a2e; border-radius:8px;">
+                            <iframe
+                                src="https://www.propbook.pro/props/ravesnwortha1/"
+                                loading="lazy"
+                                title="Raven Snworth"
+                                scrolling="no"
+                                style="position:absolute; top:0; left:0; width:383px; height:687px; border:none; pointer-events:none; display:block; overflow:hidden !important; transform:scale(0.63); transform-origin:top left;">
+                            </iframe>
+                        </div>
+                    </a>
+                    <a href="https://www.propbook.pro/props/ravesnwortha1/" target="_blank" rel="noopener" class="example-card__view">View →</a>
+                </div>
+
+                <div class="example-card">
+                    <a href="https://www.propbook.pro/props/ipanemaa4/" target="_blank" rel="noopener" class="example-card__link">
+                        <div class="phone-frame" style="overflow:hidden; position:relative; width:241px; height:433px; background:#1a1a2e; border-radius:8px;">
+                            <iframe
+                                src="https://www.propbook.pro/props/ipanemaa4/"
+                                loading="lazy"
+                                title="Ipanema"
+                                scrolling="no"
+                                style="position:absolute; top:0; left:0; width:383px; height:687px; border:none; pointer-events:none; display:block; overflow:hidden !important; transform:scale(0.63); transform-origin:top left;">
+                            </iframe>
+                        </div>
+                    </a>
+                    <a href="https://www.propbook.pro/props/ipanemaa4/" target="_blank" rel="noopener" class="example-card__view">View →</a>
+                </div>
+
+            </div>
+        </div>
+    </section>
+
+    <!-- PRICING -->
+    <section class="section section--dark">
+        <div class="container">
+            <div class="section-header">
+                <h2 class="section-header__title">Simple Pricing</h2>
+                <p class="section-header__sub">Start free, upgrade when you're ready</p>
+            </div>
+            <div class="pricing-grid">
+                <div class="pricing-card">
+                    <h3 class="pricing-card__name">Starter</h3>
+                    <div class="pricing-card__price">$0<span>/mo</span></div>
+                    <ul class="pricing-card__features">
+                        <li>1 Property</li>
+                        <li>Basic Website</li>
+                        <li>Email Support</li>
+                    </ul>
+                    <a href="#signup" class="btn btn--secondary btn--full">Get Started</a>
+                </div>
+                <div class="pricing-card pricing-card--featured">
+                    <h3 class="pricing-card__name">Professional</h3>
+                    <div class="pricing-card__price">$29<span>/mo</span></div>
+                    <ul class="pricing-card__features">
+                        <li>5 Properties</li>
+                        <li>Custom Domain</li>
+                        <li>Priority Support</li>
+                    </ul>
+                    <a href="#signup" class="btn btn--primary btn--full">Get Started</a>
+                </div>
+                <div class="pricing-card">
+                    <h3 class="pricing-card__name">Agency</h3>
+                    <div class="pricing-card__price">$99<span>/mo</span></div>
+                    <ul class="pricing-card__features">
+                        <li>Unlimited Properties</li>
+                        <li>White Label</li>
+                        <li>Dedicated Support</li>
+                    </ul>
+                    <a href="#signup" class="btn btn--secondary btn--full">Contact Sales</a>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- CTA -->
+    <section id="signup" class="cta">
+        <div class="container">
+            <h2 class="cta__title">Ready to Get Started?</h2>
+            <p class="cta__sub">Join thousands of property owners earning more.</p>
+            <button class="btn btn--white" onclick="openModal()">Start Building for Free</button>
+        </div>
+    </section>
+
+    <!-- FOOTER -->
+    <footer>
+        <p>&copy; 2026 propbook.pro</p>
+    </footer>
+
+    <!-- MODAL -->
+    <div class="modal-overlay" id="signupModal">
+        <div class="modal">
+            <div class="modal__header">
+                <h3 class="modal__title">Create Your Account</h3>
+                <button class="modal__close" onclick="closeModal()">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"/>
+                        <line x1="6" y1="6" x2="18" y2="18"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="modal__body">
+                <form onsubmit="handleSignup(event)">
+                    <div class="form-group">
+                        <label>Email</label>
+                        <input type="email" placeholder="you@example.com" required autocomplete="email">
+                    </div>
+                    <div class="form-group">
+                        <label>Password</label>
+                        <input type="password" placeholder="Create a password" required autocomplete="new-password" spellcheck="false">
+                    </div>
+                    <button type="submit" class="form-submit">Create Account</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        /* ============================================================
+           INPUT GLOW — toggles the upload icon glow when user types
+        ============================================================ */
+        const input = document.getElementById('airbnbInput');
+        const icon  = document.getElementById('uploadIcon');
+        input.addEventListener('input', function () {
+            icon.classList.toggle('hero__icon--glow', this.value.length > 0);
+        });
+
+        /* ============================================================
+           MODAL
+        ============================================================ */
+        function openModal() {
+            document.getElementById('signupModal').classList.add('is-open');
+            document.body.style.overflow = 'hidden';
+        }
+        function closeModal() {
+            document.getElementById('signupModal').classList.remove('is-open');
+            document.body.style.overflow = '';
+        }
+        function handleSignup(e) {
+            e.preventDefault();
+            alert('Signup would connect to your property admin panel.');
+            closeModal();
+        }
+        document.getElementById('signupModal').addEventListener('click', function (e) {
+            if (e.target === this) closeModal();
+        });
+
+        /* ============================================================
+           SMOOTH SCROLL — all #anchor links
+        ============================================================ */
+        document.querySelectorAll('a[href^="#"]').forEach(function (anchor) {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                const target = document.querySelector(this.getAttribute('href'));
+                if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            });
+        });
+    </script>
+</body>
+</html>

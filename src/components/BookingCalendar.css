@@ -1,0 +1,81 @@
+/* Override react-day-picker internal padding and margins */
+
+/* Day numbers: must be visible on white modal background */
+.rdp-day {
+  color: #111 !important;
+}
+
+/* Selected day: white text on brand color */
+.rdp-day_selected,
+.rdp-day_selected:focus-visible,
+.rdp-day_selected:hover {
+  color: #fff !important;
+}
+
+/* Range middle/start/end days: dark blue text */
+.rdp-day_range_middle,
+.rdp-day_range_start,
+.rdp-day_range_end {
+  color: #1E40AF !important;
+}
+
+/* Today: darker text to distinguish */
+.rdp-day_today:not(.rdp-day_outside):not(.rdp-day_selected) {
+  color: #111 !important;
+  font-weight: 700 !important;
+}
+
+/* Disabled/past days: lighter text */
+.rdp-button[disabled]:not(.rdp-day_selected) {
+  opacity: 0.35 !important;
+}
+
+.rdp,
+.rdp-root,
+.rdp-months,
+.rdp-month,
+.rdp-caption,
+.rdp-table {
+  padding-right: 0 !important;
+  margin-right: 0 !important;
+  max-width: 100% !important;
+  outline: none !important;
+}
+
+/* Remove any dotted outlines */
+.rdp-button {
+  outline: none !important;
+}
+
+/* Ensure no overflow */
+.rdp-root {
+  overflow: hidden !important;
+}
+
+/* Weekday headers - force 3 letters */
+.rdp-head_cell::after {
+  content: '';
+  display: inline-block;
+  width: 0;
+}
+
+/* Style weekday cells to fit 3 letters */
+.rdp-head_cell {
+  font-size: 14px !important;
+  letter-spacing: 0 !important;
+}
+
+/* Align navigation arrows to sit next to month text */
+.rdp-caption {
+  display: flex !important;
+  justify-content: flex-start !important;
+  align-items: center !important;
+  gap: 10px !important;
+}
+
+.rdp-nav {
+  display: flex !important;
+  gap: 8px;
+}
+
+

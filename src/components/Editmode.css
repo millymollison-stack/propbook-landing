@@ -1,0 +1,353 @@
+/* Editmode.css — in-edit-mode input styles */
+
+/* ============================================
+   GLOBAL INPUTS
+   ============================================ */
+
+/* ---- Global input base ---- */
+input[type="text"],
+input[type="email"],
+input[type="password"] {
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.3) !important;
+  color: white;
+  font-size: 0.9rem;
+  width: 100% !important;
+  max-width: 400px;
+  margin: 8px 0;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  box-sizing: border-box;
+  outline: none;
+}
+
+/* ---- Shared base — most edit inputs ---- */
+/* ---- .edit-input, .edit-textarea, .edit-section-textarea ---- */
+.edit-input,
+.edit-textarea,
+.edit-section-textarea,
+.edit-intro-textarea {
+  background: rgba(255, 255, 255, 0.3) !important;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  font-family: 'Inter', sans-serif;
+  color: inherit;
+  width: 100% !important;
+  max-width: 100%;
+  font-size: 0.9rem;
+  height: 110px;
+}
+
+.edit-title-input,
+.edit-price-input {
+  background: rgba(255, 255, 255, 0.3) !important;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  font-family: 'Inter', sans-serif;
+  color: inherit;
+  width: 100% !important;
+  max-width: 100%;
+  font-size: 0.9rem;
+  height: 50px;
+}
+
+/* ---- .edit-stat-input ---- */
+.edit-stat-input {
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  font-family: 'Inter', sans-serif;
+  color: inherit;
+  padding: 1px 4px;
+  width: auto;
+}
+
+/* ---- .edit-textarea ---- */
+.edit-textarea {
+  color: #ffffff;
+  width: 100% !important;
+  margin-top: 30px;
+  border-radius: 6px;
+}
+
+/* ---- .edit-title-input ---- */
+.edit-title-input {
+  width: 60% !important;
+  font-size: 1.7rem !important;
+  line-height: 1.1;
+  border-radius: 6px;
+}
+
+/* ---- .edit-price-input ---- */
+.edit-price-input {
+  width: 30% !important;
+  font-size: 1.7rem !important;
+  font-weight: bold !important;
+  background: rgba(255, 255, 255, 0.3) !important;
+  border: 1px solid rgba(255, 255, 255, 0.3) !important;
+  border-radius: 6px !important;
+  color: white !important;
+  font-family: 'Inter', sans-serif !important;
+  box-sizing: border-box !important;
+  padding: 8px 8px !important;
+}
+
+.edit-price-input:focus,
+.edit-price-input:focus-visible {
+  outline: none !important;
+  border: 1px solid var(--brand) !important;
+  border-radius: 6px !important;
+}
+
+/* ---- .edit-intro-textarea ---- */
+.edit-intro-textarea {
+  width: 100% !important;
+  max-width: 100% !important;
+  color: #ffffff;
+  height: 110px;
+}
+
+/* ---- .edit-section-textarea ---- */
+.edit-section-textarea {
+  background: rgba(255, 255, 255, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 6px;
+  width: 100% !important;
+  max-width: 100%;
+}
+
+/* ---- PropertyAmenities amenity buttons ---- */
+.amenity-btn {
+  background-color: transparent;
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.5);
+  border-width: 2px;
+  border-style: solid;
+  opacity: 1;
+}
+
+.amenity-btn.selected {
+  background-color: rgba(255, 255, 255, 0.5);
+  border-color: var(--brand);
+}
+
+.amenity-btn.max-reached {
+  opacity: 0.5;
+}
+
+.amenity-scroll-container {
+  max-height: 160px;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* ---- ImageGallery upload button ---- */
+.gallery-upload-btn {
+  padding: 8px 24px;
+}
+
+.gallery-upload-wrap {
+  margin-right: 20px;
+}
+
+/* ---- Layout footer in edit mode ---- */
+.footer-edit-container {
+  height: 40px !important;
+  padding-top: 1px;
+}
+
+.footer-edit-text {
+  padding-top: 10px;
+}
+
+/* ---- UserMenu profile sidebar ---- */
+.profile-sidebar-divider {
+  position: absolute !important;
+  top: 53px;
+  left: 20px;
+  right: 20px;
+}
+
+/* ---- BookingCalendar / UserMenu h1/h2 in edit mode ---- */
+.hero-title-edit {
+  color: #000000;
+  font-size: clamp(1.5rem, 2.8vw, 1.875rem);
+  font-weight: 400;
+  text-transform: uppercase;
+}
+
+/* ---- ColorPicker panel fixed positioning ---- */
+.color-picker-panel {
+  top: 60px;
+  font-family: "Inter", sans-serif;
+}
+
+/* ---- OnboardingPopup upload label ---- */
+.popup-upload-label {
+  display: inline-block;
+  cursor: pointer;
+}
+
+/* ---- OnboardingPopup image grid ---- */
+.popup-image-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.popup-image-thumb {
+  position: relative;
+  width: 72px;
+  height: 72px;
+  border-radius: 8px;
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.popup-image-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.popup-image-thumb.hero {
+  border: 2px solid var(--brand);
+}
+
+.popup-image-thumb.non-hero {
+  border: 2px solid transparent;
+}
+
+/* ---- OnboardingPopup remove button on thumb ---- */
+.popup-thumb-remove {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  background: rgba(0, 0, 0, 0.6);
+  color: white;
+  border: none;
+  border-radius: 50%;
+  width: 18px;
+  height: 18px;
+  font-size: 10px;
+  cursor: pointer;
+  line-height: 16px;
+  text-align: center;
+}
+
+/* ---- OnboardingPopup color picker button ---- */
+.color-picker-toggle-btn {
+  background-color: var(--brand);
+}
+
+/* ---- OnboardingPopup color swatch ---- */
+.color-swatch-active {
+  border-color: white;
+  box-shadow: 0 0 0 2px var(--brand);
+}
+
+/* ---- OnboardingPopup color custom input ---- */
+.color-custom-input {
+  font-family: monospace;
+}
+
+/* ---- OnboardingPopup color swatch grid ---- */
+.color-swatch {
+  border-color: transparent;
+}
+
+
+/* ---- Number input spinners ---- */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  width: 1px !important;
+  -webkit-appearance: none;
+}
+
+input[type="number"]::-moz-inner-spin-button,
+input[type="number"]::-moz-outer-spin-button {
+  width: 1px !important;
+  -webkit-appearance: none;
+}
+
+/* ---- Price group in edit mode ---- */
+.gallery-content-overlay .flex.items-baseline .flex.items-baseline:has(.edit-price-input) {
+  justify-content: flex-end !important;
+}
+
+/* ============================================
+   BOOKING MODAL TEXTAREA
+   ============================================ */
+.booking-modal-textarea {
+  width: 80%;
+  max-width: 100%;
+  padding: 12px 16px;
+  background: #fff;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  color: #111;
+  font-size: 0.85rem;
+  box-sizing: border-box;
+  outline: none;
+  resize: vertical;
+  display: block;
+  margin: 0;
+}
+
+/* ============================================
+   CALENDAR DAY COLORS — react-day-picker
+   Fix invisible white text on white background
+   ============================================ */
+
+/* Normal unstyled days: dark text */
+.rdp-day:not(.rdp-day_range_middle):not(.rdp-day_range_start):not(.rdp-day_range_end):not(.rdp-day_selected):not(.rdp-day_outside) {
+  color: #111 !important;
+}
+
+/* Selected start/end: white text */
+.rdp-day_selected,
+.rdp-day_selected:focus-visible,
+.rdp-day_selected:hover {
+  color: #fff !important;
+}
+
+/* Today: dark + bold */
+.rdp-day_today:not(.rdp-day_outside):not(.rdp-day_selected) {
+  color: #111 !important;
+  font-weight: 700 !important;
+}
+
+/* Range middle: keep inline color from modifiersStyles */
+.rdp-day_range_middle {
+  /* No override — let modifiersStyles.approved/pending/blocked through */
+}
+
+/* Disabled days (blocked): reduce opacity, keep inline text color from modifiersStyles */
+.rdp-button[disabled]:not(.rdp-day_selected) {
+  opacity: 0.45 !important;
+}
+
+/* Blocked dates: gray bg (#E5E7EB) → dark text (#374151) */
+button.rdp-day.rdp-button[disabled]:not(.rdp-day_selected),
+.rdp-day[style*="E5E7EB"] {
+  color: #374151 !important;
+}
+
+/* Approved/booked dates: pink bg (#FEE2E2) → dark red text (#991B1B) */
+button.rdp-day.rdp-button[disabled]:not(.rdp-day_selected).rdp-day_selected,
+.rdp-day[style*="FEE2E2"] {
+  color: #991B1B !important;
+}
+
+/* Pending dates: yellow bg (#FEF3C7) → dark amber text (#92400E) */
+.rdp-day[style*="FEF3C7"] {
+  color: #92400E !important;
+}
+
+/* Outside days (other months): very faint */
+.rdp-day_outside {
+  opacity: 0.25 !important;
+}

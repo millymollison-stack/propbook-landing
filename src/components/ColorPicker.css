@@ -1,0 +1,240 @@
+/* ColorPicker.css — color picker panel styles */
+
+/* ============================================
+   PANEL & TRIGGER
+   ============================================ */
+
+.color-picker-panel {
+  top: 60px;
+  right: 20px;
+  font-family: Inter, sans-serif;
+}
+
+.color-picker-trigger {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  box-shadow: -4px 4px 12px rgba(0,0,0,0.3);
+  background: var(--brand);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  cursor: pointer;
+  transition: transform 0.2s, background 0.2s;
+}
+
+.color-picker-trigger:hover {
+  background: var(--brand-hover);
+  transform: scale(1.05);
+}
+
+/* ============================================
+   MODAL PANEL
+   ============================================ */
+
+.color-picker-modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 288px;
+  min-height: 440px;
+  background: white;
+  border-radius: 12px;
+  box-shadow: -8px 8px 30px rgba(0,0,0,0.35);
+  border: 1px solid #e5e7eb;
+  animation: fadeIn 0.15s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translate(-50%, -48%); }
+  to   { opacity: 1; transform: translate(-50%, -50%); }
+}
+
+/* ============================================
+   HEADER
+   ============================================ */
+
+.color-picker-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.color-picker-header-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.color-picker-close-btn {
+  padding: 4px;
+  border-radius: 4px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.color-picker-close-btn:hover { background: #f3f4f6; }
+
+/* ============================================
+   PRESET SWATCHES
+   ============================================ */
+
+.color-picker-presets { padding: 12px 16px; }
+
+.color-picker-presets-label {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: #9ca3af;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 8px;
+}
+
+.color-picker-swatches {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
+}
+
+.color-picker-swatch {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  border: 2px solid transparent;
+  background-color: var(--swatch-color);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+  cursor: pointer;
+  transition: transform 0.15s, border-color 0.15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.color-picker-swatch:hover { transform: scale(1.1); }
+.color-picker-swatch.active { border-color: var(--brand); }
+
+/* ============================================
+   CUSTOM COLOR INPUT
+   ============================================ */
+
+.color-picker-custom { padding: 0 16px 16px; }
+
+.color-picker-custom-label {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: #9ca3af;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 8px;
+}
+
+.color-picker-custom-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.color-picker-swatch-preview {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+  flex-shrink: 0;
+}
+
+.color-picker-hex-input {
+  flex: 1;
+  padding: 8px 12px;
+  font-size: 0.875rem;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  text-transform: uppercase;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  outline: none;
+}
+
+.color-picker-hex-input:focus {
+  border-color: var(--brand);
+  box-shadow: 0 0 0 1px var(--brand);
+}
+
+.color-picker-error {
+  font-size: 0.75rem;
+  color: #f87171;
+  margin-top: 4px;
+}
+
+/* ============================================
+   FONT SECTION
+   ============================================ */
+
+.color-picker-font-section {
+  padding: 12px 16px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.color-picker-font-label {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 8px;
+}
+
+.color-picker-font-trigger {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 12px;
+  font-size: 0.875rem;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+  background: white;
+  cursor: pointer;
+  transition: background 0.15s;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+}
+
+.color-picker-font-trigger:hover { background: #f9fafb; }
+
+/* ============================================
+   FONT DROPDOWN
+   ============================================ */
+
+.font-dropdown-portal {
+  position: fixed;
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+  z-index: 2147483647;
+  max-height: 224px;
+  overflow-y: auto;
+}
+
+.font-dropdown-option {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 12px;
+  font-size: 0.875rem;
+  border: none;
+  background: none;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.font-dropdown-option:hover { background: #f3f4f6; }
