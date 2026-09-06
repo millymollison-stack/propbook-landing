@@ -977,13 +977,13 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
  bookings_email: bookingsEmail,
  extras: extras,
  updated_at: new Date().toISOString(),
- // Merge scraped data from sessionStorage (primary) with any overrides (allows
- // callers to pass specific fields). Only override non-empty values.
- scraped_title: (sessionScraped?.title || overrides.scraped_title) || null,
- scraped_location: (sessionScraped?.location || overrides.scraped_location) || null,
- scraped_description: (sessionScraped?.description || overrides.scraped_description) || null,
- scraped_hero_image: (sessionScraped?.hero_image || overrides.scraped_hero_image) || null,
- scraped_images: (sessionScraped?.images?.length ? sessionScraped.images : (overrides.scraped_images?.length ? overrides.scraped_images : null)),
+ // Fresh overrides (from current scrape) take priority over sessionStorage.
+ // sessionStorage may contain stale data from a previous scrape.
+ scraped_title: (overrides.scraped_title || sessionScraped?.title) || null,
+ scraped_location: (overrides.scraped_location || sessionScraped?.location) || null,
+ scraped_description: (overrides.scraped_description || sessionScraped?.description) || null,
+ scraped_hero_image: (overrides.scraped_hero_image || sessionScraped?.hero_image) || null,
+ scraped_images: (overrides.scraped_images?.length ? overrides.scraped_images : (sessionScraped?.images?.length ? sessionScraped.images : null)),
  scraped_rating: (sessionScraped?.rating || overrides.scraped_rating) || null,
  scraped_reviews: (sessionScraped?.reviews || overrides.scraped_reviews) || null,
  scraped_guests: (sessionScraped?.guests || overrides.scraped_guests) || null,
@@ -1238,16 +1238,16 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
          || user.full_name
          || 'My Property',
        websiteDesc: sessionStorage.getItem('popup_website_desc') || websiteDesc || '',
-       propertyHeadline: (() => {
-         const h = sessionStorage.getItem('popup_property_headline') || propertyHeadline || '';
-         return h.length > 20 ? '' : h;  // Never save headline > 20 chars — nav bar shows this as document.title
-       })(),
+       propertyHeadline: sessionStorage.getItem('popup_property_headline') || propertyHeadline || '',
        propertyTitle: sessionStorage.getItem('popup_property_headline') || propertyHeadline || '',
        planChoice: planChoice as 'starter' | 'pro' | 'agency',
        hostingChoice: hostingChoice as 'our' | 'own',
        designChoice: designChoice,
        extras: { seo: extras.seo, ads: extras.ads, analytics: extras.analytics, social: extras.social },
-       scrapedData: resolvedScrapedData,
+       // Use scrapedData (React state from current browser session) first — it has the live
+       // scrape result. Only fall back to resolvedScrapedData (sessionStorage/DB) if no
+       // scrape happened in this browser (e.g. user is updating an existing site).
+       scrapedData: scrapedData || resolvedScrapedData,
        bankChoice: bankChoice,
        // Slug - ONLY from the user's Website Name field (saved before any scrape could overwrite it):
        // Priority: popup_user_website_name (user's typed input, saved at Subscribe click)

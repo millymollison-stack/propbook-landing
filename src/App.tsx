@@ -178,19 +178,26 @@ function AppContent() {
     host_name?: string;
   }) => {
     setSiteName(imported.title.startsWith('@') ? imported.title : '@' + imported.title);
-    // Use the user's edited values from the input fields — these are already the
-    // first-sentence / 24-word extractions done at type time in GetSite.tsx.
-    // property_intro = first 200 chars of description (for the hero section headline).
-    // description = remaining text after 200 chars.
-    const fullDesc = imported.description || '';
-    const heroText = fullDesc.slice(0, 200);
-    const descText = fullDesc.slice(200);
+    // property_intro = first 24 words of description (shown under photos on the published page).
+    // Read the full original from sessionStorage so re-edits always have the untruncated text to
+    // work from, then apply the 24-word limit for the page display.
+    let fullDesc = imported.description || '';
+    try {
+      const scrapedRaw = sessionStorage.getItem('popup_scraped_data');
+      if (scrapedRaw) {
+        const scraped = JSON.parse(scrapedRaw);
+        if (scraped?.description) fullDesc = scraped.description;
+      }
+    } catch { /* use imported.description as fallback */ }
+    // 24-word limit for the published page text
+    const words = fullDesc.trim().split(/\s+/);
+    const propertyIntro24 = words.length > 24 ? words.slice(0, 24).join(' ') : fullDesc;
     setScrapedProperty({
       title: imported.title,
       // property_title: user's edited Property Headline input — respect it
       property_title: imported.property_title || imported.title,
-      property_intro: heroText,
-      description: descText,
+      property_intro: propertyIntro24,
+      description: fullDesc,
       location: imported.location || '',
       price_per_night: imported.price || null,
       max_guests: imported.guests || null,
