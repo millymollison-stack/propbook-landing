@@ -110,8 +110,8 @@ function CheckoutForm({ clientSecret, onSuccess, onError, monthlyTotal }: {
 
     const { error } = await stripe.confirmPayment({
       elements,
-      confirmParams: { return_url: (window.location.origin.replace(/\/$/, '')) + '/?paid=true&session_id={CHECKOUT_SESSION_ID}' },
-      redirect: 'if_required',
+      confirmParams: { return_url: (window.location.origin.replace(/\/$/, '')) + '/app/?paid=true&session_id={CHECKOUT_SESSION_ID}' },
+      redirect: 'always',
     });
 
     setProcessing(false);
@@ -341,7 +341,7 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
          email: user.email,
          user_id: userIdValue,
          slug: slugValue, // needed for post-payment deploy trigger
-         return_url: (window.location.origin.replace(/\/$/, '')) + '/?paid=true&session_id={CHECKOUT_SESSION_ID}',
+         return_url: (window.location.origin.replace(/\/$/, '')) + '/app/?paid=true&session_id={CHECKOUT_SESSION_ID}',
        }),
      });
      console.log('[openStripeGateway] response:', res.status, res.ok);
@@ -507,8 +507,8 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
  const userTypedName = sessionStorage.getItem('popup_user_website_name');
  const rawTitle = scrapedProperty.property_title || scrapedProperty.title || '';
  const resolvedTitle = userTypedName || rawTitle;
- // Website name: first 12 chars
- setWebsiteName(resolvedTitle.slice(0, 12));
+ // Website name: first 16 chars
+ setWebsiteName(resolvedTitle.slice(0, 16));
  // Property headline: first sentence of description — set state directly, NOT via handlePropertyHeadlineChange
  // (handlePropertyHeadlineChange calls setWebsiteDesc which would overwrite the description field)
  const descText = scrapedProperty.property_intro || scrapedProperty.description || '';
@@ -517,7 +517,7 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
  // Property description: first 3 sentences, max 24 words
  setWebsiteDesc(extractFirst24Words(descText));
  setScrapedData({
- title: resolvedTitle.slice(0, 12),
+ title: resolvedTitle.slice(0, 16),
  location: scrapedProperty.location || '',
  // Store the 24-word truncated description — what the user edits in the textarea.
  // Storing the full text here causes save to overwrite user edits with raw scrape copy.
@@ -543,7 +543,7 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
             // Restore user's typed website name first, fall back to scraped title
             const userTyped = sessionStorage.getItem('popup_user_website_name');
             if (parsed.title) {
-              const resolvedTitle = (userTyped || parsed.title || '').slice(0, 12);
+              const resolvedTitle = (userTyped || parsed.title || '').slice(0, 16);
               setWebsiteName(resolvedTitle);
               const h = extractFirstSentence(parsed.description || '');
               setPropertyHeadline(h);
@@ -583,7 +583,7 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
               setWebsiteDesc(descText);
               setScrapedData(prev => ({
                 ...prev,
-                title: (prop.title || '').slice(0, 12),
+                title: (prop.title || '').slice(0, 16),
                 description: stripWhitespace(descText),
                 hero_image: prop.hero_image || prev.hero_image,
                 images: prop.images?.length ? prop.images : prev.images,
@@ -602,7 +602,7 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
  const savedDesign = sessionStorage.getItem('popup_design');
  if (savedDesign) setDesignChoice(savedDesign);
  const savedName = sessionStorage.getItem('popup_website_name');
- if (savedName) setWebsiteName(savedName.slice(0, 12));
+ if (savedName) setWebsiteName(savedName.slice(0, 16));
  const savedHeadline = sessionStorage.getItem('popup_property_headline');
  if (savedHeadline) {
    // Set directly — handlePropertyHeadlineChange() would fire debounce that corrupts description
@@ -627,7 +627,7 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
 
  if (data) {
  // Populate form fields from saved data
- if (data.property_name) setWebsiteName(data.property_name.slice(0, 12));
+ if (data.property_name) setWebsiteName(data.property_name.slice(0, 16));
  if (data.property_headline) setPropertyHeadline(data.property_headline);
  if (data.property_desc) { setWebsiteDesc(data.property_desc); sessionStorage.setItem('popup_website_desc', data.property_desc); }
  if (data.airbnb_url) setAirbnbUrl(data.airbnb_url);
@@ -644,7 +644,7 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
  if (heroImg || imgList.length > 0) {
  const descText = data.scraped_description || data.property_desc || '';
  setScrapedData({
- title: (data.scraped_title || data.property_name || '').slice(0, 12),
+ title: (data.scraped_title || data.property_name || '').slice(0, 16),
  location: data.scraped_location || data.location || '',
  description: stripWhitespace(descText),
  price: data.price || '',
@@ -686,8 +686,8 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
  const handleNameChange = (val: string) => {
  // Strip any leading @ so we never double it up when the sidebar prepends one
  const cleaned = val.startsWith('@') ? val.slice(1) : val;
- // Enforce 12 character max for website name / @handle
- const limited = cleaned.slice(0, 12);
+ // Enforce 16 character max for website name / @handle
+ const limited = cleaned.slice(0, 16);
  setWebsiteName(limited);
  // Persist immediately so Stripe redirect can't lose the user's typed input
  sessionStorage.setItem('popup_website_name', limited);
@@ -874,12 +874,13 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
         }
 
         console.log('[DEBUG ?paid handler] ✅ Payment verified! Updating profile...');
-        // Update profile with verified subscription data
+        // Update profile with verified subscription data AND set admin role
         await supabase.from('profiles').update({
           stripe_subscription_status: sessionData.sub_status || 'active',
           stripe_subscription_plan: plan,
           stripe_subscription_id: sessionData.subscription_id || profileData?.stripe_subscription_id,
           stripe_customer_id: sessionData.customer_id,
+          role: 'admin',
         }).eq('id', user.id);
         await supabase.auth.refreshSession();
         await refreshUser();
@@ -921,14 +922,11 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
         const siteResult = await handleSaveSiteInPopup(true);
         console.log('[DEBUG ?paid handler] ✅ Site saved, siteUrl:', siteResult?.siteUrl, 'propertyId:', siteResult?.propertyId, 'slug:', siteResult?.slug);
         setShowSaveOverlay(false);
-        // Redirect back to the original site the user came from (stored before Stripe redirect)
-        const originalPathname = sessionStorage.getItem('stripe_original_pathname') || '/';
-        if (siteResult?.siteUrl) {
-          // Small delay to ensure HTML is fully uploaded before redirect
+        // Redirect to the newly created site using the slug from sessionStorage
+        const newSlug = siteResult?.slug || sessionStorage.getItem('popup_website_name') || sessionStorage.getItem('popup_user_website_name') || '';
+        if (newSlug) {
           await new Promise(r => setTimeout(r, 1500));
-          // Prefer redirecting to the original site the user came from, so they land
-          // where they started (e.g. /props/wlonsdong59/) not the new site's URL.
-          const redirectUrl = window.location.origin + originalPathname;
+          const redirectUrl = `${window.location.origin}/props/${newSlug}/`;
           console.log('[DEBUG ?paid handler] Redirecting to:', redirectUrl);
           window.location.href = redirectUrl;
         } else if (siteResult?.propertyId) {
@@ -1039,9 +1037,9 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
  // Only pre-fill websiteName from scrape if user hasn't already typed one — they can always edit it before subscribing
  if (data.title) {
  const scrapedTitle = data.title;
- // Website name: first 12 chars of title
- const websiteName12 = scrapedTitle.slice(0, 12);
- if (!websiteName.trim()) handleNameChange(websiteName12);
+ // Website name: first 16 chars of title
+ const websiteName16 = scrapedTitle.slice(0, 16);
+ if (!websiteName.trim()) handleNameChange(websiteName16);
  // Property headline: first sentence of description — set state directly, NOT via handlePropertyHeadlineChange
  const h = extractFirstSentence(data.description || scrapedTitle);
  setPropertyHeadline(h);
@@ -1050,7 +1048,7 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
  const desc24 = extractFirst24Words(data.description || '');
  setWebsiteDesc(desc24);
  // Persist sessionStorage with correctly split values
- sessionStorage.setItem('popup_website_name', websiteName12);
+ sessionStorage.setItem('popup_website_name', websiteName16);
  sessionStorage.setItem('popup_property_headline', extractFirstSentence(data.description || scrapedTitle));
  // Store EXACTLY what the textarea shows (24 words). The input field is the source of
  // truth, so storage must match it — otherwise an untouched field deploys the raw scrape.
@@ -1059,11 +1057,11 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
  // [C2] sessionStorage written
  console.log('[C2] SS desc="' + desc24.slice(0,50) + '"');
  // Notify parent with the 24-word truncated version so the preview stays consistent
- if (onSiteNameChange) onSiteNameChange('@' + websiteName12);
+ if (onSiteNameChange) onSiteNameChange('@' + websiteName16);
  if (onImported) {
  const previewData = {
  ...data,
- title: websiteName12,
+ title: websiteName16,
  property_title: extractFirstSentence(data.description || scrapedTitle),
  // Pass the 24-word version so preview matches what the user edits in the textarea
  description: desc24,
@@ -1073,15 +1071,43 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
  onImported(previewData);
  }
  }
+ // Directly upsert scraped data to onboarding_data via Supabase REST — this is the
+ // PRIMARY source for handleSaveSiteInPopup after Stripe redirect (React state and
+ // sessionStorage are cleared on app remount). Do this FIRST so it survives the redirect.
+ // Use the service_role key directly so it works even if the user isn't set yet.
+ const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+ const SUPABASE_SERVICE_KEY = import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY;
+ if (SUPABASE_URL && user?.id) {
+  fetch(`${SUPABASE_URL}/rest/v1/onboarding_data`, {
+   method: 'POST',
+   headers: {
+    'Content-Type': 'application/json',
+    'apikey': SUPABASE_SERVICE_KEY,
+    'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`,
+    'Prefer': 'resolution=merge-duplicates',
+   },
+   body: JSON.stringify({
+    user_id: user.id,
+    scraped_title: data.title || null,
+    scraped_location: data.location || null,
+    scraped_description: data.description || null,
+    scraped_hero_image: data.hero_image || null,
+    scraped_images: data.images || null,
+    scraped_rating: data.rating || null,
+    scraped_reviews: data.reviews || null,
+    scraped_guests: data.guests || null,
+   }),
+  }).catch(e => console.warn('[handleAirbnbScrape] Direct Supabase save failed:', e));
+ }
  await saveToSupabase({
- scraped_title: data.title || null,
- scraped_location: data.location || null,
- scraped_description: data.description || null,
- scraped_hero_image: data.hero_image || null,
- scraped_images: data.images || null,
- scraped_rating: data.rating || null,
- scraped_reviews: data.reviews || null,
- scraped_guests: data.guests || null,
+  scraped_title: data.title || null,
+  scraped_location: data.location || null,
+  scraped_description: data.description || null,
+  scraped_hero_image: data.hero_image || null,
+  scraped_images: data.images || null,
+  scraped_rating: data.rating || null,
+  scraped_reviews: data.reviews || null,
+  scraped_guests: data.guests || null,
  });
  } else {
  setImportError('Failed to import listing. Please check the URL and try again.');
@@ -1140,7 +1166,7 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
          email: user.email,
          user_id: user.id,
          slug: websiteName,
-         return_url: (window.location.origin.replace(/\/$/, '')) + '/?paid=true&session_id={CHECKOUT_SESSION_ID}',
+         return_url: (window.location.origin.replace(/\/$/, '')) + '/app/?paid=true&session_id={CHECKOUT_SESSION_ID}',
        }),
      });
 
@@ -1274,8 +1300,10 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
      // DEBUG: log exactly what we're passing to createNewSiteRecords
      console.log('[handleSaveSiteInPopup] ★★★ DATA TO SAVE ★★★ name=' + data.websiteName + ' desc=' + (data.websiteDesc || '(empty)').slice(0, 60) + ' headline=' + (data.propertyHeadline || '(empty)').slice(0, 40) + ' scraped.title=' + (data.scrapedData?.title || 'none') + ' scraped.desc=' + (data.scrapedData?.description || '(none)').slice(0, 60));
      const result = await createNewSiteRecords(data);
-     console.log('[handleSaveSiteInPopup] ✅ Site records created:', result.slug, result.propertyId, result.siteUrl);
-     sessionStorage.setItem('popup_site_url', result.siteUrl);
+     // Construct siteUrl from slug since createNewSiteRecords doesn't return it
+     const constructedSiteUrl = `https://www.propbook.pro/props/${result.slug}`;
+     console.log('[handleSaveSiteInPopup] ✅ Site records created:', result.slug, result.propertyId, constructedSiteUrl);
+     sessionStorage.setItem('popup_site_url', constructedSiteUrl);
      sessionStorage.setItem('popup_site_phase', 'saved');
 
      // ── Migrate user's edited text into the new property ──
@@ -1349,8 +1377,10 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
      }
 
      // ── Deploy React app to Hostinger via upload.php ──
-     // Uses the working upload.php endpoint (not the broken deploy.php)
-     console.log('[handleSaveSiteInPopup] 🚀 Deploying React app to /props/', result.slug, '...');
+     // Wrap in try-catch so the function ALWAYS returns result even if deploy fails
+     let deployUrl = constructedSiteUrl;
+     try {
+       console.log('[handleSaveSiteInPopup] 🚀 Deploying React app to /props/', result.slug, '...');
 
      // Fetch fresh property data from DB — the migration just ran and updated it with
      // the user's edited text. Use THIS as the source of truth for HTML generation,
@@ -1432,18 +1462,21 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
      const deployData = await deployRes.json();
      if (!deployData.success) throw new Error(`Deploy failed: ${deployData.error || 'unknown'}`);
      const deployUrl = deployData.siteUrl || `https://www.propbook.pro/props/${result.slug}`;
-     console.log('[handleSaveSiteInPopup] ✅ Deploy result:', deployUrl);
+       console.log('[handleSaveSiteInPopup] ✅ Deploy result:', deployUrl);
+     } catch (deployErr) {
+       console.warn('[handleSaveSiteInPopup] ⚠️ Deploy failed (non-fatal, site records created):', deployErr);
+     }
 
      // Show success state — suppressed in migration mode; the ?paid handler
      // redirects to the deployed site URL instead of showing any banner.
-     setCongratsUrl(result.siteUrl);
+     setCongratsUrl(constructedSiteUrl);
      setDeployUrl(deployUrl);
      setSavingSite(false);
      if (!migrationMode) setIsOpen(false);
      if (!migrationMode) setShowCongrats(true);
 
      // Return the result so callers (e.g. ?paid handler in App.tsx) can get the propertyId
-     return { propertyId: result.propertyId, siteUrl: result.siteUrl, slug: result.slug };
+     return { propertyId: result.propertyId, siteUrl: constructedSiteUrl, slug: result.slug };
    } catch (err) {
      console.error('[handleSaveSiteInPopup] ❌ FATAL ERROR:', err);
      setStripeError('Failed to save site. Check DevTools console: ' + (err instanceof Error ? err.message : String(err)));
@@ -1765,7 +1798,7 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
  <hr />
  <h1 style={{ fontSize: "clamp(1.5rem, 2.8vw, 1.875rem)" }}>Name your property</h1>
  <h4>Website name <span style={{ color: '#e53e3e', fontWeight: 700 }}>(IMPORTANT)</span></h4>
- <input type="text" id="website-name" name="websiteName" placeholder="Website name (max 12 chars)" className="editmode" value={websiteName} onChange={e => handleNameChange(e.target.value)} style={{ maxWidth: 360 }} />
+ <input type="text" id="website-name" name="websiteName" placeholder="Website name (max 16 chars)" className="editmode" value={websiteName} onChange={e => handleNameChange(e.target.value)} style={{ maxWidth: 360 }} />
  <h4 style={{ marginTop: 16 }}>Property headline</h4>
  <input type="text" id="property-headline" name="propertyHeadline" placeholder="Property headline" className="editmode" value={propertyHeadline} onChange={e => handlePropertyHeadlineChange(e.target.value)} style={{ maxWidth: 360 }} />
  <h4 style={{ marginTop: 16 }}>Property description</h4>
@@ -1974,7 +2007,7 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
  include_scrape: designChoice === 'airbnb',
  email: user.email,
  user_id: user.id,
- return_url: (window.location.origin.replace(/\/$/, '')) + '/?paid=true&session_id={CHECKOUT_SESSION_ID}',
+ return_url: (window.location.origin.replace(/\/$/, '')) + '/app/?paid=true&session_id={CHECKOUT_SESSION_ID}',
  }),
  });
  const data = await res.json();

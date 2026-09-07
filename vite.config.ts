@@ -40,8 +40,8 @@ export default defineConfig({
           }
 
           const files = readdirSync(assetsDir);
-          const jsFile = files.find(f => f.startsWith('index-') && f.endsWith('.js')) || '';
-          const cssFile = files.find(f => f.startsWith('index-') && f.endsWith('.css')) || '';
+          const jsFile = files.find(f => f.startsWith('index') && f.endsWith('.js')) || '';
+          const cssFile = files.find(f => f.startsWith('index') && f.endsWith('.css')) || '';
           const builtAt = Date.now().toString();
 
           writeFileSync(join(distDir, 'assets-manifest.json'), JSON.stringify({ js: jsFile, css: cssFile, builtAt }, null, 2));

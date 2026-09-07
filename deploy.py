@@ -92,18 +92,15 @@ if result.returncode != 0:
 print(f"  ✅ Built in {proj}/src/dist/")
 js_path = f"{proj}/src/dist/assets/index.js"
 css_path = f"{proj}/src/dist/assets/index.css"
-js2_path = f"{proj}/src/dist/assets/index2.js"
-print(f"  JS: {os.path.getsize(js_path)//1024}KB, CSS: {os.path.getsize(css_path)//1024}KB, JS2: {os.path.getsize(js2_path)//1024}KB")
+print(f"  JS: {os.path.getsize(js_path)//1024}KB, CSS: {os.path.getsize(css_path)//1024}KB")
 
 # ─── STEP 3: Upload bundle to /dev/assets/ (overwrite) ────────
 print("\n[3] Uploading bundle to /dev/assets/...")
 ssh(f"mkdir -p {DEV_DIR}", check=False)
 js_ok = sftp_put(js_path, f"{DEV_DIR}/index.js")
 css_ok = sftp_put(css_path, f"{DEV_DIR}/index.css")
-js2_ok = sftp_put(js2_path, f"{DEV_DIR}/index2.js")
 print(f"  index.js → {'✅' if js_ok else '❌'}")
 print(f"  index.css → {'✅' if css_ok else '❌'}")
-print(f"  index2.js → {'✅' if js2_ok else '❌'}")
 
 # Verify
 verify = ssh(f"ls -la {DEV_DIR}/", check=False)

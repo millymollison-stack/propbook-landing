@@ -323,7 +323,7 @@ function AppContent() {
 function App() {
   const Router = (window as any).__USE_HASH_ROUTER__ ? HashRouter : BrowserRouter;
   return (
-    <Router>
+    <Router basename="/app">
       <ErrorBoundary>
         <AppContent />
       </ErrorBoundary>

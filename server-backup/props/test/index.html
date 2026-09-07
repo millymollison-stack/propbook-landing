@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=Libre+Baskerville:wght@400;700&family=Oswald:wght@400;500;600;700&family=Sintony:wght@400;700&family=Raleway:wght@400;500;600;700&family=Nixie+One&family=Oleo+Script:wght@400;700&family=Unbounded:wght@400;500;600;700;800;900&family=Urbanist:wght@400;500;600;700&family=Barrio&family=Advent+Pro:wght@400;500;600;700&family=DM+Serif+Display&family=Fraunces:wght@400;700&family=Archivo+Black&display=swap" rel="stylesheet">
+    <script>
+(function() {
+  var saved = localStorage.getItem("site-brand-color");
+  if (saved) {
+    try {
+      var c = JSON.parse(saved);
+      document.documentElement.style.setProperty("--brand", c.brand);
+      document.documentElement.style.setProperty("--brand-hover", c.brandHover);
+      document.documentElement.style.setProperty("--brand-disabled", c.brandDisabled);
+    } catch(e) {}
+  }
+  var savedFont = localStorage.getItem("site-font-accent");
+  if (savedFont) {
+    document.documentElement.style.setProperty("--font-accent", "'" + savedFont + "', serif");
+  }
+})();
+</script>
+    <script>
+// If ?paid=true (Stripe return), redirect to main propbook.pro to handle the migration
+(function() {
+  var params = new URLSearchParams(window.location.search);
+  if (params.get('paid') === 'true') {
+    var sessionId = params.get('session_id');
+    var returnUrl = window.location.href; // Remember where we came from
+    sessionStorage.setItem('migration_return_url', returnUrl);
+    var redirectUrl = 'https://www.propbook.pro/?paid=true';
+    if (sessionId) redirectUrl += '&session_id=' + encodeURIComponent(sessionId);
+    window.location.replace(redirectUrl);
+    return;
+  }
+})();
+</script>
+    <style>:root{--brand:#C47756;--brand-hover:#B5684A;--brand-disabled:#D4A393;--font-accent:'Playfair Display',serif}</style>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@Test</title>
+    <meta name="description" content="Do you want peace and quiet? This is the right place! Welcome!" />
+    <meta property="og:title" content="Test Tesxt" />
+    <meta property="og:description" content="Do you want peace and quiet? This is the right place! Welcome!" />
+    <meta property="og:image" content="https://a0.muscache.com/im/pictures/fe7217ff-0b24-438d-880d-b94722c75bf5.jpg?im_w=1200" />
+    <meta property="og:url" content="https://www.propbook.pro/props/test" />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Test Tesxt" />
+    <meta name="twitter:description" content="Do you want peace and quiet? This is the right place! Welcome!" />
+    <meta name="twitter:image" content="https://a0.muscache.com/im/pictures/fe7217ff-0b24-438d-880d-b94722c75bf5.jpg?im_w=1200" />
+    <link rel="canonical" href="https://www.propbook.pro/props/test" />
+
+    <link rel="stylesheet" href="//propbook.pro/dev/assets/index.css" />
+    <script>
+    // Expose sidebar openers on window so static HTML buttons can call them
+    window.__openGuestSidebar = function() {
+      var evt = new CustomEvent('open-guest-sidebar');
+      document.dispatchEvent(evt);
+    };
+    window.__openAdminSidebar = function() {
+      var evt = new CustomEvent('open-admin-sidebar');
+      document.dispatchEvent(evt);
+    };
+    window.__openLoginModal = function() {
+      var evt = new CustomEvent('open-login-modal');
+      document.dispatchEvent(evt);
+    };
+    </script>
+  <script>window.__PROPERTY_DATA__ = {"id":"74779a0a-c032-419a-8e63-fb06babb3bba","slug":"test","title":"Test","name":"@Test","description":"Do you want peace and quiet? This is the right place! Welcome!","property_title":"Test Tesxt","property_headline":"Test Tesxt","property_intro":"Do you want peace and quiet? This is the right place! Welcome!","hero_image":"https://a0.muscache.com/im/pictures/fe7217ff-0b24-438d-880d-b94722c75bf5.jpg?im_w=1200","images":["https://a0.muscache.com/im/pictures/miso/Hosting-17681434/original/6ae52fad-14f9-4730-8254-c977a83b5299.jpeg?im_w=1200","https://a0.muscache.com/im/pictures/miso/Hosting-17681434/original/3eea8c96-2039-4ffe-a975-5c08c655e3a4.jpeg?im_w=1200","https://a0.muscache.com/im/pictures/miso/Hosting-17681434/original/63f82a25-963d-4e76-bb05-f9eba2a6a127.jpeg?im_w=1200","https://a0.muscache.com/im/pictures/miso/Hosting-17681434/original/d2433bc1-bfbe-4b7c-b52c-341d4e7024b7.jpeg?im_w=1200","https://a0.muscache.com/im/pictures/miso/Hosting-17681434/original/aa9e1365-b9c4-43ba-b5b3-50f2b97efcda.jpeg?im_w=1200","https://a0.muscache.com/im/pictures/miso/Hosting-17681434/original/95bc629e-7b4e-4e2b-b549-b96dc87d7832.jpeg?im_w=1200","https://a0.muscache.com/im/pictures/miso/Hosting-17681434/original/c03bc20b-f29a-458d-a07b-20e842e51ad9.jpeg?im_w=1200","https://a0.muscache.com/im/pictures/miso/Hosting-17681434/original/5afb7d52-f613-4200-b40e-051c2acfbcbf.jpeg?im_w=1200"],"address":"Vargem Grande","location":"Vargem Grande","bedrooms":2,"beds":3,"bathrooms":1,"max_guests":3,"price_per_night":150,"rating":null,"reviews":null,"brand_color":null,"font_accent":null,"property_details":"House Baja has 4 uniquely designed bedrooms all with access to the ocean front balcony. Wake up to a view of the ocean and a point break wave you will be eager to jump in and surf. \n\nThe open-plan kitchen has plenty of space for cooking up a feast, while friends can hang out at the counter on playful swings suspended from the ceiling.\n\nThe dining area seats six, and there’s an even bigger table on the patio for lively group meals under the stars.\n\nUpstairs, the first two bedrooms have floor to ceiling ocean facing windows, each with double beds, crisp white linens, and storage space. The third bedroom has a queen bed and a writing desk, while the fourth has a cozy single. Need extra sleeping space? The large upstairs hallway has a guest sofa bed. \n\nStep out onto the balcony for morning stretches, sun-soaked afternoons, or sunset cocktails.\nThe bathroom keeps it simple with a spacious hot shower, hand-built furnishings, and plenty of fresh towels. \n\nOutside, unwind in the sand garden with hammocks, swings, and a fire pit, perfect for starlit conversations. \n\nFeeling competitive? The garage has a ping pong table ready for action. Plus, there’s a surfboard rack with foam boards and a stash of used wetsuits, so you can get everyone in the ocean.","activities":"This quiet oceanfront spot has it all—if you’re not surfing Shipwrecks right out the front of the house, check out the tide pools at low tide, find rocks, and a decaying ship resting in the bay.\n\nThe neighborhood is safe, friendly, and laid-back. Beyond the gates, open land gives you a true sense of freedom, and the local town has supermarkets, restaurants, and whatever you need.\n\nThe Baja 1000 coastal route runs right outside the gates, perfect for watching off-roaders race up the coast.\n\nSurf: \nThe house is located right at the famous \"Shipwrecks\" surf break, known for long right-peeling waves most of the year. The best conditions are during a big swell and high tide. On smaller days, you’ll get an extra foot in size on a rising tide. It can get windy at certain times, but you're good to surf before 10 a.m. and after 6 p.m. The break gets its name from a huge shipwreck that ran aground in 1982 and has been slowly reclaimed by the ocean.\n\nOn the right swell, you can ride the wave from directly in front of the house all the way around the bay—about 3/4 mile! While I haven't done it myself, I’ve seen many skilled surfers make the journey back to the point with huge smiles. Every local has their own story of when they caught it just right!\n\nStars:\nAt night, watch campfires dotting the bay from the ship or gaze at the moon’s reflection on the water from the house balcony. Thanks to the clean, dry air and lack of streetlights, the stars and Milky Way here are brighter than you'll ever see. Just a short drive away is Mexico’s national observatory, perched high in the mountains (snow-capped in winter) — considered the 4th best spot globally for stargazing. From there, you can see both the Pacific Ocean and the Sea of Cortez!\n\nFishing:\nThe local fishermen head out in front of the ship every morning before sunrise and return around 10 a.m. If you’re up early, you can buy the fresh catch of the day directly from them—prices and quality are unbeatable! The hustle and bustle of locals guiding the boats past the waves and pulling them up the beach is a great experience. Just ask what they’ve caught and make your purchase.\n\nIf you're looking for more, 40 minutes south is San Quintin, where you’ll find ancient volcanoes and Oyster Bay. Stop by the Oyster Shack for 12 oysters for just $4. Fishing boats from San Quintin also head out to Isla San Martin, offering world-class fishing.\n\n4x4:\nThe Baja 500 and 1000 routes run right along the back of the property, so you can watch 4x4s, bikes, and other vehicles test their limits on the track. If you're visiting during race season, you might even catch the pros in action pre-running the course. On race day, stay safely on the balcony and watch it from there. Street level is super dangerous!","local_area":"The house is 15 minutes from Mexico’s national park and observatory and 40 minutes from San Quintín's ancient volcanoes and Oyster Bay - $5 for 20 Amazing!, Fishing boats head out to Isla San Martín for world-class fishing from San Quintín. Call and book a trip K&M Fishing - $500 x4 people for the day.\n\nLocal fishermen head out right in front of the house most mornings and offer fresh catches at unbeatable prices—get there around 10 a.m. and strike a deal.\n\nFor the best tacos in town, check out Pericos at the end of town—look for the orange building with smoke billowing from a custom-built grill. It’s a must-try!\n\nA trip to Oyster Bay in San Quintín is a must, where you can get 20 oysters shucked or BBQ'd for just $5.\nOn Fridays, there’s a popular Oaxaca market 25 minutes south in Vicente Guerrero.","getting_there":"Head straight out to Highway 1(D) its a toll road and takes you straight out to the ocean and away from local traffic. Head 2 hours south to Ensenada and then another 2 hours south through beautiful wine country. Welcome to rural Baja California. It's beautiful. \n\nThe road to the house is directly off Highway 1. 10 minutes towards the ocean, and then you are at the main gate to the neighborhood. I can be locked after 7:30pm so beep twice and security will arrive in a few minutes.\n\nCall Ramon on: 0115216161117557 and tell them you are staying at Lot 3 if needed or you want firewood. \n\nIf you have any problems with the house, you can call Julio at: 0115216161084774. He is usually just a few minutes away between 10:30am and 4pm in the day.","host_name":null,"email":null,"owner_id":"af56490c-00b0-4af1-8716-714ad09c54c2"};</script></head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/dev/assets/index.js"></script>
+  <script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/v31edd6df95cf4e85bb4c19e7a9bdbcba1788362987495" integrity="sha512-iIg7k2xntmwu6/uSb5tpc/hySgZc4eoL31yB29W6tJFo2akwjPWcEqnCEdJvGexCL0KEQwVYv5BlowfhVz26hg==" data-cf-beacon='{"version":"2024.11.0","token":"35775b8a793b458ca578f4ddb87d2c4b","r":1,"spa":2}' crossorigin="anonymous"></script>
+</body>
+</html>

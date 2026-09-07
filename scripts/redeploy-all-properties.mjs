@@ -9,15 +9,15 @@ import { fileURLToPath } from 'url';
 
 const __dirname2 = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(__dirname2, '..');
-const JS_FILE = path.join(ROOT, 'src', 'dist', 'assets', 'index-C0QaLB6O.js');
-const CSS_FILE = path.join(ROOT, 'src', 'dist', 'assets', 'index-XCk-fpLu.css');
+const JS_FILE = path.join(ROOT, 'src', 'dist', 'assets', 'index.js');
+const CSS_FILE = path.join(ROOT, 'src', 'dist', 'assets', 'index.css');
 
 const ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp0emFncGJkcnFmaWZkaXN4aXByIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDQ3MzUyODUsImV4cCI6MjA2MDMxMTI4NX0.uWqc82Hb-qnRq4H9kg5IPykUosm9VvU2s6e8mOalkR0';
 const UPLOAD_URL = 'https://www.propbook.pro/upload.php';
 const DEPLOY_SECRET = 'propbook-deploy-2026';
-const BUNDLE_VERSION = '1788549025';
-const BUNDLE_JS = 'index-C0QaLB6O.js';
-const BUNDLE_CSS = 'index-XCk-fpLu.css';
+const BUNDLE_VERSION = '1788726316593';
+const BUNDLE_JS = 'index.js';
+const BUNDLE_CSS = 'index.css';
 
 // Properties from Supabase query
 const PROPERTIES = [
@@ -30,13 +30,15 @@ const PROPERTIES = [
   { slug: 'your-summertime-hideaway-in-bohemian-botafogo', id: '6e023e3c-ecce-4435-914a-3d7c4816092f' },
   { slug: 'test', id: '65249fed-e34f-43a5-bc55-71d8d1752075' },
   { slug: 'pedacg53', id: 'f89e1e7a-d79f-4046-a12d-6e9016e57777' },
+  { slug: 'chaletb2', id: 'cce4c684-ffaf-4349-81b0-a0e4886ad6d7' },
+  { slug: 'ravenswor-b1', id: 'a6603efa-a0e7-451c-83c2-5658a19d78d1' },
 ];
 
 function postJson(payload) {
   return new Promise((resolve, reject) => {
     const body = JSON.stringify(payload);
     const opts = {
-      hostname: 'www.propbook.pro', path: '/upload.php', method: 'POST',
+      hostname: 'propbook.pro', path: '/upload.php', method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) },
     };
     const req = https.request(opts, res => {

@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=Libre+Baskerville:wght@400;700&family=Oswald:wght@400;500;600;700&family=Sintony:wght@400;700&family=Raleway:wght@400;500;600;700&family=Nixie+One&family=Oleo+Script:wght@400;700&family=Unbounded:wght@400;500;600;700;800;900&family=Urbanist:wght@400;500;600;700&family=Barrio&family=Advent+Pro:wght@400;500;600;700&family=DM+Serif+Display&family=Fraunces:wght@400;700&family=Archivo+Black&display=swap" rel="stylesheet"><script>
+(function() {
+  var saved = localStorage.getItem('site-brand-color');
+  if (saved) {
+    try {
+      var c = JSON.parse(saved);
+      document.documentElement.style.setProperty('--brand', c.brand);
+      document.documentElement.style.setProperty('--brand-hover', c.brandHover);
+      document.documentElement.style.setProperty('--brand-disabled', c.brandDisabled);
+    } catch(e) {}
+  }
+  var savedFont = localStorage.getItem('site-font-accent');
+  if (savedFont) {
+    document.documentElement.style.setProperty('--font-accent', "'" + savedFont + "', serif");
+  }
+})();
+</script>
+<style>:root{--brand:#C47756;--brand-hover:#B5684A;--brand-disabled:#D4A393;--font-accent:'Playfair Display',serif}</style>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Surf House Baja - New Site Template</title>
+    <script type="module" crossorigin src="/assets/index.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index.css">
+  </head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>
