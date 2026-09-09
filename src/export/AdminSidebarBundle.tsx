@@ -1533,6 +1533,8 @@ export function AdminSidebar({ isOpen, onClose, mockMode = false, onPropertyLoad
       loadSubscriptionData();
 
       setPublishError(null);
+      // Set flag so the published site shows the share popup on first visit
+      sessionStorage.setItem('site_just_published', '1');
       // Redirect to the newly published site
       window.__PROPERTY_DATA__ = null; window.location.replace(siteUrl + "?t=" + Date.now());
     } catch (err) {
@@ -1800,11 +1802,12 @@ export function AdminSidebar({ isOpen, onClose, mockMode = false, onPropertyLoad
           </div>
 
           {/* Sign out */}
-          <div className="flex justify-center">
+          <div className="flex justify-center" style={{ paddingBottom: '1rem' }}>
             <button onClick={async () => { await signOut(); onClose(); }} className="sidebar-signout">
               <LogOut className="h-4 w-4" /><span>Sign Out</span>
             </button>
           </div>
+          <div style={{ height: '2rem' }} />
         </div>
       </div>
 

@@ -56,19 +56,20 @@ export const BUNDLE_VERSION = '${builtAt}';
           console.log('[post-build] Bundle versions written');
 
           // Also update SPA_TEMPLATE in siteDuplicationService.ts so the deployed bundle has correct URLs
+          // Add cache-busting query string so Cloudflare/browsers always fetch the fresh file after deploy
           const sdsPath = join(__dirname, 'src/services/siteDuplicationService.ts');
           if (existsSync(sdsPath)) {
             let sds = readFileSync(sdsPath, 'utf8');
             sds = sds.replace(
               /<link rel="stylesheet" href="[^ "]*index\.css" \/>/,
-              `<link rel="stylesheet" href="//propbook.pro/dev/assets/index.css" />`
+              `<link rel="stylesheet" href="//propbook.pro/dev/assets/index.css?v=${builtAt}" />`
             );
             sds = sds.replace(
-              /<script type="module" src="[^ "]*index-[A-Za-z0-9]+\.js"><\/script>/,
-              `<script type="module" src="//propbook.pro/dev/assets/index.js"></script>`
+              /<script type="module" src="[^ "]*index(\-[A-Za-z0-9]+)?\.js"><\/script>/,
+              `<script type="module" src="//propbook.pro/dev/assets/index.js?v=${builtAt}"></script>`
             );
             writeFileSync(sdsPath, sds);
-            console.log('[post-build] SPA_TEMPLATE updated with JS=' + jsFile + ' CSS=' + cssFile);
+            console.log('[post-build] SPA_TEMPLATE updated with JS=' + jsFile + ' CSS=' + cssFile + '?v=' + builtAt);
           }
         } catch (err) {
           console.error('[post-build-php] Error:', err);

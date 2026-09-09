@@ -97,6 +97,12 @@ Deno.serve(async (req: Request) => {
         bedrooms: onboardingData.bedrooms || null,
         beds: onboardingData.beds || null,
         baths: onboardingData.baths || null,
+        brand_color: onboardingData.brand_color || null,
+        font_accent: onboardingData.font_accent || null,
+        stripe_subscription_status: onboardingData.stripe_subscription_status || null,
+        stripe_subscription_plan: onboardingData.stripe_subscription_plan || null,
+        stripe_subscription_id: onboardingData.stripe_subscription_id || null,
+        stripe_customer_id: onboardingData.stripe_customer_id || null,
       };
       sourceImages = imgList.map((url: string, i: number) => ({ url, position: i }));
       sourceLabel = 'onboarding_data';

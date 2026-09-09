@@ -75,7 +75,7 @@ const SPA_TEMPLATE = `<!DOCTYPE html>
     <meta name="twitter:image" content="{{OG_IMAGE}}" />
     <link rel="canonical" href="{{CANONICAL_URL}}" />
 {{NOINDEX}}{{GOOGLE_VERIFY}}
-    <link rel="stylesheet" href="//propbook.pro/dev/assets/index.css" />
+    <link rel="stylesheet" href="//propbook.pro/dev/assets/index.css?v=1788881268209" />
     <script>
     // Expose sidebar openers on window so static HTML buttons can call them
     window.__openGuestSidebar = function() {
@@ -94,7 +94,7 @@ const SPA_TEMPLATE = `<!DOCTYPE html>
   </head>
   <body>
     <div id="root"></div>
-    <script type="module" src="/dev/assets/index.js"></script>
+    <script type="module" src="//propbook.pro/dev/assets/index.js?v=1788889943814"></script>
   </body>
 </html>`;
 

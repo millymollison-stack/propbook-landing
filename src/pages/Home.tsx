@@ -267,13 +267,14 @@ export function Home({ isEditing: externalIsEditing, onHasChanges, registerSaveA
     const isOwner = property.owner_id === user.id;
     if (isOwner) { setIsGuest(false); return; }
     // Check if user has a guest_profiles record for this property
-    supabase
-      .from('guest_profiles')
-      .select('id')
-      .eq('user_id', user.id)
-      .eq('property_id', property.id)
-      .single()
-      .then(({ data }) => setIsGuest(!!data));
+    // Use anon key explicitly in URL param to avoid 406 "No API key found" errors
+    const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const guestUrl = `${supabaseUrl}/rest/v1/guest_profiles?select=id&user_id=eq.${user.id}&property_id=eq.${property.id}&apikey=${anonKey}`;
+    fetch(guestUrl, { headers: { Authorization: `Bearer ${anonKey}` } })
+      .then(r => { if (!r.ok) { setIsGuest(false); return; } return r.json(); })
+      .then(d => setIsGuest(!!d?.[0]))
+      .catch(() => setIsGuest(false));
   }, [property?.id, user]);
 
   // ── Reload property when ?paid handler saves a new property ─────────────────

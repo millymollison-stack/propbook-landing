@@ -249,16 +249,17 @@ function AppContent() {
         onOpenLogin={() => setShowLogin(true)}
 
       >
+        {/* NOTE — urlSlug prop: when basename=/props/<slug> (isPropertySite), React Router strips the slug
+             before useParams() sees it. window.location.pathname still has the full path, so App.tsx
+             extracts it and passes urlSlug to CustomerSite. Debug: set window.__FORCE_SLUG__ in console. */}
         <Routes>
-          <Route path="/" element={<Home
-          onOpenLogin={() => setShowLogin(true)} isEditing={isEditing} onHasChanges={setHasChanges} registerSaveAll={(fn) => { saveAllRef.current = fn; return true; }} onSiteNameChange={setSiteName} onOpenSidebar={() => setSidebarOpen(true)} forceOpenOnboarding={showOnboarding} onOnboardingClose={() => setShowOnboarding(false)} scrapedProperty={scrapedProperty} scrapedImages={scrapedImages} />} />
+          <Route path="/" element={(window as any).__PROPERTY_DATA__ ? (() => { const pathname = typeof window < 'u' ? window.location.pathname : ''; const slugMatch = pathname.match(/\/props\/([^/]+)/); const urlSlug = slugMatch?.[1]; return <CustomerSite onSiteNameChange={setSiteName} isEditing={isEditing} registerSaveAll={(fn) => { saveAllRef.current = fn; return true; }} onPropertyLoaded={(ownerId) => setCurrentPropertyOwnerId(ownerId)} scrapedProperty={scrapedProperty} scrapedImages={scrapedImages} urlSlug={urlSlug} />; })() : (<Home onOpenLogin={() => setShowLogin(true)} isEditing={isEditing} onHasChanges={setHasChanges} registerSaveAll={(fn) => { saveAllRef.current = fn; return true; }} onSiteNameChange={setSiteName} onOpenSidebar={() => setSidebarOpen(true)} forceOpenOnboarding={showOnboarding} onOnboardingClose={() => setShowOnboarding(false)} scrapedProperty={scrapedProperty} scrapedImages={scrapedImages} />)} />
           <Route path="/auth/confirm" element={<EmailConfirmation />} />
           <Route path="/admin" element={user?.role === 'admin' ? <AdminDashboard /> : <Navigate to="/" replace />} />
           <Route path="/property-admin" element={user ? <PropertyAdmin /> : <Navigate to="/login" replace />} />
           <Route path="/onboarding" element={<Onboarding />} />
           <Route path="/pay/:bookingId" element={<PaymentPage />} />
-          <Route path="/props/Casablanca1" element={<CustomerSite onSiteNameChange={setSiteName} isEditing={isEditing} registerSaveAll={(fn) => { saveAllRef.current = fn; return true; }} onPropertyLoaded={(ownerId) => setCurrentPropertyOwnerId(ownerId)} scrapedProperty={scrapedProperty} scrapedImages={scrapedImages} />} />
-          <Route path="/props/:slug" element={<CustomerSite onSiteNameChange={setSiteName} isEditing={isEditing} registerSaveAll={(fn) => { saveAllRef.current = fn; return true; }} onPropertyLoaded={(ownerId) => setCurrentPropertyOwnerId(ownerId)} scrapedProperty={scrapedProperty} scrapedImages={scrapedImages} />} />
+          <Route path="/props/:slug" element={<CustomerSite onSiteNameChange={setSiteName} isEditing={isEditing} registerSaveAll={(fn) => { saveAllRef.current = fn; return true; }} onPropertyLoaded={(ownerId) => setCurrentPropertyOwnerId(ownerId)} scrapedProperty={scrapedProperty} scrapedImages={scrapedImages} urlSlug={undefined} />} />
           <Route path="/saas-admin" element={user?.role === 'saas_admin' ? <SaasAdminDashboard /> : <Navigate to="/" replace />} />
           <Route path="/guest/account" element={<GuestAccount />} />
         </Routes>
@@ -322,8 +323,13 @@ function AppContent() {
 
 function App() {
   const Router = (window as any).__USE_HASH_ROUTER__ ? HashRouter : BrowserRouter;
+  const isPropertySite = !!(window as any).__PROPERTY_DATA__;
+  const propData = (window as any).__PROPERTY_DATA__;
+  // Property sites: basename=/props/<slug> so URL /props/ravenswortha1 strips to / and matches path="/"
+  // Main app: basename=/app so URL /app/ strips to / and matches path="/"
+  const basename = isPropertySite && propData?.slug ? `/props/${propData.slug}` : '/app';
   return (
-    <Router basename="/app">
+    <Router basename={basename}>
       <ErrorBoundary>
         <AppContent />
       </ErrorBoundary>

@@ -159,6 +159,9 @@ function CheckoutForm({ clientSecret, onSuccess, onError, monthlyTotal }: {
 export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scrapedImages, onSiteNameChange, onOpenSidebar, onSiteCreated }: OnboardingPopupProps) {
  const { user, refreshUser } = useAuth();
  const [isOpen, setIsOpen] = useState(true); // Always open when rendered (parent controls visibility)
+
+ // Sync brandColor to CSS accent-color so checkboxes/radios inherit it
+ useEffect(() => { document.documentElement.style.setProperty('--brand-accent', brandColor); }, [brandColor]);
  // Tracks whether this popup instance is still mounted (used to cancel auto-open timer on unmount)
  const isMountedRef = { current: true };
  const descSyncTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -179,11 +182,15 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
    setIsOpen(false);
    setShowSaveOverlay(true);
    setSavingSite(true);
-   handleSaveSiteInPopup(true).then(siteResult => {
+   handleSaveSiteInPopup(true).then(async siteResult => {
      setShowSaveOverlay(false);
-     if (siteResult?.siteUrl) {
-       window.location.href = siteResult.siteUrl;
-     } else if (siteResult?.propertyId) {
+     // Refresh user subscription data from Supabase so the sidebar shows correct plan
+     try { await refreshUser(); } catch (e) { console.warn('[Stripe return] refreshUser error:', e); }
+     // Show the finish-building popup
+     setShowFinishPopup(true);
+     // In migration mode, stay on the app page so user can review their migrated data
+     // and publish from the sidebar. Only redirect if explicitly needed.
+     if (siteResult?.propertyId) {
        sessionStorage.setItem('home_loaded_property_id', siteResult.propertyId);
      }
    }).catch(err => {
@@ -382,6 +389,7 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
    }
  };
 
+ const [showFinishPopup, setShowFinishPopup] = useState(false);
  const [showStripeModal, setShowStripeModal] = useState(false);
  const [stripeClientSecret, setStripeClientSecret] = useState('');
  const [stripePayMethod, setStripePayMethod] = useState<'card' | 'paypal' | 'venmo'>('card');
@@ -560,7 +568,7 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
           setShowCongrats(true);
           const restoredName = sessionStorage.getItem('popup_website_name') || 'surfhousebaja';
           if (onImported) {
-            onImported({ title: restoredName, description: sessionStorage.getItem('popup_website_desc') || '' });
+            onImported({ title: restoredName, description: sessionStorage.getItem('popup_property_intro') || sessionStorage.getItem('popup_website_desc') || '' });
           }
 
           // ── Load fresh migrated data from properties table (not stale onboarding_data) ────
@@ -579,6 +587,8 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
               // Update sessionStorage so other parts of the app see the migrated values
               sessionStorage.setItem('popup_property_headline', headlineText);
               sessionStorage.setItem('popup_website_desc', descText);
+              // Store full property_intro for the 2nd text box
+              sessionStorage.setItem('popup_property_intro', prop.property_intro || prop.description || '');
               setPropertyHeadline(headlineText);
               setWebsiteDesc(descText);
               setScrapedData(prev => ({
@@ -715,13 +725,16 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
  setWebsiteDesc(truncated);
  // Write to sessionStorage IMMEDIATELY so Create Draft Site always reads fresh data
  sessionStorage.setItem('popup_website_desc', truncated);
+ // Store the FULL untruncated text for the 2nd text box (property_intro)
+ sessionStorage.setItem('popup_property_intro', val);
  // Debounce the preview sync — read from sessionStorage (fresh) not React state (stale)
  clearTimeout(descSyncTimer.current);
  descSyncTimer.current = setTimeout(() => {
  if (onImported) {
  const latestHeadline = sessionStorage.getItem('popup_property_headline') || propertyHeadline || 'surfhousebaja';
  const latestName = sessionStorage.getItem('popup_website_name') || websiteName;
- const latestDesc = sessionStorage.getItem('popup_website_desc') || val;
+ // Read from popup_property_intro (full text) not popup_website_desc (24-word truncated)
+ const latestDesc = sessionStorage.getItem('popup_property_intro') || sessionStorage.getItem('popup_website_desc') || val;
  onImported({ title: latestName, property_title: latestHeadline, description: latestDesc });
  }
  }, 1000);
@@ -1054,6 +1067,8 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
  // truth, so storage must match it — otherwise an untouched field deploys the raw scrape.
  // The full original stays available under popup_scraped_data.description.
  sessionStorage.setItem('popup_website_desc', desc24);
+ // Store the FULL original description for the 2nd text box (property_intro)
+ sessionStorage.setItem('popup_property_intro', data.description || '');
  // [C2] sessionStorage written
  console.log('[C2] SS desc="' + desc24.slice(0,50) + '"');
  // Notify parent with the 24-word truncated version so the preview stays consistent
@@ -1189,6 +1204,8 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
      sessionStorage.setItem('popup_extras_social', extras.social ? 'true' : 'false');
      sessionStorage.setItem('popup_website_name', websiteName);
      sessionStorage.setItem('popup_website_desc', websiteDesc);
+     sessionStorage.setItem('popup_brand_color', brandColor);
+     sessionStorage.setItem('popup_font_accent', fontAccent);
      sessionStorage.setItem('popup_property_name', scrapedData?.title || websiteName || '');
      if (scrapedData) sessionStorage.setItem('popup_scraped_data', JSON.stringify(scrapedData));
      console.log('[handlePublish] 🔵 Redirecting to: ' + data.url);
@@ -1275,6 +1292,8 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
        // scrape happened in this browser (e.g. user is updating an existing site).
        scrapedData: scrapedData || resolvedScrapedData,
        bankChoice: bankChoice,
+       brand_color: sessionStorage.getItem('popup_brand_color') || brandColor,
+       font_accent: sessionStorage.getItem('popup_font_accent') || fontAccent,
        // Slug - ONLY from the user's Website Name field (saved before any scrape could overwrite it):
        // Priority: popup_user_website_name (user's typed input, saved at Subscribe click)
        //           → od.property_name (user's saved property name from DB)
@@ -1342,7 +1361,7 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
          name: ssWebsiteName.startsWith('@') ? ssWebsiteName : `@${ssWebsiteName}`,
          title: ssWebsiteName,
          property_title: ssHeadline,
-         description: deployedDesc.replace(/\s+/g, ' ').trim(),
+         description: (ssDesc || fullOriginalDesc).replace(/\s+/g, ' ').trim(),
          property_intro: fullOriginalDesc,
          address: resolvedScrapedData?.location || od?.scraped_location || od?.location || '',
          hero_image: resolvedScrapedData?.hero_image || od?.scraped_hero_image || od?.hero_image || '',
@@ -1351,6 +1370,13 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
          bedrooms: od?.bedrooms ?? null,
          beds: od?.beds ?? null,
          baths: od?.baths ?? null,
+         brand_color: brandColor,
+         font_accent: fontAccent,
+         // Pass subscription fields so migrate-property can write them to the property record
+         stripe_subscription_status: (user as any).stripe_subscription_status || null,
+         stripe_subscription_plan: (user as any).stripe_subscription_plan || null,
+         stripe_customer_id: (user as any).stripe_customer_id || null,
+         stripe_subscription_id: (user as any).stripe_subscription_id || null,
        };
        const { data: { session } } = await supabase.auth.getSession();
        const migRes = await fetch(`${supabaseUrl}/functions/v1/migrate-property`, {
@@ -1506,6 +1532,31 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
            animation: 'spin 0.8s linear infinite',
          }} />
          <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+         <style>{`input[type=radio], input[type=checkbox] { accent-color: var(--brand-accent, ${brandColor}); }`}</style>
+       </div>
+     </div>
+   )}
+
+   {/* ── Finish building popup ── */}
+   {showFinishPopup && (
+     <div className="popup-backdrop" style={{ background: 'rgba(0,0,0,0.75)', zIndex: 9999, pointerEvents: 'auto' }}>
+       <div className="popup-modal" style={{ maxWidth: 400, alignItems: 'center', textAlign: 'center', padding: '36px 40px' }}>
+         <div style={{ fontSize: '2.5rem', marginBottom: 16 }}>✅</div>
+         <h2 style={{ fontSize: '1.3rem', fontWeight: 700, marginBottom: 12, color: '#fff', textTransform: 'none', letterSpacing: 0 }}>Finish building your site and publish it via the sidebar.</h2>
+         <p style={{ color: 'rgba(255,255,255,0.65)', fontSize: '0.9rem', marginBottom: 24, lineHeight: 1.5 }}>Your data is saved. Continue editing your property details, photos, and location — then hit Publish in the sidebar when you&apos;re ready.</p>
+         <button
+           onClick={() => setShowFinishPopup(false)}
+           style={{
+             background: 'var(--brand, #C47756)',
+             color: '#fff',
+             border: 'none',
+             borderRadius: 8,
+             padding: '12px 32px',
+             fontSize: '1rem',
+             fontWeight: 600,
+             cursor: 'pointer',
+           }}
+         >Got it</button>
        </div>
      </div>
    )}
@@ -1684,11 +1735,10 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
  )}
  {designChoice === 'airbnb' && (
  <div style={{ paddingTop: 16 }}>
- <p style={{ fontSize: '0.9rem', color: '#ccc', margin: '0 0 12px 0' }}>Paste your Airbnb profile link to import your property photos and text. A small fee is charged to access Airbnb user data.</p>
- <h4>Paste your Airbnb listing URL</h4>
+ <p style={{ fontSize: '0.9rem', color: '#ccc', margin: '0 0 12px 0' }}>Paste your Airbnb profile link to import your property photos and text. A small fee is charged to access Airbnb data.</p>
  <input
  type="text"
- placeholder="https://www.airbnb.com/rooms/1569039869816457609"
+ placeholder="Airbnb listing url"
  className="editmode"
  value={airbnbUrl}
  onChange={e => setAirbnbUrl(e.target.value)}
@@ -1811,6 +1861,40 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
  onChange={e => handleDescChange(e.target.value)}
  onBlur={handleDescBlur}
  />
+ {(() => {
+ const fullText = (() => {
+ try {
+ const raw = sessionStorage.getItem('popup_scraped_data');
+ if (raw) return (JSON.parse(raw) || {}).description || '';
+ } catch {}
+ return sessionStorage.getItem('popup_property_intro') || '';
+ })();
+ const displayText = fullText.replace(/\s+/g, ' ').trim();
+ const hasFullText = displayText.length > 0 && displayText !== websiteDesc;
+ if (!hasFullText) return null;
+ return (
+ <div style={{ marginTop: 8 }}>
+ <p style={{ fontSize: '0.75rem', color: '#888', marginBottom: 4 }}>Full description (unedited):</p>
+ <div
+ style={{
+ background: '#f9f9f9',
+ border: '1px solid #e0e0e0',
+ borderRadius: 8,
+ padding: '10px 12px',
+ fontSize: '0.85rem',
+ color: '#333',
+ maxHeight: 120,
+ overflowY: 'auto',
+ lineHeight: 1.5,
+ whiteSpace: 'pre-wrap',
+ }}
+ >
+ {displayText}
+ </div>
+ </div>
+ );
+ })()}
+
 
  {/* Live preview — ONLY when NOT in scrape/manual flow (no scrapedData).
  Shows the user's own typed content in the preview. */}
@@ -1855,22 +1939,50 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
  {/* Subscription */}
  <h1 style={{ fontSize: "clamp(1.5rem, 2.8vw, 1.875rem)" }}>Subscription</h1>
  {(user?.stripe_subscription_status === 'active' || user?.stripe_subscription_status === 'trialing') ? (
- <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '12px 16px', background: 'rgba(80,180,100,0.12)', border: '1px solid rgba(80,180,100,0.35)', borderRadius: 8, fontSize: '0.95rem', color: '#a8d8b0', marginBottom: 8 }}>
- <span>✓ You have the {user?.stripe_subscription_plan || planChoice || 'starter'} plan</span>
+ <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', padding: '12px 16px', background: 'rgba(80,180,100,0.12)', border: '1px solid rgba(80,180,100,0.35)', borderRadius: 8, fontSize: '0.95rem', color: '#a8d8b0', marginBottom: 8 }}>
+ <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+ <span>✓</span>
+ <span>You have the {user?.stripe_subscription_plan || planChoice || 'starter'} plan</span>
+ </div>
+ <button
+ onClick={async () => {
+ try {
+ const session = await supabase.auth.getSession();
+ const res = await fetch(`${supabaseUrl}/functions/v1/stripe-subscription`, {
+ method: 'POST',
+ headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.session?.access_token}`, 'Apikey': supabaseAnonKey },
+ body: JSON.stringify({ action: 'create_portal', return_url: window.location.href }),
+ });
+ const data = await res.json();
+ if (data.url) { window.location.href = data.url; }
+ else { alert('Could not open subscription management. Please contact support.'); }
+ } catch { alert('Failed to open subscription management.'); }
+ }}
+ style={{
+ fontSize: '0.75rem',
+ padding: '4px 10px',
+ background: 'rgba(80,180,100,0.2)',
+ border: '1px solid rgba(80,180,100,0.4)',
+ borderRadius: 6,
+ color: '#a8d8b0',
+ cursor: 'pointer',
+ flexShrink: 0,
+ }}
+ >Edit</button>
  </div>
  ) : (
  <>
  <ul>
  <li>
- <input type="radio" name="plan" id="5-1" checked={planChoice === 'starter'} onChange={() => setPlanChoice('starter')} />
+ <input type="radio" name="plan" id="5-1" checked={planChoice === 'starter'} onChange={() => setPlanChoice('starter')} style={{ accentColor: brandColor }} />
  <label htmlFor="5-1">Starter - Free 1st month then $10/mo</label>
  </li>
  <li>
- <input type="radio" name="plan" id="5-2" checked={planChoice === 'pro'} onChange={() => setPlanChoice('pro')} />
+ <input type="radio" name="plan" id="5-2" checked={planChoice === 'pro'} onChange={() => setPlanChoice('pro')} style={{ accentColor: brandColor }} />
  <label htmlFor="5-2">Pro - $30/mo</label>
  </li>
  <li>
- <input type="radio" name="plan" id="5-3" checked={planChoice === 'agency'} onChange={() => setPlanChoice('agency')} />
+ <input type="radio" name="plan" id="5-3" checked={planChoice === 'agency'} onChange={() => setPlanChoice('agency')} style={{ accentColor: brandColor }} />
  <label htmlFor="5-3">Agency - $150/mo</label>
  </li>
  </ul>
@@ -1878,45 +1990,14 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
  )}
  <br /><hr />
 
- {/* Extras */}
- <h1 style={{ fontSize: "clamp(1.5rem, 2.8vw, 1.875rem)" }}>Optional extras</h1>
- <p>Select which services you are interested in getting.</p>
- <ul>
- <li>
- <input type="checkbox" id="6-1" checked={extras.seo} onChange={e => setExtras({...extras, seo: e.target.checked})} />
- <label htmlFor="6-1">AI SEO - $10 p/m</label>
- </li>
- <li>
- <input type="checkbox" id="6-2" checked={extras.ads} onChange={e => setExtras({...extras, ads: e.target.checked})} />
- <label htmlFor="6-2">Ads &amp; Marketing - $30 p/m</label>
- </li>
- <li>
- <input type="checkbox" id="6-3" checked={extras.analytics} onChange={e => setExtras({...extras, analytics: e.target.checked})} />
- <label htmlFor="6-3">Analytics - $20 p/m</label>
- </li>
- <li>
- <input type="checkbox" id="6-4" checked={extras.social} onChange={e => setExtras({...extras, social: e.target.checked})} />
- <label htmlFor="6-4">Social Media Marketing - $50 p/m</label>
- </li>
- </ul>
- <br /><hr />
-
  {/* Payment */}
  <h1 style={{ fontSize: "clamp(1.5rem, 2.8vw, 1.875rem)" }}>Publish your site</h1>
- <p>After payment your site will build and then you can continue editing it from the controls in the sidebar.</p>
- <ul>
- <li>
- <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
-   <input type="checkbox" id="7-1" checked={agreed} onChange={e => setAgreed(e.target.checked)} style={{ width: 16, height: 16, cursor: 'pointer' }} />
-   <h4 style={{ margin: 0 }}>Agree to our Terms &amp; Conditions</h4>
- </label>
- </li>
- </ul>
+ <p>After payment your site will build and then you can continue editing the site once published.</p>
  <br />
  <button
  className="h2 publish-btn"
  onClick={(e) => { e.stopPropagation(); handlePublish(e); }}
- disabled={!agreed || !websiteName.trim() || stripeProcessing}
+ disabled={!websiteName.trim() || stripeProcessing}
  >
    {stripeProcessing ? 'REDIRECTING...' : 'CREATE DRAFT SITE'}
  </button>

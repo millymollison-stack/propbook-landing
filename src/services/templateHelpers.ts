@@ -51,6 +51,8 @@ export interface NewSiteData {
   scrapedData: ScrapedData | null;
   designChoice: string;
   bankChoice: string;
+  brand_color?: string | null;
+  font_accent?: string | null;
   // SEO fields fetched at publish time from Supabase
   seoData?: {
     meta_description?: string;
@@ -355,6 +357,8 @@ export async function createNewSiteRecords(data: NewSiteData): Promise<{
         stripeAccountId: data.userStripeAccountId || null,
         stripeAccountStatus: data.userStripeAccountId ? 'active' : null,
         userId: data.userId,
+        brand_color: data.brand_color || null,
+        font_accent: data.font_accent || null,
         // Pass full scrapedData so save-site-records can use it directly
         // (migrate-property is the primary migration path; this is the fallback)
         scrapedData: data.scrapedData || null,

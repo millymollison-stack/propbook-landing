@@ -23,7 +23,7 @@ Deno.serve(async (req: Request) => {
 
     const { title, slug, description, location, maxGuests, bedrooms, beds, baths,
             pricePerNight, heroImage, images, stripeAccountId, stripeAccountStatus,
-            userId, name, propertyTitle, propertyHeadline } = body;
+            userId, name, propertyTitle, propertyHeadline, brand_color, font_accent } = body;
     // [C4] Edge fn received
     console.log('[C4] SAVE-SITE title="'+(title||'')+'" propertyTitle="'+(propertyTitle||'')+'" desc="'+(description||'').slice(0,50)+'"');
 
@@ -66,8 +66,8 @@ Deno.serve(async (req: Request) => {
         activities: ref.activities || null,
         local_area: ref.local_area || null,
         getting_there: ref.getting_there || null,
-        brand_color: ref.brand_color || null,
-        font_accent: ref.font_accent || null,
+        brand_color: brand_color || ref.brand_color || null,
+        font_accent: font_accent || ref.font_accent || null,
         site_url: siteUrl,
         updated_at: new Date().toISOString(),
       }, {

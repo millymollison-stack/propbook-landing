@@ -126,13 +126,14 @@ function handleStripeRedirect() {
   });
 }
 
-export function CustomerSite({ onSiteNameChange, isEditing: externalIsEditing, registerSaveAll, onPropertyLoaded, scrapedProperty, scrapedImages }: {
+export function CustomerSite({ onSiteNameChange, isEditing: externalIsEditing, registerSaveAll, onPropertyLoaded, scrapedProperty, scrapedImages, urlSlug: urlSlugProp }: {
   onSiteNameChange?: (name: string) => void;
   isEditing?: boolean;
   registerSaveAll?: (fn: () => Promise<void>) => boolean;
   onPropertyLoaded?: (ownerId: string | null, propertyId: string | null) => void;
   scrapedProperty?: Partial<Property> | null;
   scrapedImages?: { id: string; url: string; position: number }[];
+  urlSlug?: string;
 }) {
   const { slug } = useParams<{ slug: string }>();
   const [property, setProperty] = useState<Property | null>(null);
@@ -148,6 +149,22 @@ export function CustomerSite({ onSiteNameChange, isEditing: externalIsEditing, r
   // ── Subscription confirmation banner ─────────────────────────────────────────
   const [showSubscriptionBanner, setShowSubscriptionBanner] = useState(false);
   const [subscriptionPlan, setSubscriptionPlan] = useState<string | null>(null);
+
+  // ── Share popup ───────────────────────────────────────────────────────────────
+  const [showSharePopup, setShowSharePopup] = useState(false);
+  const siteUrl = property?.site_url || (property?.slug ? `https://www.propbook.pro/props/${property.slug}` : window.location.href);
+  const qrCodeUrl = siteUrl ? `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(siteUrl)}` : '';
+
+  // Detect first visit after publishing — sessionStorage flag set by sidebar publish handler
+  useEffect(() => {
+    const justPublished = sessionStorage.getItem('site_just_published');
+    if (justPublished) {
+      sessionStorage.removeItem('site_just_published');
+      setShowSharePopup(true);
+      const timer = setTimeout(() => setShowSharePopup(false), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [property?.id]);
 
   // ── Handle ?auth=login / ?auth=signup params ─────────────────────────────────
   // Clear the param AFTER reading it so that a page reload doesn't re-open the modal
@@ -244,21 +261,47 @@ export function CustomerSite({ onSiteNameChange, isEditing: externalIsEditing, r
     setTimeout(() => setShowSubscriptionBanner(false), 15000);
   }, []);
 
+  // ═══════════════════════════════════════════════════════════════════════════════
+  // DEBUG: To force a slug in the browser console, run:
+  //   window.__FORCE_SLUG__ = 'rioa16'
+  //   then press Publish in the app to re-render CustomerSite with that slug
+  //
+  // IMPORTANT — React Router basename + useParams() gotcha:
+  // When App.tsx sets basename=/props/<slug> for published property pages,
+  // React Router strips the slug before matching routes. This means useParams().slug
+  // is ALWAYS undefined on published property pages, even though window.location.pathname
+  // still contains /props/<slug>. The fix: extract slug from window.location.pathname
+  // via urlSlugProp (set by App.tsx's inline route function).
+  //
+  // SLUG CHAIN (tried in order):
+  //   1. window.__FORCE_SLUG__  — debug override, set in browser console
+  //   2. urlSlugProp           — extracted from window.location.pathname in App.tsx
+  //   3. slug (useParams)      — ALWAYS undefined when basename=/props/<slug> is active
+  // ═══════════════════════════════════════════════════════════════════════════════
   useEffect(() => {
     async function loadProperty() {
-      console.log('[CustomerSite loadProperty] slug:', slug);
-      if (!slug) {
-        setError('No property slug provided');
-        setLoading(false);
-        return;
-      }
-
       try {
         // ── Fast-path: use window.__PROPERTY_DATA__ if available (set by published HTML) ──
         const cached = (window as any).__PROPERTY_DATA__;
+        // __FORCE_SLUG__ is a debug aid — set window.__FORCE_SLUG__ = 'yourslug' in console
         const forceSlug = (window as any).__FORCE_SLUG__;
-        const effectiveSlug = forceSlug || slug;
-        console.log('[CustomerSite loadProperty] cached:', cached ? 'EXISTS slug=' + cached.slug : 'NULL', '| slug:', effectiveSlug, '| match:', cached && cached.slug === effectiveSlug);
+        // urlSlugProp comes from App.tsx — it extracts /props/<slug> from window.location.pathname
+        // BEFORE React Router's basename stripping makes useParams().slug undefined.
+        const effectiveSlug = forceSlug || urlSlugProp || slug;
+        console.log('[CustomerSite loadProperty]', {
+          useParams_slug: slug,           // ← ALWAYS undefined when basename=/props/<slug>
+          urlSlugProp,                     // ← extracted from window.location.pathname (WORKING)
+          forceSlug,                      // ← debug override from console
+          effectiveSlug,                  // ← the one that actually gets used
+          cached_slug: cached?.slug,       // ← slug stored in window.__PROPERTY_DATA__
+          slugMatch: cached && cached.slug === effectiveSlug, // ← fast-path success condition
+        });
+        if (!effectiveSlug) {
+          console.error('[CustomerSite] No slug available. If useParams_slug is undefined, check App.tsx urlSlugProp logic — window.location.pathname may not contain /props/<slug>');
+          setError('No property slug provided');
+          setLoading(false);
+          return;
+        }
         if (cached && cached.slug === effectiveSlug) {
           setProperty(cached as Property);
           useProperty.getState().setActiveProperty(cached as Property);
@@ -527,6 +570,115 @@ export function CustomerSite({ onSiteNameChange, isEditing: externalIsEditing, r
             </div>
           </div>
           <button onClick={() => setShowSubscriptionBanner(false)} style="background:rgba(255,255,255,0.2);border:none;border-radius:6px;color:#fff;cursor:pointer;padding:6px 10px;font-size:18px;line-height:1;flex-shrink:0;" aria-label="Dismiss">×</button>
+        </div>
+      )}
+
+      {/* ── Share nav bar ─────────────────────────────────────────────────────── */}
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        padding: '10px 20px',
+        background: 'rgba(0,0,0,0.4)',
+        backdropFilter: 'blur(8px)',
+        borderBottom: '1px solid rgba(255,255,255,0.1)',
+        position: 'sticky',
+        top: 0,
+        zIndex: 50,
+      }}>
+        <span style={{ color: '#fff', fontFamily: 'var(--font-accent, serif)', fontSize: '1rem', fontWeight: 600, opacity: 0.9 }}>
+          @{property?.slug || slug}
+        </span>
+        <button
+          onClick={() => setShowSharePopup(true)}
+          style={{
+            background: 'rgba(255,255,255,0.15)',
+            border: '1px solid rgba(255,255,255,0.25)',
+            borderRadius: 8,
+            color: '#fff',
+            cursor: 'pointer',
+            padding: '6px 14px',
+            fontSize: '0.85rem',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+          }}
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
+            <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+          </svg>
+          Share
+        </button>
+      </div>
+
+      {/* ── Share popup ─────────────────────────────────────────────────────────── */}
+      {showSharePopup && (
+        <div
+          style={{
+            position: 'fixed', inset: 0,
+            background: 'rgba(0,0,0,0.55)',
+            zIndex: 9999,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontFamily: 'Inter, sans-serif',
+          }}
+          onClick={(e) => { if (e.target === e.currentTarget) setShowSharePopup(false); }}
+        >
+          <div style={{
+            background: '#fff',
+            borderRadius: 20,
+            padding: '32px 36px',
+            maxWidth: 380,
+            width: '90%',
+            textAlign: 'center',
+            boxShadow: '0 24px 64px rgba(0,0,0,0.3)',
+          }}>
+            {/* Top share icon */}
+            <div style={{ width: 56, height: 56, background: 'var(--brand, #C47756)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
+                <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+              </svg>
+            </div>
+            <h2 style={{ margin: '0 0 6px', fontSize: '1.3rem', color: '#111' }}>Share this link with your audience</h2>
+            <p style={{ margin: '0 0 20px', color: '#666', fontSize: '0.9rem' }}>Copy the link or scan the QR code</p>
+
+            {/* QR Code */}
+            {qrCodeUrl && (
+              <div style={{ marginBottom: 20 }}>
+                <img src={qrCodeUrl} alt="QR Code" width={160} height={160} style={{ borderRadius: 12, border: '1px solid #eee' }} />
+              </div>
+            )}
+
+            {/* URL */}
+            <div style={{ background: '#f5f5f5', borderRadius: 10, padding: '10px 14px', marginBottom: 20, fontSize: '0.82rem', color: '#333', wordBreak: 'break-all', fontFamily: 'monospace' }}>
+              {siteUrl}
+            </div>
+
+            {/* Actions */}
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
+              <button
+                onClick={() => {
+                  navigator.clipboard?.writeText(siteUrl).catch(() => {});
+                  setShowSharePopup(false);
+                }}
+                style={{ flex: 1, minWidth: 100, background: 'var(--brand, #C47756)', color: '#fff', border: 'none', borderRadius: 10, padding: '10px 16px', fontSize: '0.9rem', fontWeight: 600, cursor: 'pointer' }}
+              >Copy Link</button>
+              {navigator.share ? (
+                <button
+                  onClick={() => {
+                    navigator.share({ title: property?.property_headline || '@' + property?.slug || 'Property', url: siteUrl }).catch(() => {});
+                    setShowSharePopup(false);
+                  }}
+                  style={{ flex: 1, minWidth: 100, background: '#fff', color: 'var(--brand, #C47756)', border: '2px solid var(--brand, #C47756)', borderRadius: 10, padding: '10px 16px', fontSize: '0.9rem', fontWeight: 600, cursor: 'pointer' }}
+                >Share</button>
+              ) : null}
+              <button
+                onClick={() => setShowSharePopup(false)}
+                style={{ flex: 1, minWidth: 100, background: '#fff', color: '#666', border: '1px solid #ddd', borderRadius: 10, padding: '10px 16px', fontSize: '0.9rem', fontWeight: 600, cursor: 'pointer' }}
+              >Close</button>
+            </div>
+          </div>
         </div>
       )}
 
