@@ -58,7 +58,7 @@ export function Home({ isEditing: externalIsEditing, onHasChanges, registerSaveA
   const navigate = useNavigate();
   const calendarRef = useRef<HTMLDivElement>(null);
 
-  console.log('=== HOME COMPONENT RENDERED ===');
+  // console.log('=== HOME COMPONENT RENDERED ==='); // removed — was causing render-loop noise
 
   // Sync with external edit mode from App
   useEffect(() => {
@@ -82,7 +82,10 @@ export function Home({ isEditing: externalIsEditing, onHasChanges, registerSaveA
   }, [externalScrapedImages]);
 
   useEffect(() => {
+    const userIdAtStart = user?.id;
+    let cancelled = false;
     async function loadProperty() {
+      if (cancelled || userIdAtStart !== user?.id) return;
       try {
         // Determine which property to load:
         // 1. Direct propertyId saved after Stripe payment (highest priority)
@@ -258,7 +261,8 @@ export function Home({ isEditing: externalIsEditing, onHasChanges, registerSaveA
     }
 
     loadProperty();
-  }, [user, resetKey]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, resetKey]);
 
   // ── Detect if current user is a guest for this property ─────────────────────
   // Hides owner-only booking UI from property owners; shows guest booking for logged-in guests
@@ -535,32 +539,27 @@ export function Home({ isEditing: externalIsEditing, onHasChanges, registerSaveA
     console.log('[Home] Received imported data:', imported.title);
 
     try {
-      // Upload images to 'onboarding' bucket in Supabase Storage
-      const imageUrls: string[] = [];
+      // Upload images to 'onboarding' bucket in Supabase Storage — in parallel for speed
       const imageList = imported.images || [];
-      for (let i = 0; i < imageList.length; i++) {
-        const imgUrl = imageList[i];
-        try {
-          const response = await fetch(imgUrl);
-          const buffer = await response.arrayBuffer();
-          const filename = `onboarding/${Date.now()}-${i}.jpg`;
-          const { data: uploadData, error: uploadError } = await supabase.storage
-            .from('onboarding')
-            .upload(filename, buffer, { contentType: 'image/jpeg' });
-          if (uploadError) {
-            // Bucket may not exist — silently fall back to original Airbnb URL
-            imageUrls.push(imgUrl);
-          } else {
+      const imageUrls: string[] = await Promise.all(
+        imageList.map(async (imgUrl, i) => {
+          try {
+            const response = await fetch(imgUrl);
+            const buffer = await response.arrayBuffer();
+            const filename = `onboarding/${Date.now()}-${i}.jpg`;
+            const { error: uploadError } = await supabase.storage
+              .from('onboarding')
+              .upload(filename, buffer, { contentType: 'image/jpeg' });
+            if (uploadError) return imgUrl; // bucket may not exist — fall back to Airbnb URL
             const { data: { publicUrl } } = supabase.storage
               .from('onboarding')
               .getPublicUrl(filename);
-            imageUrls.push(publicUrl);
+            return publicUrl;
+          } catch {
+            return imgUrl; // network error — fall back to original URL
           }
-        } catch {
-          // Network error — silently fall back to original URL
-          imageUrls.push(imgUrl);
-        }
-      }
+        })
+      );
 
       // Fallback: if no images uploaded, use imported.images as-is (for manual/base64)
       if (imageUrls.length === 0 && imageList.length > 0) {

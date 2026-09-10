@@ -1533,10 +1533,8 @@ export function AdminSidebar({ isOpen, onClose, mockMode = false, onPropertyLoad
       loadSubscriptionData();
 
       setPublishError(null);
-      // Set flag so the published site shows the share popup on first visit
-      sessionStorage.setItem('site_just_published', '1');
-      // Redirect to the newly published site
-      window.__PROPERTY_DATA__ = null; window.location.replace(siteUrl + "?t=" + Date.now());
+      // Redirect to the newly published site with ?published=1 so CustomerSite shows the share popup
+      window.__PROPERTY_DATA__ = null; window.location.replace(siteUrl + "?published=1&t=" + Date.now());
     } catch (err) {
       console.error('[sidebar publish] Error:', err);
       setPublishError(err instanceof Error ? err.message : 'Publish failed. Please try again.');
@@ -1632,7 +1630,12 @@ export function AdminSidebar({ isOpen, onClose, mockMode = false, onPropertyLoad
   const hasStripeAccount = !!(connectData?.account_id);
   const hasWebsite = !!(property?.site_url || sidebarPropertyDataRef.current?.site_url);
   const hasEmail = !!displayUser.email;
-  const hasSubscription = subscriptionData?.status === 'active';
+  // hasSubscription: check subscriptionData from Stripe API first, then fall back to user profile
+  // (profile is updated immediately after Stripe payment; Stripe API may lag or require customer ID)
+  const profileSubStatus = (user as any)?.stripe_subscription_status;
+  const hasSubscription = subscriptionData?.status === 'active' || profileSubStatus === 'active' || profileSubStatus === 'trialing';
+  // Effective subscription plan: from Stripe API or profile
+  const effectivePlan = subscriptionData?.plan || (user as any)?.stripe_subscription_plan;
 
   return (
     <>
@@ -1770,7 +1773,9 @@ export function AdminSidebar({ isOpen, onClose, mockMode = false, onPropertyLoad
                     {key === 'contact' && <ContactSection user={displayUser} isEditing={isEditing} fields={contactFields} onChange={setContactFields} userProperties={userProperties} activeProperty={activeProperty} showPropertySwitcher={showPropertySwitcher} setShowPropertySwitcher={setShowPropertySwitcher} handleSwitchProperty={handleSwitchProperty} />}
                     {key === 'banking' && <BankingSection connectData={connectData} connectLoading={connectLoading} connectOnboarding={connectOnboarding} payoutLoading={payoutLoading} payoutSuccess={payoutSuccess} onOnboard={handleConnectOnboard} onRequestPayout={handleRequestPayout} />}
                     {key === 'services' && <ServicesSection services={services} onToggle={handleServiceToggle} />}
-                    {key === 'subscription' && <SubscriptionSection subscription={subscriptionData} loading={subLoading} checkoutLoading={checkoutLoading} onSubscribe={handleSubscribeCheckout} />}
+                    {key === 'subscription' && <SubscriptionSection
+                      subscription={subscriptionData || (hasSubscription ? { status: profileSubStatus as 'active' | 'trialing', plan: effectivePlan || 'starter', current_period_end: null } : null)}
+                      loading={subLoading} checkoutLoading={checkoutLoading} onSubscribe={handleSubscribeCheckout} />}
                   </div>
                 )}
               </div>
@@ -1807,7 +1812,7 @@ export function AdminSidebar({ isOpen, onClose, mockMode = false, onPropertyLoad
               <LogOut className="h-4 w-4" /><span>Sign Out</span>
             </button>
           </div>
-          <div style={{ height: '2rem' }} />
+          <div style={{ height: '4rem' }} />
         </div>
       </div>
 

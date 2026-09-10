@@ -155,16 +155,24 @@ export function CustomerSite({ onSiteNameChange, isEditing: externalIsEditing, r
   const siteUrl = property?.site_url || (property?.slug ? `https://www.propbook.pro/props/${property.slug}` : window.location.href);
   const qrCodeUrl = siteUrl ? `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(siteUrl)}` : '';
 
-  // Detect first visit after publishing — sessionStorage flag set by sidebar publish handler
+  // Wire existing nav Share button (outside React tree) to our Share popup
   useEffect(() => {
-    const justPublished = sessionStorage.getItem('site_just_published');
-    if (justPublished) {
-      sessionStorage.removeItem('site_just_published');
+    const shareBtn = document.querySelector('nav button svg');
+    if (shareBtn) shareBtn.parentElement?.addEventListener('click', () => setShowSharePopup(true));
+  }, []);
+
+  // Detect first visit after publishing — sidebar redirects with ?published=1
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('published') === '1') {
+      // Remove the param without a page reload
+      window.history.replaceState({}, '', window.location.pathname);
       setShowSharePopup(true);
-      const timer = setTimeout(() => setShowSharePopup(false), 3000);
+      // Auto-close after 5 seconds
+      const timer = setTimeout(() => setShowSharePopup(false), 5000);
       return () => clearTimeout(timer);
     }
-  }, [property?.id]);
+  }, []);
 
   // ── Handle ?auth=login / ?auth=signup params ─────────────────────────────────
   // Clear the param AFTER reading it so that a page reload doesn't re-open the modal
@@ -573,44 +581,7 @@ export function CustomerSite({ onSiteNameChange, isEditing: externalIsEditing, r
         </div>
       )}
 
-      {/* ── Share nav bar ─────────────────────────────────────────────────────── */}
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        padding: '10px 20px',
-        background: 'rgba(0,0,0,0.4)',
-        backdropFilter: 'blur(8px)',
-        borderBottom: '1px solid rgba(255,255,255,0.1)',
-        position: 'sticky',
-        top: 0,
-        zIndex: 50,
-      }}>
-        <span style={{ color: '#fff', fontFamily: 'var(--font-accent, serif)', fontSize: '1rem', fontWeight: 600, opacity: 0.9 }}>
-          @{property?.slug || slug}
-        </span>
-        <button
-          onClick={() => setShowSharePopup(true)}
-          style={{
-            background: 'rgba(255,255,255,0.15)',
-            border: '1px solid rgba(255,255,255,0.25)',
-            borderRadius: 8,
-            color: '#fff',
-            cursor: 'pointer',
-            padding: '6px 14px',
-            fontSize: '0.85rem',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-          }}
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
-            <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
-          </svg>
-          Share
-        </button>
-      </div>
+
 
       {/* ── Share popup ─────────────────────────────────────────────────────────── */}
       {showSharePopup && (

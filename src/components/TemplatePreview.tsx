@@ -79,9 +79,6 @@ export function TemplatePreview({
         <div className="preview-details">
           {guests && (
             <div className="preview-detail">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width: 10, height: 10 }}>
-                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
-              </svg>
               {guests} Guests
             </div>
           )}

@@ -16,11 +16,9 @@ import { generateTemplateHtml } from '../services/templateHelpers';
 // ── Scraped text helpers ─────────────────────────────────────────────────────────────
 
 // First sentence: up to first period+space, or 100 chars, whichever is first
-function extractFirstSentence(text: string): string {
+function extractFirst5Words(text: string): string {
   if (!text) return '';
-  const firstPeriod = text.indexOf('.');
-  if (firstPeriod > 0 && firstPeriod < 100) return text.slice(0, firstPeriod + 1).trim();
-  return text.slice(0, 100).trim();
+  return (text || '').replace(/\s+/g, ' ').trim().split(/\s+/).slice(0, 5).join(' ');
 }
 
 // First 3 sentences, max 24 words total
@@ -159,9 +157,22 @@ function CheckoutForm({ clientSecret, onSuccess, onError, monthlyTotal }: {
 export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scrapedImages, onSiteNameChange, onOpenSidebar, onSiteCreated }: OnboardingPopupProps) {
  const { user, refreshUser } = useAuth();
  const [isOpen, setIsOpen] = useState(true); // Always open when rendered (parent controls visibility)
+ const [brandColor, setBrandColor] = useState('#C47756');
+ // Full unedited scraped description — independent from the 24-word description textarea
+ const [propertyIntroFull, setPropertyIntroFull] = useState('');
 
  // Sync brandColor to CSS accent-color so checkboxes/radios inherit it
  useEffect(() => { document.documentElement.style.setProperty('--brand-accent', brandColor); }, [brandColor]);
+ // Sync brandColor to sessionStorage whenever it changes (color picker, restore, etc.)
+ useEffect(() => {
+   sessionStorage.setItem('popup_brand_color', brandColor);
+ }, [brandColor]);
+
+ // Pre-warm the scraper so it's already spun up when user triggers a scrape
+ useEffect(() => {
+   // Fire-and-forget — don't await, don't block, don't show errors
+   fetch(`https://propbook.pro/scraper/health/index.php`, { method: 'GET' }).catch(() => {});
+ }, []);
  // Tracks whether this popup instance is still mounted (used to cancel auto-open timer on unmount)
  const isMountedRef = { current: true };
  const descSyncTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -270,7 +281,7 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
  const [hostingChoice, setHostingChoice] = useState('');
  const [planChoice, setPlanChoice] = useState('');
  const [extras, setExtras] = useState({ seo: false, ads: false, analytics: false, social: false });
- const [agreed, setAgreed] = useState(false);
+ // agreed / Terms state removed — T&C checkbox deleted from UI
  const [stripeError, setStripeError] = useState('');
  const openStripeGateway = async (e?: React.MouseEvent) => {
   if (e) e.stopPropagation();
@@ -466,7 +477,6 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
  const [importError, setImportError] = useState('');
  const [scrapedData, setScrapedData] = useState<any>(null);
  const [showColorPicker, setShowColorPicker] = useState(false);
- const [brandColor, setBrandColor] = useState('#C47756');
  const [fontAccent, setFontAccent] = useState(
  typeof window !== 'undefined' ? localStorage.getItem('site-font-accent') || 'Playfair Display' : 'Playfair Display'
  );
@@ -520,10 +530,17 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
  // Property headline: first sentence of description — set state directly, NOT via handlePropertyHeadlineChange
  // (handlePropertyHeadlineChange calls setWebsiteDesc which would overwrite the description field)
  const descText = scrapedProperty.property_intro || scrapedProperty.description || '';
- setPropertyHeadline(extractFirstSentence(descText));
- sessionStorage.setItem('popup_property_headline', extractFirstSentence(descText));
+ setPropertyHeadline(extractFirst5Words(descText));
+ sessionStorage.setItem('popup_property_headline', extractFirst5Words(descText));
  // Property description: first 3 sentences, max 24 words
  setWebsiteDesc(extractFirst24Words(descText));
+ // Store FULL untruncated description for the "Full description (unedited)" text box
+ const fullDesc = scrapedProperty.property_intro || scrapedProperty.description || '';
+ sessionStorage.setItem('popup_property_intro', fullDesc);
+ // Populate the independent full-description state
+ setPropertyIntroFull(fullDesc);
+ // Store the 24-word version explicitly too (popup_website_desc is set by handleDescChange but we need it here too)
+ sessionStorage.setItem('popup_website_desc', extractFirst24Words(descText));
  setScrapedData({
  title: resolvedTitle.slice(0, 16),
  location: scrapedProperty.location || '',
@@ -537,6 +554,11 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
  reviews: null,
  host_name: null,
  });
+ // Also restore planChoice from database in case user is migrating with a prior subscription
+ if (user?.id) {
+   supabase.from('onboarding_data').select('plan_choice').eq('user_id', user.id).single()
+     .then(({ data: od }) => { if (od?.plan_choice) setPlanChoice(od.plan_choice); });
+ }
  // GetSite only opens via explicit button click — no auto-open on mount
  return;
  }
@@ -553,7 +575,7 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
             if (parsed.title) {
               const resolvedTitle = (userTyped || parsed.title || '').slice(0, 16);
               setWebsiteName(resolvedTitle);
-              const h = extractFirstSentence(parsed.description || '');
+              const h = extractFirst5Words(parsed.description || '');
               setPropertyHeadline(h);
               sessionStorage.setItem('popup_property_headline', h);
             }
@@ -620,6 +642,13 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
  }
  const savedDesc = sessionStorage.getItem('popup_website_desc');
  if (savedDesc) setWebsiteDesc(savedDesc);
+ const savedBrandColor = sessionStorage.getItem('popup_brand_color');
+ if (savedBrandColor) {
+   setBrandColor(savedBrandColor);
+ }
+ // Restore full description text for the independent textarea
+ const savedFullDesc = sessionStorage.getItem('popup_property_intro');
+ if (savedFullDesc) setPropertyIntroFull(savedFullDesc);
  const savedExtras = sessionStorage.getItem('popup_extras_seo');
  if (savedExtras) setExtras({ seo: savedExtras === 'true', ads: sessionStorage.getItem('popup_extras_ads') === 'true', analytics: sessionStorage.getItem('popup_extras_analytics') === 'true', social: sessionStorage.getItem('popup_extras_social') === 'true' });
 
@@ -639,13 +668,43 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
  // Populate form fields from saved data
  if (data.property_name) setWebsiteName(data.property_name.slice(0, 16));
  if (data.property_headline) setPropertyHeadline(data.property_headline);
- if (data.property_desc) { setWebsiteDesc(data.property_desc); sessionStorage.setItem('popup_website_desc', data.property_desc); }
+ if (data.property_desc) {
+   const truncated = extractFirst24Words(data.property_desc);
+   setWebsiteDesc(truncated);
+   sessionStorage.setItem('popup_website_desc', truncated);
+ }
  if (data.airbnb_url) setAirbnbUrl(data.airbnb_url);
  if (data.design_choice) setDesignChoice(data.design_choice);
  if (data.bank_choice) setBankChoice(data.bank_choice);
  if (data.hosting_choice) setHostingChoice(data.hosting_choice);
  if (data.plan_choice) setPlanChoice(data.plan_choice);
  if (data.bookings_email) setBookingsEmail(data.bookings_email);
+ if (data.extras) {
+   try {
+     const parsed = typeof data.extras === 'string' ? JSON.parse(data.extras) : data.extras;
+     setExtras(parsed);
+   } catch { /* ignore corrupt extras */ }
+ }
+ if (data.brand_color) {
+   setBrandColor(data.brand_color);
+   sessionStorage.setItem('popup_brand_color', data.brand_color);
+ } else {
+   // Fallback: try profiles table (where stripe-subscription writes brand_color)
+   supabase.from('profiles').select('brand_color').eq('id', user?.id || '').single()
+     .then(({ data: prof }) => {
+       if (prof?.brand_color) {
+         setBrandColor(prof.brand_color);
+         sessionStorage.setItem('popup_brand_color', prof.brand_color);
+       }
+     });
+ }
+
+ // Restore full unedited description for the independent textarea
+ const fullDesc = data.scraped_description || data.property_desc || '';
+ if (fullDesc && !propertyIntroFull) {
+   setPropertyIntroFull(fullDesc);
+   sessionStorage.setItem('popup_property_intro', fullDesc);
+ }
 
  // Reconstruct scrapedData from saved fields (supports both old non-prefixed fields
  // and new scraped_* fields saved by handleAirbnbScrape)
@@ -725,8 +784,8 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
  setWebsiteDesc(truncated);
  // Write to sessionStorage IMMEDIATELY so Create Draft Site always reads fresh data
  sessionStorage.setItem('popup_website_desc', truncated);
- // Store the FULL untruncated text for the 2nd text box (property_intro)
- sessionStorage.setItem('popup_property_intro', val);
+ // NOTE: do NOT overwrite popup_property_intro here — that key holds the full
+ // unedited scraped description for the independent text box below the photos.
  // Debounce the preview sync — read from sessionStorage (fresh) not React state (stale)
  clearTimeout(descSyncTimer.current);
  descSyncTimer.current = setTimeout(() => {
@@ -938,10 +997,12 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
         // Redirect to the newly created site using the slug from sessionStorage
         const newSlug = siteResult?.slug || sessionStorage.getItem('popup_website_name') || sessionStorage.getItem('popup_user_website_name') || '';
         if (newSlug) {
-          await new Promise(r => setTimeout(r, 1500));
-          const redirectUrl = `${window.location.origin}/props/${newSlug}/`;
-          console.log('[DEBUG ?paid handler] Redirecting to:', redirectUrl);
-          window.location.href = redirectUrl;
+          // Store slug so sidebar can redirect after user clicks through finish popup
+          sessionStorage.setItem('popup_published_slug', newSlug);
+          console.log('[DEBUG ?paid handler] Site saved, slug:', newSlug, '— showing finish popup');
+          // Show finish popup instead of immediately redirecting
+          // User reads the popup, then publishes from the sidebar
+          setShowFinishPopup(true);
         } else if (siteResult?.propertyId) {
           sessionStorage.setItem('home_loaded_property_id', siteResult.propertyId);
           if (onSiteCreated) onSiteCreated(siteResult.propertyId, siteResult.siteUrl);
@@ -986,6 +1047,7 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
  plan_choice: planChoice,
  email: user.email,
  bookings_email: bookingsEmail,
+ brand_color: sessionStorage.getItem('popup_brand_color') || brandColor || null,
  extras: extras,
  updated_at: new Date().toISOString(),
  // Fresh overrides (from current scrape) take priority over sessionStorage.
@@ -1014,13 +1076,13 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
  }
  };
 
- const SCRAPER_URL = 'https://airbnb-scraper-foj1.onrender.com';
+ const SCRAPER_URL = 'https://propbook.pro/scraper/scrape-now.php';
 
  const handleAirbnbScrape = async (_e?: React.MouseEvent) => {
  if (!airbnbUrl) { setImportError('Please enter an Airbnb URL'); return; }
  setIsImporting(true);
  setImportError('');
- setCountdown(120);
+ setCountdown(90);
 
 
 
@@ -1032,7 +1094,7 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
  }, 1000);
 
  try {
- const resp = await fetch(`${SCRAPER_URL}/scrape?url=${encodeURIComponent(airbnbUrl)}`);
+ const resp = await fetch(`${SCRAPER_URL}?url=${encodeURIComponent(airbnbUrl)}`);
  const result = await resp.json();
  clearInterval(countInterval);
  if (result.success) {
@@ -1043,6 +1105,16 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
     data.images = data.images.filter((img: string) => !BLOCKED_IMAGES.some(id => img.includes(id)));
   }
   setScrapedData(data);
+ // Geocode location if lat/lng are missing but we have a text location
+ if (data.location && !data.lat && !data.lng) {
+   fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(data.location)}&limit=1`, {
+     headers: { 'User-Agent': 'propbook-dev/1.0' }
+   }).then(r => r.json()).then(geo => {
+     if (geo && geo[0]) {
+       setScrapedData((prev: any) => prev ? { ...prev, lat: parseFloat(geo[0].lat), lng: parseFloat(geo[0].lon) } : prev);
+     }
+   }).catch(() => {});
+ }
  // Persist scraped data to sessionStorage immediately so it survives Stripe redirect
  // [C1] Scraper raw result
  console.log('[C1] SCRAPER title="' + (data.title||'').slice(0,20) + '" desc="' + (data.description||'').slice(0,50) + '"');
@@ -1054,7 +1126,7 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
  const websiteName16 = scrapedTitle.slice(0, 16);
  if (!websiteName.trim()) handleNameChange(websiteName16);
  // Property headline: first sentence of description — set state directly, NOT via handlePropertyHeadlineChange
- const h = extractFirstSentence(data.description || scrapedTitle);
+ const h = extractFirst5Words(data.description || scrapedTitle);
  setPropertyHeadline(h);
  sessionStorage.setItem('popup_property_headline', h);
  // Property description: first 3 sentences, max 24 words (for textarea display only)
@@ -1062,13 +1134,14 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
  setWebsiteDesc(desc24);
  // Persist sessionStorage with correctly split values
  sessionStorage.setItem('popup_website_name', websiteName16);
- sessionStorage.setItem('popup_property_headline', extractFirstSentence(data.description || scrapedTitle));
+ sessionStorage.setItem('popup_property_headline', extractFirst5Words(data.description || scrapedTitle));
  // Store EXACTLY what the textarea shows (24 words). The input field is the source of
  // truth, so storage must match it — otherwise an untouched field deploys the raw scrape.
  // The full original stays available under popup_scraped_data.description.
  sessionStorage.setItem('popup_website_desc', desc24);
- // Store the FULL original description for the 2nd text box (property_intro)
+ // Store the FULL original description for the independent "Full description" textarea
  sessionStorage.setItem('popup_property_intro', data.description || '');
+ setPropertyIntroFull(data.description || '');
  // [C2] sessionStorage written
  console.log('[C2] SS desc="' + desc24.slice(0,50) + '"');
  // Notify parent with the 24-word truncated version so the preview stays consistent
@@ -1077,7 +1150,7 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
  const previewData = {
  ...data,
  title: websiteName16,
- property_title: extractFirstSentence(data.description || scrapedTitle),
+ property_title: extractFirst5Words(data.description || scrapedTitle),
  // Pass the 24-word version so preview matches what the user edits in the textarea
  description: desc24,
  hero_image: data.images?.[1] || data.hero_image,
@@ -1335,20 +1408,27 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
          .eq('user_id', user.id)
          .maybeSingle();
        const ssWebsiteName = sessionStorage.getItem('popup_user_website_name') || sessionStorage.getItem('popup_website_name') || websiteName || '';
-       const ssHeadline = sessionStorage.getItem('popup_property_headline') || propertyHeadline || '';
-       const ssDesc = sessionStorage.getItem('popup_website_desc') || websiteDesc || '';
-       // Get FULL original description — use sessionStorage scraped data (full untruncated text),
-       // NOT the 24-word truncated version stored in popup_website_desc.
-       // User edits go to popup_website_desc (truncated), but the full original scrape is preserved
-       // in sessionStorage under popup_scraped_data.description.
-       let fullOriginalDesc = '';
-       try {
-         const scrapedRaw = sessionStorage.getItem('popup_scraped_data');
-         if (scrapedRaw) {
-           const scraped = JSON.parse(scrapedRaw);
-           fullOriginalDesc = scraped.description || '';
-         }
-       } catch {}
+       const ssHeadline = sessionStorage.getItem('popup_property_headline') || propertyHeadline || od?.property_headline || '';
+       // ssDesc: user's 24-word edited description. Falls back to DB if sessionStorage was cleared (Stripe redirect).
+       const ssDesc = sessionStorage.getItem('popup_website_desc') || websiteDesc || od?.property_desc || '';
+       // Get FULL original description — priority:
+       // 1. resolvedScrapedData (already loaded from DB above)
+       // 2. sessionStorage popup_property_intro (set at scrape time, survives if not cleared)
+       // 3. sessionStorage popup_scraped_data.description (may be cleared by App.tsx on startup)
+       // 4. DB fields as last resort
+       let fullOriginalDesc = resolvedScrapedData?.description || propertyIntroFull || '';
+       if (!fullOriginalDesc) {
+         fullOriginalDesc = sessionStorage.getItem('popup_property_intro') || '';
+       }
+       if (!fullOriginalDesc) {
+         try {
+           const scrapedRaw = sessionStorage.getItem('popup_scraped_data');
+           if (scrapedRaw) fullOriginalDesc = JSON.parse(scrapedRaw).description || '';
+         } catch {}
+       }
+       if (!fullOriginalDesc) {
+         fullOriginalDesc = od?.scraped_description || od?.property_desc || '';
+       }
        // The description we deploy = user's edited text (from popup_website_desc) if they edited it,
        // otherwise fall back to the full original scrape text.
        // INPUT FIELD WINS: always deploy the user's edited 24-word description.
@@ -1370,8 +1450,10 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
          bedrooms: od?.bedrooms ?? null,
          beds: od?.beds ?? null,
          baths: od?.baths ?? null,
-         brand_color: brandColor,
-         font_accent: fontAccent,
+         // Always read brand_color from sessionStorage first — React state may not be restored yet
+         // if handleSaveSiteInPopup runs before loadSavedData has a chance to set brandColor.
+         brand_color: sessionStorage.getItem('popup_brand_color') || brandColor,
+         font_accent: sessionStorage.getItem('popup_font_accent') || fontAccent,
          // Pass subscription fields so migrate-property can write them to the property record
          stripe_subscription_status: (user as any).stripe_subscription_status || null,
          stripe_subscription_plan: (user as any).stripe_subscription_plan || null,
@@ -1518,6 +1600,9 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
 
  return (
  <>
+   {/* Global brand-color accent for all checkboxes, radios, and form controls */}
+   <style>{`input[type=radio], input[type=checkbox], input[type=range] { accent-color: var(--brand-accent, ${brandColor}); }`}</style>
+
    {/* ── Post-Stripe saving overlay ── */}
    {showSaveOverlay && (
      <div className="popup-backdrop" style={{ background: 'rgba(0,0,0,0.75)', zIndex: 9998, pointerEvents: 'auto' }}>
@@ -1532,7 +1617,6 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
            animation: 'spin 0.8s linear infinite',
          }} />
          <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-         <style>{`input[type=radio], input[type=checkbox] { accent-color: var(--brand-accent, ${brandColor}); }`}</style>
        </div>
      </div>
    )}
@@ -1578,7 +1662,7 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
        type="checkbox"
        checked={adminUpgrade}
        onChange={(e) => { e.stopPropagation(); setAdminUpgrade(e.target.checked); }}
-       style={{ width: 18, height: 18, cursor: 'pointer', flexShrink: 0 }}
+       style={{ width: 18, height: 18, cursor: 'pointer', flexShrink: 0, accentColor: brandColor }}
      />
      Switch to an Admin account
    </div>
@@ -1758,8 +1842,8 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
  </div>
  )}
 
- {/* Preview - appears below Get data after import */}
- {scrapedData && (
+ {/* Preview - only show when scrape has fully landed (not during countdown) */}
+ {scrapedData && !isImporting && (
  <div className="popup-preview">
  <h3>Preview:</h3>
  <TemplatePreview
@@ -1861,44 +1945,28 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
  onChange={e => handleDescChange(e.target.value)}
  onBlur={handleDescBlur}
  />
- {(() => {
- const fullText = (() => {
- try {
- const raw = sessionStorage.getItem('popup_scraped_data');
- if (raw) return (JSON.parse(raw) || {}).description || '';
- } catch {}
- return sessionStorage.getItem('popup_property_intro') || '';
- })();
- const displayText = fullText.replace(/\s+/g, ' ').trim();
- const hasFullText = displayText.length > 0 && displayText !== websiteDesc;
- if (!hasFullText) return null;
- return (
- <div style={{ marginTop: 8 }}>
- <p style={{ fontSize: '0.75rem', color: '#888', marginBottom: 4 }}>Full description (unedited):</p>
- <div
- style={{
- background: '#f9f9f9',
- border: '1px solid #e0e0e0',
- borderRadius: 8,
- padding: '10px 12px',
- fontSize: '0.85rem',
- color: '#333',
- maxHeight: 120,
- overflowY: 'auto',
- lineHeight: 1.5,
- whiteSpace: 'pre-wrap',
+ {propertyIntroFull && (
+ <div style={{ marginTop: 8, width: '100%', maxWidth: '100%' }}>
+ <p style={{ color: '#ccc', fontSize: '0.85rem', fontWeight: 600, marginBottom: 6 }}>Full description (unedited)</p>
+ <textarea
+ id="property-intro-full"
+ name="propertyIntroFull"
+ className="popup-textarea editmode"
+ style={{ minHeight: 80, overflowY: 'auto', whiteSpace: 'pre-wrap' }}
+ value={propertyIntroFull}
+ placeholder="Full scraped description will appear here after import"
+ onChange={e => {
+ setPropertyIntroFull(e.target.value);
+ sessionStorage.setItem('popup_property_intro', e.target.value);
  }}
- >
- {displayText}
+ />
  </div>
- </div>
- );
- })()}
+ )}
 
 
  {/* Live preview — ONLY when NOT in scrape/manual flow (no scrapedData).
  Shows the user's own typed content in the preview. */}
- {!scrapedData && (propertyHeadline || websiteDesc) && (
+ {!scrapedData && !isImporting && (propertyHeadline || websiteDesc) && (
  <div className="popup-preview" style={{ marginTop: 16 }}>
  <h3>Preview:</h3>
  <TemplatePreview
@@ -1926,11 +1994,11 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
  <h1 style={{ fontSize: "clamp(1.5rem, 2.8vw, 1.875rem)" }}>Hosting options</h1>
  <ul>
  <li>
- <input type="radio" name="hosting" id="4-1" checked={hostingChoice === 'own'} onChange={() => setHostingChoice('own')} />
+ <input type="radio" name="hosting" id="4-1" checked={hostingChoice === 'own'} onChange={() => setHostingChoice('own')} style={{ accentColor: brandColor }} />
  <label htmlFor="4-1">Export to your own server - Free</label>
  </li>
  <li>
- <input type="radio" name="hosting" id="4-2" checked={hostingChoice === 'our'} onChange={() => setHostingChoice('our')} />
+ <input type="radio" name="hosting" id="4-2" checked={hostingChoice === 'our'} onChange={() => setHostingChoice('our')} style={{ accentColor: brandColor }} />
  <label htmlFor="4-2">Published to our server - $5 p/m</label>
  </li>
  </ul>

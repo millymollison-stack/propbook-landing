@@ -60,7 +60,6 @@ export function Layout({ children, isEditing, onToggleEdit, hasChanges, onSaveCh
       <header className="absolute top-0 left-0 right-0 z-50 header-transparent">
         <nav className="max-w-7xl mx-auto px-4 sm:px-8 md:px-12 h-16 flex items-center justify-between">
           <a href={window.location.pathname} className="flex items-center space-x-2 text-white hover:text-white no-underline">
-            <Home className="h-6 w-6 opacity-90" />
             <span className="text-lg font-medium">{siteName || "@propbook"}</span>
           </a>
           

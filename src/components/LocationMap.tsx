@@ -40,7 +40,7 @@ function MapUpdater({ center }: { center: [number, number] }) {
 export function LocationMap({ property, onSave, onClose, isOpen }: LocationMapProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [address, setAddress] = useState(property.address || '');
+  const [address, setAddress] = useState(property.address || property.location || '');
   const [coordinates, setCoordinates] = useState<[number, number]>([
     property.latitude || 23.1631,
     property.longitude || -109.6834
@@ -51,6 +51,34 @@ export function LocationMap({ property, onSave, onClose, isOpen }: LocationMapPr
   const [error, setError] = useState<string | null>(null);
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
+
+  // Auto-search and save when map opens and has a location but no coordinates yet
+  useEffect(() => {
+    if (!isOpen) return;
+    const hasLocation = !!(property.address || (property as any).location);
+    const hasCoords = !!(property.latitude && property.longitude);
+    if (hasLocation && !hasCoords) {
+      const loc = property.address || (property as any).location || '';
+      setAddress(loc);
+      // Geocode immediately
+      fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(loc)}&limit=1`, {
+        headers: { 'User-Agent': 'propbook-dev/1.0' }
+      })
+        .then(r => r.json())
+        .then(async data => {
+          if (data && data[0]) {
+            const lat = parseFloat(data[0].lat);
+            const lon = parseFloat(data[0].lon);
+            setCoordinates([lat, lon]);
+            // Auto-save the resolved coordinates
+            try {
+              await onSave({ address: loc, latitude: lat, longitude: lon, location_type: 'address' });
+            } catch (e) { console.warn('[LocationMap] Auto-save failed:', e); }
+          }
+        })
+        .catch(() => {});
+    }
+  }, [isOpen, property.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!isOpen) return null;
 

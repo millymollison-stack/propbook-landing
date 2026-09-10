@@ -100,10 +100,14 @@ function AppContent() {
     initialize();
     loadBrandColor();
     loadFontAccent();
-    // Clear stale onboarding session data so it doesn't override nav title
-    // (but read popup_website_name first — we use it for the page title above)
-    sessionStorage.removeItem('popup_website_desc');
-    sessionStorage.removeItem('popup_scraped_data');
+    // Only clear stale onboarding session data when NOT returning from Stripe.
+    // popup_scraped_data and popup_website_desc must survive the Stripe redirect
+    // round-trip so migration has the user's scraped text and description.
+    const returningFromStripe = !!(sessionStorage.getItem('stripe_paid_returning') || sessionStorage.getItem('stripe_session_id'));
+    if (!returningFromStripe) {
+      sessionStorage.removeItem('popup_website_desc');
+      sessionStorage.removeItem('popup_scraped_data');
+    }
   }, [initialize]);
 
   // ── Handle Stripe return redirect ( ?paid=true ) ─────────────────────────────
@@ -257,8 +261,7 @@ function AppContent() {
           <Route path="/auth/confirm" element={<EmailConfirmation />} />
           <Route path="/admin" element={user?.role === 'admin' ? <AdminDashboard /> : <Navigate to="/" replace />} />
           <Route path="/property-admin" element={user ? <PropertyAdmin /> : <Navigate to="/login" replace />} />
-          <Route path="/onboarding" element={<Onboarding />} />
-          <Route path="/pay/:bookingId" element={<PaymentPage />} />
+                  <Route path="/pay/:bookingId" element={<PaymentPage />} />
           <Route path="/props/:slug" element={<CustomerSite onSiteNameChange={setSiteName} isEditing={isEditing} registerSaveAll={(fn) => { saveAllRef.current = fn; return true; }} onPropertyLoaded={(ownerId) => setCurrentPropertyOwnerId(ownerId)} scrapedProperty={scrapedProperty} scrapedImages={scrapedImages} urlSlug={undefined} />} />
           <Route path="/saas-admin" element={user?.role === 'saas_admin' ? <SaasAdminDashboard /> : <Navigate to="/" replace />} />
           <Route path="/guest/account" element={<GuestAccount />} />
