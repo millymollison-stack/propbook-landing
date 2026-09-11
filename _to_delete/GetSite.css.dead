@@ -168,8 +168,9 @@ p {
 .btn:active { opacity: 0.7; }
 
 .publish-btn {
-  
+  width: 100%;
   max-width: 400px;
+  margin: 20px auto 0 !important;
   background: var(--brand) !important;
   color: white !important;
   padding: 14px 28px;
@@ -396,13 +397,26 @@ hr {
   margin-bottom: 8px;
 }
 
+/* Airbnb-import preview only — 30% shorter than the default TemplatePreview height */
+.popup-preview-compact .preview-container {
+  height: 490px;
+  max-height: 420px;
+}
+
+@media (max-width: 400px) {
+  .popup-preview-compact .preview-container {
+    height: 280px;
+    max-height: 280px;
+  }
+}
+
 /* ============================================
    COLOR PICKER
    ============================================ */
 
 .popup-color-picker {
-  margin-top: 16px;
-  border-top: 1px solid rgba(255,255,255,0.1);
+  /* margin-top: 16px; */
+  /* border-top: 1px solid rgba(255,255,255,0.1); */
   padding-top: 16px;
 }
 
@@ -415,7 +429,9 @@ hr {
 
 .popup-color-swatch {
   width: 36px;
-  height: 36px;
+  height: 37px;
+  box-sizing: border-box;
+  background-clip: padding-box;
   border-radius: 8px;
   border: 2px solid transparent;
   cursor: pointer;

@@ -1,0 +1,123 @@
+/* Extracted from inline styles in SeoSection.tsx (2026-09-11) */
+
+.seo-field-hint {
+  font-size: 0.72rem;
+  color: #9ca3af;
+  margin-top: 3px;
+}
+.seo-input-spaced {
+  margin-top: 6px;
+}
+.seo-textarea {
+  margin-top: 6px;
+  resize: vertical;
+}
+.seo-meta-counter-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 3px;
+}
+.seo-meta-counter-text {
+  font-size: 0.72rem;
+  color: #9ca3af;
+}
+.seo-meta-counter-text.over-limit {
+  color: #ef4444;
+}
+.seo-meta-counter-count {
+  font-size: 0.72rem;
+}
+.seo-meta-counter-count.zero {
+  color: #9ca3af;
+}
+.seo-meta-counter-count.over-limit {
+  color: #ef4444;
+}
+.seo-meta-counter-count.ok {
+  color: #16a34a;
+}
+.seo-og-preview {
+  margin-top: 8px;
+  width: 100%;
+  max-height: 80px;
+  object-fit: cover;
+  border-radius: 6px;
+}
+.seo-inline-code {
+  font-size: 0.68rem;
+  background: #f3f4f6;
+  padding: 1px 4px;
+  border-radius: 3px;
+}
+.seo-section-divider {
+  border-top: 1px solid #f0f0f0;
+  padding-top: 10px;
+  margin-top: 10px;
+}
+.seo-toggle-flex1 {
+  flex: 1;
+}
+.seo-toggle-label {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: #111827;
+  margin: 0;
+}
+.seo-toggle-label-sm {
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: #111827;
+  margin: 0;
+}
+.seo-toggle-desc {
+  font-size: 0.72rem;
+  color: #9ca3af;
+  margin: 2px 0 0;
+}
+.seo-toggle-desc-sm {
+  font-size: 0.68rem;
+  color: #9ca3af;
+  margin: 1px 0 0;
+}
+.seo-section-title {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #374151;
+  margin: 0 0 8px;
+}
+.seo-section-subtitle {
+  font-size: 0.72rem;
+  color: #9ca3af;
+  margin: 0 0 12px;
+}
+.seo-toggle-row-mb {
+  margin-bottom: 8px;
+}
+.seo-toggle-track {
+  width: 40px;
+  height: 22px;
+  border-radius: 11px;
+  background: #d1d5db;
+  position: relative;
+  cursor: pointer;
+  transition: background 0.2s;
+  flex-shrink: 0;
+}
+.seo-toggle-track.on {
+  background: #16a34a;
+}
+.seo-toggle-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #fff;
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  transition: left 0.2s;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+.seo-toggle-thumb.on {
+  left: 20px;
+}

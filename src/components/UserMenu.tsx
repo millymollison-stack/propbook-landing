@@ -1,7 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import './OnboardingPopup.css';
-import './Editmode.css';
-import './sidebar.css';
 import { X, User, LogOut, CreditCard as Edit2, Save, AlertCircle, Info, Building, ChevronDown, ChevronUp } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../store/auth';
@@ -349,7 +346,7 @@ export function UserMenu() {
       <button
         onClick={toggleMenu}
         data-user-menu-button
-        className="flex items-center space-x-1 px-3 py-1.5 bg-white/20 backdrop-blur-sm border border-white/15 rounded text-white font-bold text-sm hover:bg-white/30"
+        className="nav-btn nav-btn-glass"
       >
         <User className="h-4 w-4" />
         <span>{user.full_name?.split(' ')[0] || 'Profile'}</span>

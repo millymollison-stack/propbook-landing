@@ -9,7 +9,6 @@
  * All sidebar.css classes and button state styles are preserved exactly.
  */
 
-import './sidebar.css';
 
 import React, { useState, useEffect, memo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -116,7 +115,7 @@ const UserBookings = memo(function UserBookings({ bookings }: UserBookingsProps)
   };
 
   if (!bookings.length) {
-    return <div className="text-center py-12"><p className="text-gray-500">No bookings found.</p></div>;
+    return <div className="text-center py-12"><p className="body-on-light">No bookings found.</p></div>;
   }
 
   return (
@@ -147,7 +146,7 @@ const UserBookings = memo(function UserBookings({ bookings }: UserBookingsProps)
                 <Home className="h-5 w-5 text-gray-400 mr-2" />
                 <span className="font-medium">{booking.property?.title || booking.property?.name || 'Property'}</span>
               </div>
-              <div className="flex items-center text-sm text-gray-600">
+              <div className="flex items-center body-on-light">
                 <Mail className="h-4 w-4 text-gray-400 mr-2" />
                 {booking.property?.address || '—'}
               </div>
@@ -212,63 +211,26 @@ function PropertySwitcher({ userProperties, activeProperty, show, onToggle, onSe
   if (userProperties.length === 0) return null;
 
   return (
-    <div style={{ position: 'relative', marginBottom: 12 }}>
+    <div className="gs-property-switcher">
       <button
         onClick={onToggle}
-        style={{
-          background: '#f3f4f6',
-          border: '1px solid #d1d5db',
-          borderRadius: 6,
-          padding: '6px 10px',
-          fontSize: 12,
-          cursor: 'pointer',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 4,
-          width: '100%',
-        }}
+        className="gs-property-switcher-btn"
       >
-        <span style={{ flex: 1, textAlign: 'left', color: '#374151' }}>
+        <span className="gs-property-switcher-label">
           {activeProperty?.name || activeProperty?.title || activeProperty?.slug || 'Switch property'}
         </span>
-        <ChevronDown className="h-3 w-3" style={{ opacity: 0.6 }} />
+        <ChevronDown className="h-3 w-3 gs-property-switcher-chevron" />
       </button>
       {show && (
-        <div
-          style={{
-            position: 'absolute',
-            top: '100%',
-            left: 0,
-            right: 0,
-            zIndex: 9999,
-            background: 'white',
-            border: '1px solid #e5e7eb',
-            borderRadius: 8,
-            boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-            maxHeight: 200,
-            overflowY: 'auto',
-            marginTop: 2,
-          }}
-        >
+        <div className="gs-property-dropdown">
           {userProperties.map(prop => (
             <button
               key={prop.id}
               onClick={() => onSelect(prop)}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                width: '100%',
-                padding: '8px 12px',
-                background: prop.id === activeProperty?.id ? '#f0fdf4' : 'none',
-                border: 'none',
-                cursor: 'pointer',
-                fontSize: 13,
-                textAlign: 'left',
-                gap: 8,
-              }}
+              className={`gs-property-dropdown-item${prop.id === activeProperty?.id ? ' active' : ''}`}
             >
               {prop.id === activeProperty?.id && <Check className="h-3 w-3 text-green-500" />}
-              <span style={{ color: prop.id === activeProperty?.id ? '#166534' : '#374151' }}>
+              <span className={`gs-property-dropdown-item-label${prop.id === activeProperty?.id ? ' active' : ''}`}>
                 {prop.name || prop.title || prop.slug}
               </span>
             </button>
@@ -340,9 +302,9 @@ function ContactSection({
 
       {/* Email */}
       <div className="sb-field-row">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div className="gs-email-row">
           <h4 className="sb-h4-grey">Email</h4>
-          <span style={{ fontSize: 11, fontWeight: 600, color: 'rgba(0,0,0,0.5)' }}>Verified</span>
+          <span className="gs-verified-badge">Verified</span>
         </div>
         <p className="sb-field-value">{user.email}</p>
       </div>
@@ -558,7 +520,7 @@ export function GuestSidebar({ isOpen, onClose, currentSlug, onOpenGetSite }: Gu
           </p>
 
           {/* Property Switcher — always visible at top of sidebar */}
-          <div style={{ paddingTop: 12, paddingBottom: 4 }}>
+          <div className="gs-switcher-wrap">
             <PropertySwitcher
               userProperties={userProperties}
               activeProperty={activeProperty}
@@ -572,8 +534,7 @@ export function GuestSidebar({ isOpen, onClose, currentSlug, onOpenGetSite }: Gu
           <div className="sb-next-booking">
             <button
               onClick={() => setBookingCardOpen(prev => !prev)}
-              className="w-full text-left p-4"
-              style={{ width: '100%', textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer' }}
+              className="w-full text-left p-4 gs-booking-toggle-btn"
             >
               {bookingsLoading && !nextBooking ? (
                 <div className="flex justify-center py-3"><InlineLoader /></div>
@@ -617,7 +578,7 @@ export function GuestSidebar({ isOpen, onClose, currentSlug, onOpenGetSite }: Gu
                 </div>
               ) : (
                 <div className="flex items-center justify-between py-2">
-                  <p className="text-sm text-gray-500">No upcoming bookings</p>
+                  <p className="body-on-light">No upcoming bookings</p>
                   {bookingCardOpen
                     ? <ChevronDown className="h-5 w-5 text-gray-500" />
                     : <ChevronRight className="h-5 w-5 text-gray-500" />
@@ -668,28 +629,13 @@ export function GuestSidebar({ isOpen, onClose, currentSlug, onOpenGetSite }: Gu
           </div>
 
           {/* Get your own booking website — exact same styling as AdminSidebar */}
-          <div style={{ padding: '12px 0 5px' }}>
+          <div className="gs-own-site-wrap">
             <button
               onClick={() => {
                 (window as any).__openGetSite?.();
                 window.setTimeout(() => onClose(), 0);
               }}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: 8,
-                width: '100%',
-                padding: '10px 16px',
-                backgroundColor: 'var(--brand, #C47756)',
-                color: 'white',
-                borderRadius: 8,
-                fontWeight: 600,
-                fontSize: '0.9rem',
-                textDecoration: 'none',
-                cursor: 'pointer',
-                border: 'none',
-              }}
+              className="gs-own-site-btn"
             >
               Get your own booking website →
             </button>

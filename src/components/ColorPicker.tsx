@@ -4,7 +4,7 @@ import { Palette, X, Check } from 'lucide-react';
 import { saveBrandColor, loadBrandColor } from '../lib/brandColor';
 import { FONT_OPTIONS, saveFontAccent, loadFontAccent, applyFontAccent } from '../lib/fontAccent';
 import { FontDropdown } from './FontDropdown';
-import './ColorPicker.css';
+import { supabase } from '../lib/supabase';
 
 const PRESET_COLORS = [
   { hex: '#E63946', label: 'Strong Red' },
@@ -21,7 +21,7 @@ const PRESET_COLORS = [
   { hex: '#CCFF00', label: 'Electric Lime' },
 ];
 
-export default function ColorPicker({ isEditing }: { isEditing?: boolean }) {
+export default function ColorPicker({ isEditing, propertyId }: { isEditing?: boolean; propertyId?: string }) {
   const [open, setOpen] = useState(false);
   const [fontDropdownOpen, setFontDropdownOpen] = useState(false);
   const [fontDropdownRect, setFontDropdownRect] = useState<DOMRect | null>(null);
@@ -68,6 +68,12 @@ export default function ColorPicker({ isEditing }: { isEditing?: boolean }) {
   const applyColor = (hex: string) => {
     saveBrandColor(hex);
     setCustomHex(hex);
+    // Persist to the DB so this is a fact about the property, not just a browser preference —
+    // otherwise it never survives to a republish (see: worked for migration, not publishing).
+    if (propertyId) {
+      supabase.from('properties').update({ brand_color: hex }).eq('id', propertyId)
+        .then(({ error }) => { if (error) console.error('[ColorPicker] Failed to save brand_color:', error); });
+    }
   };
 
   const handleCustomChange = (val: string) => {
@@ -189,6 +195,11 @@ export default function ColorPicker({ isEditing }: { isEditing?: boolean }) {
                 setFontAccent(font);
                 saveFontAccent(font);
                 setFontDropdownOpen(false);
+                // Persist to the DB — same reasoning as brand_color above.
+                if (propertyId) {
+                  supabase.from('properties').update({ font_accent: font }).eq('id', propertyId)
+                    .then(({ error }) => { if (error) console.error('[ColorPicker] Failed to save font_accent:', error); });
+                }
               }}
               className="font-dropdown-option"
               style={{ fontFamily: `'${font}', serif` }}

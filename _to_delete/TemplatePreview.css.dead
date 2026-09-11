@@ -209,3 +209,19 @@
     height: 400px;
   }
 }
+
+/* Extracted from inline styles (2026-09-11) */
+.tp-star-icon {
+  width: 12px;
+  height: 12px;
+}
+.tp-star-filled {
+  fill: #fbbf24;
+}
+.tp-star-empty {
+  fill: rgba(255, 255, 255, 0.2);
+}
+.tp-icon-sm {
+  width: 10px;
+  height: 10px;
+}

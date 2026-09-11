@@ -118,12 +118,12 @@ export function Onboarding() {
 
         {/* Step 1: Account */}
         {step === 1 && (
-          <div className="bg-white rounded-xl shadow-lg p-8">
-            <h2 className="text-2xl font-bold mb-6">Create Your Account</h2>
+          <div className="sb-panel-bg rounded-xl shadow-lg p-8">
+            <h2 className="h2-on-light mb-6">Create Your Account</h2>
             
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="label-on-light">
                   Your Name
                 </label>
                 <input
@@ -136,7 +136,7 @@ export function Onboarding() {
               </div>
               
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="label-on-light">
                   Email
                 </label>
                 <input
@@ -149,7 +149,7 @@ export function Onboarding() {
               </div>
               
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="label-on-light">
                   Password
                 </label>
                 <input
@@ -174,12 +174,12 @@ export function Onboarding() {
 
         {/* Step 2: Property Info */}
         {step === 2 && (
-          <div className="bg-white rounded-xl shadow-lg p-8">
-            <h2 className="text-2xl font-bold mb-6">Tell Us About Your Property</h2>
+          <div className="sb-panel-bg rounded-xl shadow-lg p-8">
+            <h2 className="h2-on-light mb-6">Tell Us About Your Property</h2>
             
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="label-on-light">
                   Property Name
                 </label>
                 <input
@@ -192,7 +192,7 @@ export function Onboarding() {
               </div>
               
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="label-on-light">
                   Tagline
                 </label>
                 <input
@@ -205,7 +205,7 @@ export function Onboarding() {
               </div>
               
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="label-on-light">
                   Description
                 </label>
                 <textarea
@@ -238,12 +238,12 @@ export function Onboarding() {
 
         {/* Step 3: Details */}
         {step === 3 && (
-          <div className="bg-white rounded-xl shadow-lg p-8">
-            <h2 className="text-2xl font-bold mb-6">Property Details</h2>
+          <div className="sb-panel-bg rounded-xl shadow-lg p-8">
+            <h2 className="h2-on-light mb-6">Property Details</h2>
             
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="label-on-light">
                   Price per Night ($)
                 </label>
                 <input
@@ -255,7 +255,7 @@ export function Onboarding() {
               </div>
               
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="label-on-light">
                   Max Guests
                 </label>
                 <input
@@ -267,7 +267,7 @@ export function Onboarding() {
               </div>
               
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="label-on-light">
                   Bedrooms
                 </label>
                 <input
@@ -279,7 +279,7 @@ export function Onboarding() {
               </div>
               
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="label-on-light">
                   Bathrooms
                 </label>
                 <input
@@ -292,7 +292,7 @@ export function Onboarding() {
             </div>
             
             <div className="mt-4">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="label-on-light">
                 Address
               </label>
               <input
@@ -306,7 +306,7 @@ export function Onboarding() {
             
             <div className="grid grid-cols-2 gap-4 mt-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="label-on-light">
                   City
                 </label>
                 <input
@@ -318,7 +318,7 @@ export function Onboarding() {
               </div>
               
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="label-on-light">
                   Country
                 </label>
                 <input
@@ -349,20 +349,20 @@ export function Onboarding() {
 
         {/* Step 4: Review & Submit */}
         {step === 4 && (
-          <div className="bg-white rounded-xl shadow-lg p-8">
-            <h2 className="text-2xl font-bold mb-6">Review & Launch</h2>
+          <div className="sb-panel-bg rounded-xl shadow-lg p-8">
+            <h2 className="h2-on-light mb-6">Review & Launch</h2>
             
             <div className="space-y-4">
               <div className="p-4 bg-gray-50 rounded-lg">
-                <h3 className="font-medium text-gray-700">Account</h3>
-                <p className="text-gray-600">{formData.name} ({formData.email})</p>
+                <h3 className="label-on-light">Account</h3>
+                <p className="body-on-light">{formData.name} ({formData.email})</p>
               </div>
               
               <div className="p-4 bg-gray-50 rounded-lg">
-                <h3 className="font-medium text-gray-700">Property</h3>
-                <p className="text-gray-600">{formData.propertyName}</p>
-                <p className="text-sm text-gray-500">{formData.tagline}</p>
-                <p className="text-sm text-gray-500">${formData.pricePerNight}/night • {formData.bedrooms} bed • {formData.bathrooms} bath</p>
+                <h3 className="label-on-light">Property</h3>
+                <p className="body-on-light">{formData.propertyName}</p>
+                <p className="body-on-light">{formData.tagline}</p>
+                <p className="body-on-light">${formData.pricePerNight}/night • {formData.bedrooms} bed • {formData.bathrooms} bath</p>
               </div>
               
               <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
@@ -392,14 +392,14 @@ export function Onboarding() {
 
         {/* Step 5: Success */}
         {step === 5 && (
-          <div className="bg-white rounded-xl shadow-lg p-8 text-center">
+          <div className="sb-panel-bg rounded-xl shadow-lg p-8 text-center">
             <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
               <span className="text-3xl">🎉</span>
             </div>
             
-            <h2 className="text-2xl font-bold mb-4">Your Site is Live!</h2>
+            <h2 className="h2-on-light mb-4">Your Site is Live!</h2>
             
-            <p className="text-gray-600 mb-6">
+            <p className="body-on-light mb-6">
               Your vacation rental website is now live! You can now:
             </p>
             

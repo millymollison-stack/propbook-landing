@@ -273,6 +273,11 @@ export interface NewSiteData {
   bookingsEmail: string;
   websiteName: string;
   websiteDesc: string;
+  // Full, unedited scraped description (the "Full description (unedited)" text box in
+  // GetSite.tsx) — was previously never sent to save-site-records, so every brand-new
+  // property silently inherited property_intro from the hardcoded reference property
+  // instead of the user's own text. 2026-09-11 fix.
+  propertyIntroFull?: string;
   propertyHeadline?: string;  // full property headline (no 12-char limit)
   propertyTitle?: string;  // headline for {{PROPERTY_TITLE}} template token
   slug?: string;  // optional explicit slug — if not provided, one is generated from websiteName
@@ -288,6 +293,8 @@ export interface NewSiteData {
   ogImageUrl?: string;
   googleVerification?: string;
   robotsNoindex?: boolean;
+  brand_color?: string | null;
+  font_accent?: string | null;
 }
 
 // ─────────────────────────────────────────────
@@ -418,6 +425,10 @@ export async function createNewSiteRecords(data: NewSiteData): Promise<{
         slug,
         // description: user's edited Property Description field — NOT the raw scrape copy
         description: data.websiteDesc || data.scrapedData?.description,
+        // propertyIntro: the "Full description (unedited)" field — falls back to the raw
+        // scrape text, but NEVER to the reference-property default (that happens server-side
+        // only when this is genuinely empty, see save-site-records).
+        propertyIntro: data.propertyIntroFull || data.scrapedData?.description || '',
         location: data.scrapedData?.location || '',
         maxGuests: data.scrapedData?.guests || 8,
         bedrooms: data.scrapedData?.bedrooms || 2,
@@ -431,6 +442,12 @@ export async function createNewSiteRecords(data: NewSiteData): Promise<{
         stripeAccountId: data.userStripeAccountId || null,
         stripeAccountStatus: data.userStripeAccountId ? 'active' : null,
         userId: data.userId,
+        // brand_color / font_accent were computed by the caller (GetSite.tsx) and put on
+        // `data`, but were never actually forwarded here — save-site-records has always
+        // accepted and written both, so the new property silently kept whatever the
+        // reference/default color was instead of what the user picked during onboarding.
+        brand_color: data.brand_color || null,
+        font_accent: data.font_accent || null,
       }),
     });
     const result = await res.json();
@@ -443,154 +460,6 @@ export async function createNewSiteRecords(data: NewSiteData): Promise<{
     console.error('[createNewSiteRecords] Error:', err);
     throw err;
   }
-}
-
-// ─────────────────────────────────────────────
-// STEP 3b — Push HTML to Hostinger + activate site (Button 2: Go Live)
-// ─────────────────────────────────────────────
-export async function goLiveSite(propertyId: string, slug: string, html: string): Promise<string> {
-  const hostingerDir = `/home/u805830916/domains/propbook.pro/public_html/props/${slug}`;
-
-  const mkdirRes = await new Promise<string>((resolve, reject) => {
-    const { exec } = require('child_process');
-    const cmd = `sshpass -p 'Clawbot12!' ssh -o StrictHostKeyChecking=no -p 65002 u805830916@82.29.86.252 "mkdir -p '${hostingerDir}' && echo DIR_OK"`;
-    exec(cmd, (err: Error | null, stdout: string, stderr: string) => {
-      if (err) reject(new Error(`mkdir SSH failed: ${stderr || err.message}`));
-      else resolve(stdout.trim());
-    });
-  });
-  console.log('[goLive] mkdir:', mkdirRes);
-
-  const sftpCmd = `sshpass -p 'Clawbot12!' sftp -o StrictHostKeyChecking=no -P 65002 u805830916@82.29.86.252 <<'SFTP_EOF'\nput /dev/stdin "${hostingerDir}/index.html"\nbye\nSFTP_EOF`;
-
-  await new Promise<void>((resolve, reject) => {
-    const { exec: exec2 } = require('child_process');
-    const p = exec2(sftpCmd);
-    if (!p.stdin) { reject(new Error('No stdin')); return; }
-    p.stdin.write(html, (err: Error | null) => {
-      if (err) { reject(err); return; }
-      p.stdin.end();
-    });
-    let stderr = '';
-    p.stderr?.on('data', (d: string) => (stderr += d));
-    p.on('close', (code: number) => {
-      if (code !== 0) reject(new Error(`SFTP write failed: ${stderr}`));
-      else resolve();
-    });
-  });
-  console.log('[goLive] HTML written');
-
-  await supabaseAdmin
-    .from('properties')
-    .update({
-      status: 'active',
-      site_url: `https://www.propbook.pro/props/${slug}`,
-      server_ip: '82.29.86.252',
-      folder_path: hostingerDir,
-    })
-    .eq('id', propertyId);
-
-  console.log(`[goLive] Site live: https://www.propbook.pro/props/${slug}`);
-  return `https://www.propbook.pro/props/${slug}`;
-}
-
-// ─────────────────────────────────────────────
-// STEP 4 (React) — Deploy React template to Hostinger
-// Reads template files from the app origin, injects config, pushes via SFTP
-// ─────────────────────────────────────────────
-export async function deployReactTemplate(
-  propertyId: string,
-  slug: string,
-  supabaseUrl: string,
-  supabaseAnonKey: string
-): Promise<string> {
-  const hostingerDir = `/home/u805830916/domains/propbook.pro/public_html/props/${slug}`;
-  const siteUrl = `https://www.propbook.pro/props/${slug}`;
-  const githubRawBase = 'https://raw.githubusercontent.com/millymollison-stack/surfhousebaja/main/src/public/template';
-
-  console.log(`[deployReactTemplate] 🚀 Deploying React template for slug=${slug}`);
-
-  // 1. Ensure directory exists on Hostinger
-  await new Promise<void>((resolve, reject) => {
-    const { exec } = require('child_process');
-    const cmd = `sshpass -p 'Clawbot12!' ssh -o StrictHostKeyChecking=no -p 65002 u805830916@82.29.86.252 "mkdir -p '${hostingerDir}' && echo DIR_OK"`;
-    exec(cmd, (err: Error | null, stdout: string, stderr: string) => {
-      if (err) reject(new Error(`mkdir SSH failed: ${stderr || err.message}`));
-      else resolve();
-    });
-  });
-
-  // 2. Fetch template files from GitHub raw content (always available after push)
-  const [indexHtml, appJs, stylesCss] = await Promise.all([
-    fetch(`${githubRawBase}/index.html`).then(r => { if (!r.ok) throw new Error('index.html not found in GitHub'); return r.text(); }),
-    fetch(`${githubRawBase}/app.js`).then(r => { if (!r.ok) throw new Error('app.js not found in GitHub'); return r.text(); }),
-    fetch(`${githubRawBase}/styles.css`).then(r => { if (!r.ok) throw new Error('styles.css not found in GitHub'); return r.text(); }),
-  ]);
-
-  // 3. Inject config into index.html
-  const configuredHtml = indexHtml
-    .replace('{{SUPABASE_URL}}', supabaseUrl)
-    .replace('{{SUPABASE_ANON_KEY}}', supabaseAnonKey)
-    .replace('{{PROPERTY_SLUG}}', slug);
-
-  // 4. Push all 3 files via SFTP
-  const sftpCmd = `sshpass -p 'Clawbot12!' sftp -o StrictHostKeyChecking=no -P 65002 u805830916@82.29.86.252 <<'SFTP_EOF'
-put /dev/stdin "${hostingerDir}/index.html"
-put /dev/stdin "${hostingerDir}/app.js"
-put /dev/stdin "${hostingerDir}/styles.css"
-bye
-SFTP_EOF`;
-
-  await new Promise<void>((resolve, reject) => {
-    const { exec: exec2 } = require('child_process');
-    const p = exec2(sftpCmd);
-    if (!p.stdin) { reject(new Error('No stdin')); return; }
-    // Write index.html, app.js, styles.css sequentially
-    p.stdin.write(configuredHtml, (err: Error | null) => {
-      if (err) { reject(err); return; }
-    });
-    p.stdin.write(appJs, (err: Error | null) => {
-      if (err) { reject(err); return; }
-    });
-    p.stdin.write(stylesCss, (err: Error | null) => {
-      if (err) { reject(err); return; }
-    });
-    p.stdin.end();
-    let stderr = '';
-    p.stderr?.on('data', (d: string) => (stderr += d));
-    p.on('close', (code: number) => {
-      if (code !== 0) reject(new Error(`SFTP write failed: ${stderr}`));
-      else resolve();
-    });
-  });
-
-  console.log('[deployReactTemplate] ✅ All files written to Hostinger');
-
-  // 5b. Chmod to 644 so LiteSpeed web server can serve them
-  await new Promise<void>((resolve, reject) => {
-    const { exec } = require('child_process');
-    const cmd = `sshpass -p 'Clawbot12!' ssh -o StrictHostKeyChecking=no -p 65002 u805830916@82.29.86.252 "chmod 644 '${hostingerDir}/index.html' '${hostingerDir}/app.js' '${hostingerDir}/styles.css' && echo CHMOD_OK"`;
-    exec(cmd, (err: Error | null, _stdout: string, stderr: string) => {
-      if (err) reject(new Error(`chmod failed: ${stderr || err.message}`));
-      else resolve();
-    });
-  });
-  console.log('[deployReactTemplate] ✅ File permissions set to 644');
-
-  // 5. Update property record
-  await supabaseAdmin
-    .from('properties')
-    .update({
-      status: 'active',
-      site_url: siteUrl,
-      server_ip: '82.29.86.252',
-      folder_path: hostingerDir,
-    })
-    .eq('id', propertyId);
-
-
-  console.log(`[deployReactTemplate] ✅ Site live: ${siteUrl}`);
-  return siteUrl;
 }
 
 // ─────────────────────────────────────────────
@@ -607,8 +476,6 @@ export async function duplicateSiteAfterPayment(
 ): Promise<{ slug: string; propertyId: string; deployUrl: string }> {
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
   const siteUrl = `https://www.propbook.pro/props/${slug}`;
-  const DEPLOY_SECRET = 'propbook-deploy-2026';
-  const UPLOAD_PHP_URL = 'https://www.propbook.pro/upload.php';
 
   console.log('[duplicateSiteAfterPayment] 🚀 Deploying clean SPA for slug:', slug);
 

@@ -148,17 +148,30 @@ export function CustomerSite({ onSiteNameChange, isEditing: externalIsEditing, r
   const [showAuthSignup, setShowAuthSignup] = useState(false);
   // ── Subscription confirmation banner ─────────────────────────────────────────
   const [showSubscriptionBanner, setShowSubscriptionBanner] = useState(false);
+  const [reviewsRefreshKey, setReviewsRefreshKey] = useState(0);
   const [subscriptionPlan, setSubscriptionPlan] = useState<string | null>(null);
 
   // ── Share popup ───────────────────────────────────────────────────────────────
   const [showSharePopup, setShowSharePopup] = useState(false);
+  const [sharePopupClosing, setSharePopupClosing] = useState(false);
   const siteUrl = property?.site_url || (property?.slug ? `https://www.propbook.pro/props/${property.slug}` : window.location.href);
   const qrCodeUrl = siteUrl ? `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(siteUrl)}` : '';
 
-  // Wire existing nav Share button (outside React tree) to our Share popup
+  // Animate the popup back into the nav's Share icon, then dismiss it.
+  const closeSharePopup = () => {
+    setSharePopupClosing(true);
+    setTimeout(() => {
+      setShowSharePopup(false);
+      setSharePopupClosing(false);
+    }, 320);
+  };
+
+  // Nav Share button (Layout.tsx) dispatches this event instead of duplicating the nav here —
+  // same button, same nav, it just opens this popup when viewing a published property.
   useEffect(() => {
-    const shareBtn = document.querySelector('nav button svg');
-    if (shareBtn) shareBtn.parentElement?.addEventListener('click', () => setShowSharePopup(true));
+    const handler = () => setShowSharePopup(true);
+    window.addEventListener('propbook:open-share-popup', handler);
+    return () => window.removeEventListener('propbook:open-share-popup', handler);
   }, []);
 
   // Detect first visit after publishing — sidebar redirects with ?published=1
@@ -168,8 +181,8 @@ export function CustomerSite({ onSiteNameChange, isEditing: externalIsEditing, r
       // Remove the param without a page reload
       window.history.replaceState({}, '', window.location.pathname);
       setShowSharePopup(true);
-      // Auto-close after 5 seconds
-      const timer = setTimeout(() => setShowSharePopup(false), 5000);
+      // Auto-close after 3 seconds, animating back into the share icon
+      const timer = setTimeout(() => closeSharePopup(), 3000);
       return () => clearTimeout(timer);
     }
   }, []);
@@ -367,25 +380,31 @@ export function CustomerSite({ onSiteNameChange, isEditing: externalIsEditing, r
         // Share this property with AdminSidebar so it can verify ownership
         useProperty.getState().setActiveProperty(propData);
 
-        // Load property images: prefer properties.images array (Airbnb URLs stored directly),
-        // fall back to property_images table for manually uploaded images
+        // Load property images: property_images table is the source of
+        // truth (real row ids + is_featured/is_background/is_main flags),
+        // fall back to the plain properties.images URL array only when a
+        // property has no property_images rows yet. Previously
+        // properties.images was tried first — populated on every publish —
+        // so real per-image flags were silently ignored for every scraped
+        // site (Round 5, David: "works for surfhousebaja but not all
+        // created property sites").
         const { data: imgData } = await supabase
           .from('property_images')
           .select('*')
           .eq('property_id', propData.id)
           .order('position');
         let imgList: PropertyImage[] = [];
-        if (propData.images && propData.images.length > 0) {
+        if (imgData && imgData.length > 0) {
+          imgList = imgData;
+        } else if (propData.images && propData.images.length > 0) {
           imgList = propData.images.map((url: string, i: number) => ({ id: `img-${i}`, url, position: i }));
-        } else {
-          imgList = imgData || [];
         }
         setImages(imgList);
 
         // Background images (first 2 with is_background flag)
         let bgImages: PropertyImage[] = [];
         try {
-          bgImages = (imgData || []).filter((img: PropertyImage) => (img as any).is_background).slice(0, 2);
+          bgImages = imgList.filter((img: PropertyImage) => (img as any).is_background).slice(0, 2);
         } catch (e) { bgImages = []; }
         setBackgroundImages(bgImages);
 
@@ -555,11 +574,11 @@ export function CustomerSite({ onSiteNameChange, isEditing: externalIsEditing, r
 
   if (error || !property) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-black" style={{ fontFamily: 'Inter, sans-serif' }}>
+      <div className="min-h-screen flex items-center justify-center bg-black cs-notfound-screen">
         <div className="text-center">
-          <h1 style={{ color: '#fff', marginBottom: '16px' }}>Site not found</h1>
-          <p style={{ color: 'rgba(255,255,255,0.6)' }}>{error || 'This site does not exist.'}</p>
-          <a href="https://propbook.pro" style={{ marginTop: '24px', color: '#C47756', display: 'inline-block' }}>Go to propbook.pro</a>
+          <h1 className="cs-notfound-title">Site not found</h1>
+          <p className="cs-notfound-message">{error || 'This site does not exist.'}</p>
+          <a href="https://propbook.pro" className="cs-notfound-link">Go to propbook.pro</a>
         </div>
       </div>
     );
@@ -569,15 +588,15 @@ export function CustomerSite({ onSiteNameChange, isEditing: externalIsEditing, r
     <div className="w-full">
       {/* ── Subscription confirmation banner ─────────────────────────────────── */}
       {showSubscriptionBanner && (
-        <div style="background:linear-gradient(135deg,#16a34a 0%,#15803d 100%);color:#fff;padding:14px 20px;display:flex;align-items:center;justify-content:space-between;gap:16px;font-family:Inter,sans-serif;position:relative;z-index:100;">
-          <div style="display:flex;align-items:center;gap:12px;flex:1;min-width:0;">
-            <div style="width:32px;height:32px;background:rgba(255,255,255,0.25);border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:18px;">✓</div>
-            <div style="min-width:0;">
-              <p style="margin:0;font-size:15px;font-weight:600;">Subscription active!</p>
-              <p style="margin:2px 0 0;font-size:13px;opacity:0.9;">You're on the {subscriptionPlan || 'Starter'} plan.</p>
+        <div className="cs-sub-banner">
+          <div className="cs-sub-banner-left">
+            <div className="cs-sub-banner-icon">✓</div>
+            <div className="cs-sub-banner-text">
+              <p className="cs-sub-banner-title">Subscription active!</p>
+              <p className="cs-sub-banner-sub">You're on the {subscriptionPlan || 'Starter'} plan.</p>
             </div>
           </div>
-          <button onClick={() => setShowSubscriptionBanner(false)} style="background:rgba(255,255,255,0.2);border:none;border-radius:6px;color:#fff;cursor:pointer;padding:6px 10px;font-size:18px;line-height:1;flex-shrink:0;" aria-label="Dismiss">×</button>
+          <button onClick={() => setShowSubscriptionBanner(false)} className="cs-sub-banner-dismiss" aria-label="Dismiss">×</button>
         </div>
       )}
 
@@ -586,67 +605,55 @@ export function CustomerSite({ onSiteNameChange, isEditing: externalIsEditing, r
       {/* ── Share popup ─────────────────────────────────────────────────────────── */}
       {showSharePopup && (
         <div
-          style={{
-            position: 'fixed', inset: 0,
-            background: 'rgba(0,0,0,0.55)',
-            zIndex: 9999,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontFamily: 'Inter, sans-serif',
-          }}
-          onClick={(e) => { if (e.target === e.currentTarget) setShowSharePopup(false); }}
+          className={`cs-share-overlay${sharePopupClosing ? ' closing' : ''}`}
+          onClick={(e) => { if (e.target === e.currentTarget) closeSharePopup(); }}
         >
-          <div style={{
-            background: '#fff',
-            borderRadius: 20,
-            padding: '32px 36px',
-            maxWidth: 380,
-            width: '90%',
-            textAlign: 'center',
-            boxShadow: '0 24px 64px rgba(0,0,0,0.3)',
-          }}>
+          {/* Centered normally; when closing, shrinks and slides up toward the Share icon
+              in the top-right of the nav so the popup reads as "collapsing back into it". */}
+          <div className={`cs-share-modal${sharePopupClosing ? ' closing' : ''}`}>
             {/* Top share icon */}
-            <div style={{ width: 56, height: 56, background: 'var(--brand, #C47756)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
+            <div className="cs-share-icon-circle">
               <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
                 <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
               </svg>
             </div>
-            <h2 style={{ margin: '0 0 6px', fontSize: '1.3rem', color: '#111' }}>Share this link with your audience</h2>
-            <p style={{ margin: '0 0 20px', color: '#666', fontSize: '0.9rem' }}>Copy the link or scan the QR code</p>
+            <h2 className="cs-share-title">Share this link with your audience</h2>
+            <p className="cs-share-subtitle">Copy the link or scan the QR code</p>
 
             {/* QR Code */}
             {qrCodeUrl && (
-              <div style={{ marginBottom: 20 }}>
-                <img src={qrCodeUrl} alt="QR Code" width={160} height={160} style={{ borderRadius: 12, border: '1px solid #eee' }} />
+              <div className="cs-share-qr-wrap">
+                <img src={qrCodeUrl} alt="QR Code" width={160} height={160} className="cs-share-qr-img" />
               </div>
             )}
 
             {/* URL */}
-            <div style={{ background: '#f5f5f5', borderRadius: 10, padding: '10px 14px', marginBottom: 20, fontSize: '0.82rem', color: '#333', wordBreak: 'break-all', fontFamily: 'monospace' }}>
+            <div className="cs-share-url-box">
               {siteUrl}
             </div>
 
             {/* Actions */}
-            <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
+            <div className="cs-share-actions">
               <button
                 onClick={() => {
                   navigator.clipboard?.writeText(siteUrl).catch(() => {});
-                  setShowSharePopup(false);
+                  closeSharePopup();
                 }}
-                style={{ flex: 1, minWidth: 100, background: 'var(--brand, #C47756)', color: '#fff', border: 'none', borderRadius: 10, padding: '10px 16px', fontSize: '0.9rem', fontWeight: 600, cursor: 'pointer' }}
+                className="cs-share-btn cs-share-btn-primary"
               >Copy Link</button>
               {navigator.share ? (
                 <button
                   onClick={() => {
                     navigator.share({ title: property?.property_headline || '@' + property?.slug || 'Property', url: siteUrl }).catch(() => {});
-                    setShowSharePopup(false);
+                    closeSharePopup();
                   }}
-                  style={{ flex: 1, minWidth: 100, background: '#fff', color: 'var(--brand, #C47756)', border: '2px solid var(--brand, #C47756)', borderRadius: 10, padding: '10px 16px', fontSize: '0.9rem', fontWeight: 600, cursor: 'pointer' }}
+                  className="cs-share-btn cs-share-btn-outline"
                 >Share</button>
               ) : null}
               <button
-                onClick={() => setShowSharePopup(false)}
-                style={{ flex: 1, minWidth: 100, background: '#fff', color: '#666', border: '1px solid #ddd', borderRadius: 10, padding: '10px 16px', fontSize: '0.9rem', fontWeight: 600, cursor: 'pointer' }}
+                onClick={() => closeSharePopup()}
+                className="cs-share-btn cs-share-btn-neutral"
               >Close</button>
             </div>
           </div>
@@ -695,11 +702,8 @@ export function CustomerSite({ onSiteNameChange, isEditing: externalIsEditing, r
 
         <div className="amenities-bg">
           <div
-            className="absolute inset-0 bg-cover bg-center"
-            style={{
-              backgroundImage: backgroundImages[0] ? `url('${backgroundImages[0].url}')` : undefined,
-              opacity: backgroundImages[0] ? 0.6 : 0
-            }}
+            className={`absolute inset-0 bg-cover bg-center amenities-bg-layer ${backgroundImages[0] ? 'bg-layer-visible' : 'bg-layer-hidden'}`}
+            style={backgroundImages[0] ? ({ '--bg-image': `url('${backgroundImages[0].url}')` } as React.CSSProperties) : undefined}
           ></div>
           <div className="relative">
             <PropertyAmenities
@@ -727,19 +731,14 @@ export function CustomerSite({ onSiteNameChange, isEditing: externalIsEditing, r
       {/* Reviews section */}
       <div className="reviews-section relative reviews-bg">
         <div
-          className="absolute inset-0 bg-cover bg-center"
-          style={{
-            backgroundImage: backgroundImages[1] ? `url('${backgroundImages[1].url}')` : undefined,
-            opacity: backgroundImages[1] ? 0.6 : 0,
-            width: '100vw',
-            marginLeft: 'calc(-50vw + 50%)'
-          }}
+          className={`absolute inset-0 bg-cover bg-center reviews-bg-layer ${backgroundImages[1] ? 'bg-layer-visible' : 'bg-layer-hidden'}`}
+          style={backgroundImages[1] ? ({ '--bg-image': `url('${backgroundImages[1].url}')` } as React.CSSProperties) : undefined}
         ></div>
         <div className="content-container relative">
           <div>
             <h1 className="reviews-section-heading">What our guests say</h1>
           </div>
-          <ReviewsList showStars={isEditing} isEditing={isEditing} />
+          <ReviewsList key={reviewsRefreshKey} showStars={isEditing} isEditing={isEditing} propertyId={property.id} />
           <div className="review-btn-wrap">
             <button
               onClick={() => setShowReviewModal(true)}
@@ -753,12 +752,12 @@ export function CustomerSite({ onSiteNameChange, isEditing: externalIsEditing, r
 
       {showReviewModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
-              <h2 style={{ color: '#000', fontFamily: 'var(--font-accent, "Playfair Display"), serif', fontWeight: 400, textTransform: 'uppercase', fontSize: 'clamp(1.2rem, 2vw, 1.5rem)', margin: 0 }}>Leave a Review</h2>
+          <div className="sb-panel-bg rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="sticky top-0 sb-panel-bg border-b border-gray-200 px-5 py-3 flex items-center justify-between">
+              <h2 className="review-modal-title">Leave a Review</h2>
             </div>
-            <div className="p-6">
-              <ReviewForm onSuccess={() => setShowReviewModal(false)} />
+            <div className="p-5">
+              <ReviewForm propertyId={property.id} onSuccess={() => { setShowReviewModal(false); setReviewsRefreshKey(k => k + 1); }} />
             </div>
           </div>
         </div>

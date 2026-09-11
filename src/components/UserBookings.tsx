@@ -125,7 +125,7 @@ const UserBookings = memo(function UserBookings({ bookings, onUpdateStatus, onRe
   if (!bookings.length) {
     return (
       <div className="text-center py-12">
-        <p className="text-gray-500">No bookings found.</p>
+        <p className="body-on-light">No bookings found.</p>
       </div>
     );
   }
@@ -161,11 +161,11 @@ const UserBookings = memo(function UserBookings({ bookings, onUpdateStatus, onRe
                   <User className="h-5 w-5 text-gray-400 mr-2" />
                   <span className="font-medium">{booking.user?.full_name || 'Unknown User'}</span>
                 </div>
-                <div className="flex items-center text-sm text-gray-600">
+                <div className="flex items-center body-on-light">
                   <Mail className="h-4 w-4 text-gray-400 mr-2" />
                   {booking.user?.email || 'No email provided'}
                 </div>
-                <div className="flex items-center text-sm text-gray-600">
+                <div className="flex items-center body-on-light">
                   <Phone className="h-4 w-4 text-gray-400 mr-2" />
                   {booking.user?.phone_number || 'No phone provided'}
                 </div>
@@ -177,7 +177,7 @@ const UserBookings = memo(function UserBookings({ bookings, onUpdateStatus, onRe
                   <Home className="h-5 w-5 text-gray-400 mr-2" />
                   <span className="font-medium">{booking.property.title}</span>
                 </div>
-                <div className="text-sm text-gray-600">
+                <div className="body-on-light">
                   <div className="flex items-center">
                     <User className="h-4 w-4 text-gray-400 mr-2" />
                     {adminProfile?.full_name || 'Property Manager'}
@@ -281,10 +281,10 @@ const UserBookings = memo(function UserBookings({ bookings, onUpdateStatus, onRe
           <div className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
             <div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" aria-hidden="true"></div>
             <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
-            <div className="inline-block align-bottom bg-white rounded-lg px-4 pt-5 pb-4 text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full sm:p-6">
+            <div className="inline-block align-bottom sb-panel-bg rounded-lg px-4 pt-5 pb-4 text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full sm:p-6">
               <div>
                 <div className="mt-3 text-center sm:mt-5">
-                  <h3 className="text-lg leading-6 font-medium text-gray-900" id="modal-title">
+                  <h3 className="h4-on-light leading-6" id="modal-title">
                     Provide Reason for Denial
                   </h3>
                   <div className="mt-2">

@@ -70,7 +70,7 @@ export function FontDropdown({ value, options, onChange, triggerClassName }: Fon
       </button><br />
       {open && triggerRect && (
         <div
-          className="fixed bg-white border border-gray-200 rounded-lg shadow-lg z-[2147483647] max-h-56 overflow-y-auto"
+          className="fixed sb-panel-bg border border-gray-200 rounded-lg shadow-lg z-[2147483647] max-h-56 overflow-y-auto"
           style={{
             top: triggerRect.bottom + 4,
             left: triggerRect.left,

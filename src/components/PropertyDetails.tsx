@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import './Editmode.css';
 import { Bed, Bath, Users, Wifi, Car, Coffee, Tv, Check, X, MapPin, ChevronDown, ChevronUp, CreditCard as Edit2, Waves, Scale, Fish, Truck } from 'lucide-react';
 import type { Property } from '../types';
 import { useAuth } from '../store/auth';
@@ -40,7 +39,7 @@ function CollapsibleSection({ title, content, isEditing, onEdit, isAdmin, isOpen
         onClick={onToggle}
         className="property-drop-down-btn"
       >
-        <h1 className="hero-title text-white">{title}</h1>
+        <h1 className="hero-title">{title}</h1>
         {isOpen ? <ChevronUp className="h-5 w-5 text-white" /> : <ChevronDown className="h-5 w-5 text-white" />}
       </button>
       
@@ -63,7 +62,7 @@ function CollapsibleSection({ title, content, isEditing, onEdit, isAdmin, isOpen
               <textarea
                 value={editedContent}
                 onChange={(e) => setEditedContent(e.target.value)}
-                className="w-full px-4 py-3 bg-white/20 backdrop-blur-sm border border-white/15 rounded-lg focus:border-[var(--brand)] focus:ring-[#C47756] edit-section-textarea"
+                className="edit-section-textarea"
                 rows={6}
                 placeholder={`Enter ${title.toLowerCase()} information...`}
               />
@@ -87,7 +86,7 @@ function CollapsibleSection({ title, content, isEditing, onEdit, isAdmin, isOpen
               {content ? (
                 <p className="whitespace-pre-line hero-subtitle">{content}</p>
               ) : (
-                <p className="text-gray-400 italic">No information available</p>
+                <p className="body-on-dark" style={{ fontStyle: "italic" }}>No information available</p>
               )}
             </div>
           )}
@@ -211,9 +210,9 @@ export function PropertyDetails({ property, isEditing, onEditingChange, onSave, 
         <div className="space-y-2 flex-1 w-full">
           <div className="mt-2 w-full">
             {isEditing ? (
-              renderEditableText('description', formData.description, 'textarea')
+              renderEditableText('property_intro', formData.property_intro || '', 'textarea')
             ) : (
-              <p className="hero-subtitle">{property.description || formData.description}</p>
+              <p className="hero-subtitle">{property.property_intro || formData.property_intro}</p>
             )}
           </div>
         </div>

@@ -143,9 +143,9 @@ export function PropertyAdmin() {
     return (
       <div className="min-h-screen bg-gray-50 p-8">
         <div className="max-w-7xl mx-auto">
-          <div className="bg-white rounded-lg shadow p-8 text-center">
-            <h2 className="text-2xl font-bold mb-4">Welcome to Property Admin!</h2>
-            <p className="text-gray-600 mb-6">You don't have any properties yet. Let's add your first one!</p>
+          <div className="sb-panel-bg rounded-lg shadow p-8 text-center">
+            <h2 className="h2-on-light mb-4">Welcome to Property Admin!</h2>
+            <p className="body-on-light mb-6">You don't have any properties yet. Let's add your first one!</p>
             <button
               onClick={createProperty}
               className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 text-lg"
@@ -161,9 +161,9 @@ export function PropertyAdmin() {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <header className="bg-white shadow">
+      <header className="sb-panel-bg shadow">
         <div className="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
-          <h1 className="text-2xl font-bold">Property Admin</h1>
+          <h1 className="h2-on-light">Property Admin</h1>
           <button
             onClick={createProperty}
             className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
@@ -175,7 +175,7 @@ export function PropertyAdmin() {
 
       {/* Property Selector */}
       {properties.length > 1 && (
-        <div className="bg-white border-b">
+        <div className="sb-panel-bg border-b">
           <div className="max-w-7xl mx-auto px-4 py-3 flex gap-4 overflow-x-auto">
             {properties.map(prop => (
               <button
@@ -257,10 +257,10 @@ function PropertyForm({ property, onSave }: { property: Property; onSave: (updat
   };
 
   return (
-    <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow p-6 space-y-6">
+    <form onSubmit={handleSubmit} className="sb-panel-bg rounded-lg shadow p-6 space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Property Title</label>
+          <label className="label-on-light">Property Title</label>
           <input
             type="text"
             value={formData.title}
@@ -269,7 +269,7 @@ function PropertyForm({ property, onSave }: { property: Property; onSave: (updat
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Price per Night ($)</label>
+          <label className="label-on-light">Price per Night ($)</label>
           <input
             type="number"
             value={formData.price_per_night}
@@ -278,7 +278,7 @@ function PropertyForm({ property, onSave }: { property: Property; onSave: (updat
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Bedrooms</label>
+          <label className="label-on-light">Bedrooms</label>
           <input
             type="number"
             value={formData.bedrooms}
@@ -287,7 +287,7 @@ function PropertyForm({ property, onSave }: { property: Property; onSave: (updat
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Bathrooms</label>
+          <label className="label-on-light">Bathrooms</label>
           <input
             type="number"
             value={formData.bathrooms}
@@ -296,7 +296,7 @@ function PropertyForm({ property, onSave }: { property: Property; onSave: (updat
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Max Guests</label>
+          <label className="label-on-light">Max Guests</label>
           <input
             type="number"
             value={formData.max_guests}
@@ -307,7 +307,7 @@ function PropertyForm({ property, onSave }: { property: Property; onSave: (updat
       </div>
       
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+        <label className="label-on-light">Description</label>
         <textarea
           value={formData.description}
           onChange={e => setFormData({ ...formData, description: e.target.value })}
@@ -330,7 +330,7 @@ function PropertyForm({ property, onSave }: { property: Property; onSave: (updat
 // Bookings List Component
 function BookingsList({ bookings }: { bookings: Booking[] }) {
   return (
-    <div className="bg-white rounded-lg shadow overflow-hidden">
+    <div className="sb-panel-bg rounded-lg shadow overflow-hidden">
       <table className="min-w-full divide-y divide-gray-200">
         <thead className="bg-gray-50">
           <tr>
@@ -361,7 +361,7 @@ function BookingsList({ bookings }: { bookings: Booking[] }) {
           ))}
           {bookings.length === 0 && (
             <tr>
-              <td colSpan={4} className="px-6 py-8 text-center text-gray-500">No bookings yet</td>
+              <td colSpan={4} className="px-6 py-8 text-center body-on-light">No bookings yet</td>
             </tr>
           )}
         </tbody>
@@ -390,8 +390,8 @@ function ImageManager({ images, onUpload, onUpdate, propertyId }: {
 
   return (
     <div className="space-y-6">
-      <div className="bg-white rounded-lg shadow p-6">
-        <h3 className="text-lg font-medium mb-4">Upload Images</h3>
+      <div className="sb-panel-bg rounded-lg shadow p-6">
+        <h3 className="h4-on-light mb-4">Upload Images</h3>
         <input
           type="file"
           accept="image/*"
@@ -429,9 +429,9 @@ function ImageManager({ images, onUpload, onUpdate, propertyId }: {
 // Settings Component  
 function PropertySettings({ property, onSave }: { property: Property; onSave: (updates: Partial<Property>) => Promise<void> }) {
   return (
-    <div className="bg-white rounded-lg shadow p-6 space-y-6">
-      <h3 className="text-lg font-medium">Property Settings</h3>
-      <p className="text-gray-500">Additional settings coming soon...</p>
+    <div className="sb-panel-bg rounded-lg shadow p-6 space-y-6">
+      <h3 className="h4-on-light">Property Settings</h3>
+      <p className="body-on-light">Additional settings coming soon...</p>
     </div>
   );
 }

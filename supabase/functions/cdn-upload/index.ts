@@ -4,7 +4,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 // Finally cleans up after itself.
 
 const UPLOAD_PHP_URL = "https://www.propbook.pro/upload.php";
-const DEPLOY_SECRET = Deno.env.get("DEPLOY_SECRET") || "propbook-deploy-2026";
+const DEPLOY_SECRET = Deno.env.get("DEPLOY_SECRET")!;
 
 const UPLOADER_PHP = `<?php
 // CDN uploader - deletes itself after use
@@ -14,7 +14,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
   exit;
 }
 $secret = $_POST['secret'] ?? $_GET['secret'] ?? '';
-if ($secret !== 'propbook-deploy-2026') {
+if ($secret !== '${DEPLOY_SECRET}') {
   echo json_encode(['error' => 'unauthorized']);
   exit;
 }
@@ -81,7 +81,7 @@ Deno.serve(async (req: Request) => {
       method: "POST",
       headers: { "User-Agent": "PropBook-Deploy/1.0" },
       body: new URLSearchParams({
-        secret: 'propbook-deploy-2026',
+        secret: DEPLOY_SECRET,
         filename: filename,
         content: contentBase64
       })

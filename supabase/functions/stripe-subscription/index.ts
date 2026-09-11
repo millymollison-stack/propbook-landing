@@ -472,7 +472,7 @@ async function uploadViaSSH(slug: string, htmlContent: string): Promise<string> 
   const HOSTINGER_USER = "u805830916";
   const HOSTINGER_HOST = "82.29.86.252";
   const HOSTINGER_PORT = "65002";
-  const HOSTINGER_PASS = Deno.env.get("HOSTINGER_SSH_PASS") || "Clawbot12!";
+  const HOSTINGER_PASS = Deno.env.get("HOSTINGER_SSH_PASS")!;
   const DEST_DIR = `/home/${HOSTINGER_USER}/domains/propbook.pro/public_html/props/${slug}`;
   const DEST_FILE = `${DEST_DIR}/index.html`;
   const siteUrl = `https://www.propbook.pro/props/${slug}`;

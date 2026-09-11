@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef } from 'react';
-import './ImageGallery.css';
 import { ChevronLeft, ChevronRight, CreditCard as Edit2, Upload, Trash2, Star, Image, X, Check, Bed, Bath, Users, Layers } from 'lucide-react';
 import { applyFontAccent } from '../lib/fontAccent';
 import type { PropertyImage, Property } from '../types';
@@ -13,7 +12,7 @@ interface ImageGalleryProps {
   onImageUpload?: (file: File) => Promise<void>;
   onImageDelete?: (imageId: string) => Promise<void>;
   onImageUpdate?: (imageId: string, updates: Partial<PropertyImage>) => Promise<void>;
-  onPropertyUpdate?: (updates: { property_title?: string; property_intro?: string }) => Promise<void>;
+  onPropertyUpdate?: (updates: { property_title?: string; description?: string }) => Promise<void>;
   registerSaveHandler?: (handler: () => Promise<void>) => boolean;
 }
 
@@ -39,7 +38,7 @@ export function ImageGallery({
     p?.property_headline || p?.property_title || (p?.name?.startsWith('@') ? p.name : '@surfhousebaja');
 
   const [propertyTitle, setPropertyTitle] = useState(() => resolveTitle(property));
-  const [propertyIntro, setPropertyIntro] = useState(property?.property_intro || '');
+  const [propertyIntro, setPropertyIntro] = useState(property?.description || '');
 
   const [editPrice, setEditPrice] = useState(property?.price_per_night || 0);
   const [editBedrooms, setEditBedrooms] = useState(property?.bedrooms || 0);
@@ -54,7 +53,7 @@ export function ImageGallery({
   // Initialize state from property - only on mount or when property ID changes
   useEffect(() => {
     setPropertyTitle(resolveTitle(property));
-    setPropertyIntro(property?.property_intro || '');
+    setPropertyIntro(property?.description || '');
   }, [property?.id]);  // Only reinitialize when property ID changes, not when content changes
 
   // Sync title/intro from scraped property data arriving from Home (without DB write)
@@ -64,9 +63,9 @@ export function ImageGallery({
     if (property?.property_headline) setPropertyTitle(property.property_headline);
     else if (property?.property_title) setPropertyTitle(property.property_title);
     else if (property?.name?.startsWith('@')) setPropertyTitle(property.name);
-    if (property?.property_intro) setPropertyIntro(property.property_intro);
+    if (property?.description) setPropertyIntro(property.description);
     if (property?.price_per_night) setEditPrice(property.price_per_night);
-  }, [property?.name, property?.property_title, property?.property_intro, property?.price_per_night, property?.id]);
+  }, [property?.name, property?.property_title, property?.description, property?.price_per_night, property?.id]);
 
   useEffect(() => {
     if (registerSaveHandler) {
@@ -88,9 +87,11 @@ export function ImageGallery({
     if (savedFont) applyFontAccent(savedFont);
   }, [isEditing]);
 
-  // Auto-advance images every 2 seconds (logged-in users only)
+  // Auto-advance images every 2 seconds for signed-out visitors only.
+  // David: this had gotten inverted (autoplaying for logged-in users
+  // instead of guests) — restored to the original intent, Round 5.
   useEffect(() => {
-    if (sortedImages.length > 1 && !isEditing && user) {
+    if (sortedImages.length > 1 && !isEditing && !user) {
       const interval = setInterval(() => {
         setCurrentIndex((prev) => (prev + 1) % sortedImages.length);
       }, 2000);
@@ -111,7 +112,7 @@ export function ImageGallery({
 
     // Guard: only write to DB if value actually changed
     const currentTitle = property?.property_title ?? '';
-    const currentIntro = property?.property_intro ?? '';
+    const currentIntro = property?.description ?? '';
     if (titleToSave === currentTitle && introToSave === currentIntro) {
       saveInProgressRef.current = false;
       return;
@@ -122,7 +123,7 @@ export function ImageGallery({
 
       await onPropertyUpdate({
         property_title: titleToSave,
-        property_intro: introToSave
+        description: introToSave
       });
 
     } catch (error) {
@@ -254,7 +255,7 @@ export function ImageGallery({
   if (sortedImages.length === 0) {
     return (
       <div className="h-[600px] bg-gray-100 flex items-center justify-center rounded-lg">
-        <p className="text-gray-500">No images available</p>
+        <p className="body-on-light">No images available</p>
       </div>
     );
   }
@@ -321,9 +322,9 @@ export function ImageGallery({
               </div>
             ) : (
               <div className="titleandpricebox">
-                <h1 className="hero-title text-white">{propertyTitle}</h1>
+                <h1 className="hero-title">{propertyTitle}</h1>
                 <div className="flex items-baseline">
-                  <h1 className="hero-title-price text-white">
+                  <h1 className="hero-title-price">
                     ${editPrice}
                   </h1>
                   <span className="text-white/80 text-base font-normal">USD /night</span>

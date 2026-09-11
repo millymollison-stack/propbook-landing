@@ -1,13 +1,13 @@
 import { useState } from 'react';
 import { Star } from 'lucide-react';
-import './sidebar.css';
 import { supabase } from '../lib/supabase';
 
 interface ReviewFormProps {
   onSuccess?: () => void;
+  propertyId: string;
 }
 
-export default function ReviewForm({ onSuccess }: ReviewFormProps) {
+export default function ReviewForm({ onSuccess, propertyId }: ReviewFormProps) {
   const [formData, setFormData] = useState({
     guest_name: '',
     guest_email: '',
@@ -34,6 +34,7 @@ export default function ReviewForm({ onSuccess }: ReviewFormProps) {
     try {
       const { error: insertError } = await supabase.from('reviews').insert([
         {
+          property_id: propertyId,
           guest_name: formData.guest_name,
           guest_email: formData.guest_email,
           rating: formData.rating,
@@ -80,10 +81,10 @@ export default function ReviewForm({ onSuccess }: ReviewFormProps) {
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="space-y-6">
-        <div className="grid md:grid-cols-2 gap-6">
+      <form onSubmit={handleSubmit} className="space-y-3">
+        <div className="grid md:grid-cols-2 gap-3">
           <div>
-            <label htmlFor="guest_name" className="block text-sm font-medium text-gray-700 mb-2">
+            <label htmlFor="guest_name" className="label-on-light">
               Your Name
             </label>
             <input
@@ -97,7 +98,7 @@ export default function ReviewForm({ onSuccess }: ReviewFormProps) {
           </div>
 
           <div>
-            <label htmlFor="guest_email" className="block text-sm font-medium text-gray-700 mb-2">
+            <label htmlFor="guest_email" className="label-on-light">
               Your Email
             </label>
             <input
@@ -112,7 +113,7 @@ export default function ReviewForm({ onSuccess }: ReviewFormProps) {
         </div>
 
         <div>
-          <label htmlFor="stay_date" className="block text-sm font-medium text-gray-700 mb-2">
+          <label htmlFor="stay_date" className="label-on-light">
             When did you stay?
           </label>
           <input
@@ -121,12 +122,12 @@ export default function ReviewForm({ onSuccess }: ReviewFormProps) {
             required
             value={formData.stay_date}
             onChange={(e) => setFormData({ ...formData, stay_date: e.target.value })}
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="sb-input-light"
           />
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">Rating</label>
+          <label className="label-on-light">Rating</label>
           <div className="flex gap-2">
             {[1, 2, 3, 4, 5].map((star) => (
               <button
@@ -150,16 +151,16 @@ export default function ReviewForm({ onSuccess }: ReviewFormProps) {
         </div>
 
         <div>
-          <label htmlFor="review_text" className="block text-sm font-medium text-gray-700 mb-2">
+          <label htmlFor="review_text" className="label-on-light">
             Your Review
           </label>
           <textarea
             id="review_text"
             required
-            rows={5}
+            rows={4}
             value={formData.review_text}
             onChange={(e) => setFormData({ ...formData, review_text: e.target.value })}
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+            className="sb-input-light review-form-textarea"
             placeholder="Tell us about your experience..."
           />
         </div>
@@ -167,7 +168,8 @@ export default function ReviewForm({ onSuccess }: ReviewFormProps) {
         <button
           type="submit"
           disabled={loading}
-          className="w-full bg-blue-600 text-white py-3 px-6 rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
+          className="review-btn review-form-submit"
+          style={loading ? { opacity: 0.5, cursor: 'not-allowed' } : undefined}
         >
           {loading ? 'Submitting...' : 'Submit Review'}
         </button>

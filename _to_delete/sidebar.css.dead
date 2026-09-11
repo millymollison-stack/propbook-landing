@@ -1,3 +1,12 @@
+:root {
+  /* Single source of truth for every "white panel" background in the
+     sidebar (main panel, cards, dropdowns, callouts). Change this one
+     value (e.g. to rgba(255,255,255,0.9)) and all of them update together. */
+  --sb-panel-bg: #ffffff;
+}
+
+.sb-panel-bg { background: var(--sb-panel-bg) !important; }
+
 /* ============================================
    SIDEBAR — Complete Design System
    ============================================
@@ -36,7 +45,7 @@
   min-height: 100vh;
   width: calc(100% - 72px);
   max-width: 380px;
-  background: #fff;
+  background: var(--sb-panel-bg);
   box-shadow: -20px 0 40px rgba(0,0,0,0.15);
   z-index: 99999;
   overflow-y: auto;
@@ -423,7 +432,7 @@ input.sidebar-input::placeholder {
 }
 
 .booking-callout .callout-top {
-  background: #fff;
+  background: var(--sb-panel-bg);
   /* padding inside white area — space between number and rounded container edge */
   padding: 6px 4px 2px;
   text-align: left;
@@ -438,7 +447,7 @@ input.sidebar-input::placeholder {
 }
 
 .booking-callout .callout-mid {
-  background: #fff;
+  background: var(--sb-panel-bg);
   padding: 2px 4px;
   text-align: right;
 }
@@ -557,7 +566,7 @@ input.sidebar-input::placeholder {
    ──────────────────────────────────────────── */
 
 .sb-field-row {
-  padding: 12px 0 0 0;
+  padding: 2px 0 0 0;
 }
 .sb-field-row:last-child { border-bottom: none; }
 
@@ -599,7 +608,7 @@ input.sidebar-input::placeholder {
   border: 1px solid rgba(0,0,0,0.20) !important;
   border-radius: 6px !important;
   padding: 10px 14px !important;
-  margin: 10px 0 !important;
+  margin: 2px 0 !important;
   outline: none !important;
   box-sizing: border-box !important;
   -webkit-appearance: none !important;
@@ -608,7 +617,7 @@ input.sidebar-input::placeholder {
 }
 
 input.sb-input[type="tel"] {
-  margin-top: 10px;
+  margin-top: 2px;
 }
 .sb-input:focus {
   border: 2px solid var(--brand) !important;
@@ -806,7 +815,7 @@ input.sb-input[type="tel"] {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 0;
+  padding: 2px 0;
 }
 .sb-service-row:last-child { border-bottom: none; }
 
@@ -845,7 +854,7 @@ input.sb-input[type="tel"] {
   border-radius: 12px;
   padding: 16px;
   margin-bottom: 12px;
-  background: #fff;
+  background: var(--sb-panel-bg);
 }
 .sb-plan-card.is-popular {
   border-color: #111;
@@ -965,7 +974,7 @@ input.sb-input[type="tel"] {
 }
 
 .sb-payout-breakdown {
-  background: #fff;
+  background: var(--sb-panel-bg);
   border: 1px solid #e5e7eb;
   border-radius: 10px;
   padding: 12px;
@@ -1189,7 +1198,7 @@ input.sb-input[type="tel"] {
   border: 1px solid rgba(0, 0, 0, 0.20) !important;
   border-radius: 6px !important;
   padding: 10px 14px !important;
-  margin: 10px 0 !important;
+  margin: 2px 0 !important;
   outline: none !important;
   box-sizing: border-box !important;
   -webkit-appearance: none !important;
@@ -1275,4 +1284,105 @@ textarea#specialRequests.sb-input-light { max-width: 300px !important; }
 }
 .sb-input-icon-btn:hover {
   color: var(--brand-hover);
+}
+
+/* Extracted from inline styles in GuestSidebar.tsx (2026-09-11) — shared with AdminSidebarBundle.tsx */
+.gs-property-switcher {
+  position: relative;
+  margin-bottom: 12px;
+}
+.gs-property-switcher-btn {
+  background: #f3f4f6;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+}
+.gs-property-switcher-label {
+  flex: 1;
+  text-align: left;
+  color: #374151;
+}
+.gs-property-switcher-chevron {
+  opacity: 0.6;
+}
+.gs-property-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 9999;
+  background: var(--sb-panel-bg);
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  max-height: 200px;
+  overflow-y: auto;
+  margin-top: 2px;
+}
+.gs-property-dropdown-item {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 8px 12px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 13px;
+  text-align: left;
+  gap: 8px;
+}
+.gs-property-dropdown-item.active {
+  background: #f0fdf4;
+}
+.gs-property-dropdown-item-label {
+  color: #374151;
+}
+.gs-property-dropdown-item-label.active {
+  color: #166534;
+}
+.gs-email-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.gs-verified-badge {
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(0, 0, 0, 0.5);
+}
+.gs-switcher-wrap {
+  padding-top: 12px;
+  padding-bottom: 4px;
+}
+.gs-booking-toggle-btn {
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+.gs-own-site-wrap {
+  padding: 12px 0 5px;
+}
+.gs-own-site-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 16px;
+  background-color: var(--brand, #C47756);
+  color: white;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 0.9rem;
+  text-decoration: none;
+  cursor: pointer;
+  border: none;
 }

@@ -8,7 +8,7 @@ const corsHeaders = {
 };
 
 // Used to authenticate deploy-react.php calls (simple shared secret)
-const DEPLOY_SECRET = Deno.env.get("DEPLOY_SECRET") || "propbook-deploy-2026";
+const DEPLOY_SECRET = Deno.env.get("DEPLOY_SECRET")!;
 const UPLOAD_PHP_URL = "https://propbook.pro/upload.php";
 const DEPLOY_PHP_URL = "https://propbook.pro/scripts/deploy-react-upload.php";
 

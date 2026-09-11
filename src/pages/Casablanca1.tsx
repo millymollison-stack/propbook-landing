@@ -8,7 +8,6 @@ import React, { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { BookingCalendar } from '../components/BookingCalendar';
 import type { Property, PropertyImage, Booking, BlockedDate } from '../types';
-import '../components/CustomerSite.css';
 
 export function Casablanca1() {
   const [property, setProperty] = useState<Property | null>(null);

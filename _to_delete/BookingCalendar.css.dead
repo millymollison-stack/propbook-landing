@@ -78,4 +78,31 @@
   gap: 8px;
 }
 
+/* ────────────────────────────────────────────────────────────────
+   Fix weekday-header / date-number grid misalignment at full width.
+   Without table-layout:fixed, the browser sizes <th> (header) and
+   <td> (day) columns independently once the day squares grow past
+   their percentage width (aspect-ratio boxes), so the two rows
+   drift out of alignment on wide screens.
+   ──────────────────────────────────────────────────────────────── */
+.rdp-table,
+.booking-calendar table {
+  table-layout: fixed !important;
+  width: 100% !important;
+  border-collapse: collapse !important;
+}
+
+.rdp-head_cell,
+.rdp-cell {
+  width: 14.2857% !important;
+  max-width: 14.2857% !important;
+  box-sizing: border-box !important;
+  padding: 0 !important;
+}
+
+.rdp-day {
+  width: 100% !important;
+  box-sizing: border-box !important;
+}
+
 

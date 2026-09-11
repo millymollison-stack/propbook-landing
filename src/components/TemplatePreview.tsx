@@ -1,5 +1,4 @@
 import React from 'react';
-import './TemplatePreview.css';
 
 interface TemplatePreviewProps {
   title: string;
@@ -20,7 +19,7 @@ interface TemplatePreviewProps {
 // Render star SVG
 function Star({ filled }: { filled: boolean }) {
   return (
-    <svg viewBox="0 0 24 24" style={{ width: 12, height: 12, fill: filled ? '#fbbf24' : 'rgba(255,255,255,0.2)' }}>
+    <svg viewBox="0 0 24 24" className={`tp-star-icon ${filled ? 'tp-star-filled' : 'tp-star-empty'}`}>
       <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
     </svg>
   );
@@ -84,7 +83,7 @@ export function TemplatePreview({
           )}
           {bedrooms && (
             <div className="preview-detail">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width: 10, height: 10 }}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="tp-icon-sm">
                 <rect x="2" y="4" width="20" height="16" rx="2"/>
                 <path d="M2 10h20M12 10v8"/>
               </svg>
@@ -93,7 +92,7 @@ export function TemplatePreview({
           )}
           {beds && (
             <div className="preview-detail">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width: 10, height: 10 }}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="tp-icon-sm">
                 <path d="M2 12h20M2 12l4-4M2 12l4 4"/>
               </svg>
               {beds} Beds
@@ -101,7 +100,7 @@ export function TemplatePreview({
           )}
           {baths && (
             <div className="preview-detail">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width: 10, height: 10 }}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="tp-icon-sm">
                 <path d="M9 6l9 6-9 6V6z"/>
               </svg>
               {baths} Bath

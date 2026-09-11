@@ -114,7 +114,7 @@ export default function AdminReviewManagement() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold text-gray-900">Review Management</h2>
+        <h2 className="h2-on-light">Review Management</h2>
         <div className="flex gap-2">
           <button
             onClick={() => setFilter('all')}
@@ -150,8 +150,8 @@ export default function AdminReviewManagement() {
       </div>
 
       {filteredReviews.length === 0 ? (
-        <div className="text-center py-12 bg-white rounded-xl shadow">
-          <p className="text-gray-500 text-lg">No reviews found</p>
+        <div className="text-center py-12 sb-panel-bg rounded-xl shadow">
+          <p className="body-on-light text-lg">No reviews found</p>
         </div>
       ) : (
         <div className="space-y-4">
@@ -186,7 +186,7 @@ export default function AdminReviewManagement() {
                   <div className="flex items-start justify-between mb-3">
                     <div>
                       <div className="flex items-center gap-3 mb-1">
-                        <h4 className="text-lg font-semibold text-gray-900">{review.guest_name}</h4>
+                        <h4 className="h4-on-light">{review.guest_name}</h4>
                         {review.is_verified ? (
                           <span className="px-3 py-1 bg-green-100 text-green-700 text-xs font-medium rounded-full">
                             Verified
@@ -197,8 +197,8 @@ export default function AdminReviewManagement() {
                           </span>
                         )}
                       </div>
-                      <p className="text-sm text-gray-500">{review.guest_email}</p>
-                      <p className="text-sm text-gray-500 flex items-center gap-1 mt-1">
+                      <p className="body-on-light">{review.guest_email}</p>
+                      <p className="body-on-light flex items-center gap-1 mt-1">
                         <Calendar className="w-4 h-4" />
                         Stayed {format(new Date(review.stay_date), 'MMMM d, yyyy')}
                       </p>
@@ -217,7 +217,7 @@ export default function AdminReviewManagement() {
                     </div>
                   </div>
 
-                  <p className="text-gray-700 leading-relaxed mb-4">{review.review_text}</p>
+                  <p className="body-on-light leading-relaxed mb-4">{review.review_text}</p>
 
                   <div className="flex items-center gap-2 text-xs text-gray-500">
                     <span>Submitted {format(new Date(review.created_at), 'MMM d, yyyy')}</span>

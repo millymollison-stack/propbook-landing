@@ -14,7 +14,9 @@ const CSS_FILE = path.join(ROOT, 'src', 'dist', 'assets', 'index.css');
 
 const ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp0emFncGJkcnFmaWZkaXN4aXByIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDQ3MzUyODUsImV4cCI6MjA2MDMxMTI4NX0.uWqc82Hb-qnRq4H9kg5IPykUosm9VvU2s6e8mOalkR0';
 const UPLOAD_URL = 'https://www.propbook.pro/upload.php';
-const DEPLOY_SECRET = 'propbook-deploy-2026';
+try { process.loadEnvFile(path.join(ROOT, 'src', '.env')); } catch {}
+const DEPLOY_SECRET = process.env.DEPLOY_SECRET;
+if (!DEPLOY_SECRET) throw new Error('DEPLOY_SECRET not set in src/.env');
 const BUNDLE_VERSION = '1788726316593';
 const BUNDLE_JS = 'index.js';
 const BUNDLE_CSS = 'index.css';

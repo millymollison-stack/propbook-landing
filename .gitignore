@@ -5,3 +5,8 @@ src/dist/
 .env.production
 *.log
 .DS_Store
+
+# Clawbot local memory/notes — not for git
+.openclaw/
+__pycache__/
+*.pyc

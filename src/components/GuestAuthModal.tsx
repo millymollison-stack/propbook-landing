@@ -75,7 +75,7 @@ export function GuestAuthModal({ isOpen, onClose, propertyId, onSuccess }: Guest
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[200] p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+      <div className="sb-panel-bg rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
         {/* Header */}
         <div className="bg-gradient-to-r from-indigo-600 to-purple-600 px-6 py-5 flex items-center justify-between">
           <div>
@@ -96,10 +96,10 @@ export function GuestAuthModal({ isOpen, onClose, propertyId, onSuccess }: Guest
           {success ? (
             <div className="text-center py-8">
               <div className="text-4xl mb-3">🎉</div>
-              <p className="text-gray-700 font-medium">
+              <p className="body-on-light font-medium">
                 {mode === 'signup' ? 'Account created!' : 'Welcome back!'}
               </p>
-              <p className="text-gray-500 text-sm mt-1">Redirecting...</p>
+              <p className="body-on-light mt-1">Redirecting...</p>
             </div>
           ) : (
             <form onSubmit={handleSubmit} className="space-y-4">
@@ -111,7 +111,7 @@ export function GuestAuthModal({ isOpen, onClose, propertyId, onSuccess }: Guest
 
               {mode === 'signup' && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Full Name</label>
+                  <label className="label-on-light">Full Name</label>
                   <input
                     type="text"
                     className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"
@@ -124,7 +124,7 @@ export function GuestAuthModal({ isOpen, onClose, propertyId, onSuccess }: Guest
               )}
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">Email</label>
+                <label className="label-on-light">Email</label>
                 <input
                   type="email"
                   className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"
@@ -136,7 +136,7 @@ export function GuestAuthModal({ isOpen, onClose, propertyId, onSuccess }: Guest
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">Password</label>
+                <label className="label-on-light">Password</label>
                 <input
                   type="password"
                   className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"
@@ -160,7 +160,7 @@ export function GuestAuthModal({ isOpen, onClose, propertyId, onSuccess }: Guest
 
           {!success && (
             <div className="mt-5 text-center">
-              <span className="text-gray-500 text-sm">
+              <span className="body-on-light">
                 {mode === 'signup' ? 'Already have an account?' : "Don't have an account?"}
               </span>
               <button

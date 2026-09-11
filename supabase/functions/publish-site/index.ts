@@ -43,7 +43,7 @@ Deno.serve(async (req: Request) => {
     const HOSTINGER_USER = "u805830916";
     const HOSTINGER_HOST = "82.29.86.252";
     const HOSTINGER_PORT = "65002";
-    const HOSTINGER_PASS = Deno.env.get("HOSTINGER_SSH_PASS") || "Clawbot12!";
+    const HOSTINGER_PASS = Deno.env.get("HOSTINGER_SSH_PASS")!;
     const DEST_PATH = `/home/${HOSTINGER_USER}/domains/propbook.pro/public_html/props/${slug}`;
 
     // Step 1: Create directory on Hostinger

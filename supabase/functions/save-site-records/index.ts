@@ -21,7 +21,7 @@ Deno.serve(async (req: Request) => {
     let body: any;
     try { body = await req.json(); } catch { throw new Error("Invalid JSON"); }
 
-    const { title, slug, description, location, maxGuests, bedrooms, beds, baths,
+    const { title, slug, description, propertyIntro, location, maxGuests, bedrooms, beds, baths,
             pricePerNight, heroImage, images, stripeAccountId, stripeAccountStatus,
             userId, name, propertyTitle, propertyHeadline, brand_color, font_accent } = body;
     // [C4] Edge fn received
@@ -61,8 +61,11 @@ Deno.serve(async (req: Request) => {
         images: images || [],
         stripe_account_id: stripeAccountId || null,
         stripe_account_status: stripeAccountStatus || null,
+        // property_intro: the user's own "Full description (unedited)" text takes priority —
+        // only fall back to the shared reference property when the client sent nothing at all
+        // (2026-09-11 fix: this used to always overwrite with the reference property's text).
         property_details: ref.property_details || null,
-        property_intro: ref.property_intro || null,
+        property_intro: propertyIntro || ref.property_intro || null,
         activities: ref.activities || null,
         local_area: ref.local_area || null,
         getting_there: ref.getting_there || null,
@@ -82,17 +85,82 @@ Deno.serve(async (req: Request) => {
     console.log('[save-site-records] Property saved:', propertyRecord.id);
 
     if (images && images.length > 0) {
+      // Last 2 scraped images become the site's background-layer images by
+      // default (David: "auto assigned background image status at scrape
+      // so they have to be there in the first place so a user can edit
+      // them") — was the FIRST 2 (idx < 2), which also collided with the
+      // hero/featured image (idx === 0) doubling as a background image.
+      const backgroundStartIdx = Math.max(0, images.length - 2);
       const imageRecords = images.map((url: string, idx: number) => ({
         property_id: propertyRecord.id,
         url,
         position: idx + 1,
         is_featured: idx === 0,
         is_main: idx === 0,
-        is_background: idx < 2,
+        is_background: idx >= backgroundStartIdx,
       }));
       const { error: imagesError } = await supabase.from("property_images").insert(imageRecords);
       if (imagesError) console.warn("[save-site-records] images insert warning:", imagesError.message);
       else console.log("[save-site-records] Images inserted:", images.length);
+    }
+
+    // Seed 3 generic starter reviews the first time this property is created,
+    // so a brand-new site never shows an empty "No reviews yet" section --
+    // ALONGSIDE any real reviews a property already has (David: he wants
+    // both to show together, e.g. Surf House Baja's own reviews plus the
+    // generic 3, so he can delete the generic ones from Admin whenever he
+    // wants). Guarded by checking for these 3 specific guest_emails rather
+    // than a total review count, so this still never duplicates on a
+    // re-save (this function upserts on every publish) but no longer skips
+    // properties that already had real reviews.
+    const STARTER_REVIEW_EMAILS = ["sarah.m@example.com", "james.t@example.com", "priya.k@example.com"];
+    const { data: existingStarterReviews, error: reviewCountError } = await supabase
+      .from("reviews")
+      .select("guest_email")
+      .eq("property_id", propertyRecord.id)
+      .in("guest_email", STARTER_REVIEW_EMAILS);
+
+    if (reviewCountError) {
+      console.warn("[save-site-records] review count check warning:", reviewCountError.message);
+    } else if ((existingStarterReviews ?? []).length === 0) {
+      // A mix of dates (not all identical) so they read as real, separate
+      // stays rather than 3 rows seeded in the same instant.
+      const daysAgo = (n: number) => new Date(Date.now() - n * 24 * 60 * 60 * 1000).toISOString();
+      const starterReviews = [
+        {
+          property_id: propertyRecord.id,
+          guest_name: "Sarah M.",
+          guest_email: "sarah.m@example.com",
+          rating: 5,
+          review_text: "Absolutely loved our stay here! The place was spotless, beautifully decorated, and exactly as pictured. We'd book again in a heartbeat.",
+          stay_date: daysAgo(38),
+          is_verified: true,
+          display_order: 1,
+        },
+        {
+          property_id: propertyRecord.id,
+          guest_name: "James T.",
+          guest_email: "james.t@example.com",
+          rating: 5,
+          review_text: "Great location and a really comfortable stay. Check-in was easy and the host was quick to respond whenever we had a question.",
+          stay_date: daysAgo(97),
+          is_verified: true,
+          display_order: 2,
+        },
+        {
+          property_id: propertyRecord.id,
+          guest_name: "Priya K.",
+          guest_email: "priya.k@example.com",
+          rating: 4,
+          review_text: "Really nice space and great value for the price. Would happily recommend it to friends and family looking to stay in the area.",
+          stay_date: daysAgo(163),
+          is_verified: true,
+          display_order: 3,
+        },
+      ];
+      const { error: reviewsSeedError } = await supabase.from("reviews").insert(starterReviews);
+      if (reviewsSeedError) console.warn("[save-site-records] starter reviews insert warning:", reviewsSeedError.message);
+      else console.log("[save-site-records] Seeded 3 starter reviews for property:", propertyRecord.id);
     }
 
     const { error: onboardingError } = await supabase

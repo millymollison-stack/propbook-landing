@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import './Editmode.css';
 import { Wifi, Car, Coffee, Tv, Waves, Scale, Fish, Truck, ChevronDown, ChevronUp, MapPin, Utensils, Wind, Flame, Shirt, Timer, UtensilsCrossed, Flower2, Sun, Mountain, Sunset, Anchor, Footprints, Dumbbell, Bike, Gamepad2, BookOpen, Monitor, Printer, Shield, KeyRound, Siren, Heart, Zap, BedDouble, Sparkles, Scissors, DoorOpen, PawPrint, Accessibility, Palmtree } from 'lucide-react';
 import type { Property } from '../types';
 import { useAuth } from '../store/auth';
@@ -105,7 +104,7 @@ function CollapsibleSection({ title, content, isEditing, isAdmin, isOpen, onTogg
         onClick={onToggle}
         className="dropdown-header"
       >
-        <h1 className="hero-title text-white">{title}</h1>
+        <h1 className="hero-title">{title}</h1>
         {isOpen ? <ChevronUp className="h-5 w-5 text-white" /> : <ChevronDown className="h-5 w-5 text-white" />}
       </button>
       
@@ -122,7 +121,7 @@ function CollapsibleSection({ title, content, isEditing, isAdmin, isOpen, onTogg
                   }
                   onHasChanges?.(true);
                 }}
-                className="w-full px-4 py-3 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-[var(--brand)] edit-section-textarea"
+                className="edit-section-textarea"
                 rows={6}
                 placeholder={`Enter ${title.toLowerCase()} information...`}
               />
@@ -132,7 +131,7 @@ function CollapsibleSection({ title, content, isEditing, isAdmin, isOpen, onTogg
               {content ? (
                 <p className="whitespace-pre-line hero-subtitle">{content}</p>
               ) : (
-                <p className="text-gray-400 italic">No information available</p>
+                <p className="body-on-dark" style={{ fontStyle: "italic" }}>No information available</p>
               )}
             </div>
           )}
@@ -188,7 +187,7 @@ export function PropertyAmenities({ property, isEditing, onHasChanges, onUpdate,
       <div className="mt-5 relative amenities-content space-y-8 pb-8">
         {/* Amenities */}
         <div className="glass-card">
-          <h1 className="hero-title text-white">Amenities</h1>
+          <h1 className="hero-title">Amenities</h1>
           
           {/* Edit mode: always show selector */}
           {isEditing && (
@@ -212,7 +211,7 @@ export function PropertyAmenities({ property, isEditing, onHasChanges, onUpdate,
                   })}
                 </div>
               </div>
-              <p className="text-white text-sm mt-3">{selectedAmenities.length}/12 amenities selected</p>
+              <p className="body-on-dark mt-3">{selectedAmenities.length}/12 amenities selected</p>
             </div>
           )}
 
@@ -222,11 +221,11 @@ export function PropertyAmenities({ property, isEditing, onHasChanges, onUpdate,
               {displayAmenities.map(({ name, icon: Icon }) => (
                 <div key={name} className="flex items-center space-x-2">
                   <Icon className="h-5 w-5 text-white" />
-                  <span className="text-white">{name}</span>
+                  <span className="body-on-dark">{name}</span>
                 </div>
               ))}
               {displayAmenities.length === 0 && (
-                <p className="text-gray-400 italic">No amenities selected</p>
+                <p className="body-on-dark" style={{ fontStyle: "italic" }}>No amenities selected</p>
               )}
             </div>
           )}

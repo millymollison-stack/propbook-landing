@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../store/auth';
-import '../components/OnboardingPopup.css';
 
 // Renders the login form as a modal overlay (no dark page behind it)
 interface LoginProps {

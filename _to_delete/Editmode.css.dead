@@ -171,19 +171,6 @@ input[type="password"] {
 }
 
 /* ---- BookingCalendar / UserMenu h1/h2 in edit mode ---- */
-.hero-title-edit {
-  color: #000000;
-  font-size: clamp(1.5rem, 2.8vw, 1.875rem);
-  font-weight: 400;
-  text-transform: uppercase;
-}
-
-/* ---- ColorPicker panel fixed positioning ---- */
-.color-picker-panel {
-  top: 60px;
-  font-family: "Inter", sans-serif;
-}
-
 /* ---- OnboardingPopup upload label ---- */
 .popup-upload-label {
   display: inline-block;
@@ -281,21 +268,7 @@ input[type="number"]::-moz-outer-spin-button {
 /* ============================================
    BOOKING MODAL TEXTAREA
    ============================================ */
-.booking-modal-textarea {
-  width: 80%;
-  max-width: 100%;
-  padding: 12px 16px;
-  background: #fff;
-  border: 1px solid #d1d5db;
-  border-radius: 4px;
-  color: #111;
-  font-size: 0.85rem;
-  box-sizing: border-box;
-  outline: none;
-  resize: vertical;
-  display: block;
-  margin: 0;
-}
+
 
 /* ============================================
    CALENDAR DAY COLORS — react-day-picker
@@ -307,27 +280,12 @@ input[type="number"]::-moz-outer-spin-button {
   color: #111 !important;
 }
 
-/* Selected start/end: white text */
-.rdp-day_selected,
-.rdp-day_selected:focus-visible,
-.rdp-day_selected:hover {
-  color: #fff !important;
-}
-
-/* Today: dark + bold */
-.rdp-day_today:not(.rdp-day_outside):not(.rdp-day_selected) {
-  color: #111 !important;
-  font-weight: 700 !important;
-}
+/* Selected/today/disabled-opacity rules now in index.css (identical
+   duplicates removed here, Round 4) */
 
 /* Range middle: keep inline color from modifiersStyles */
 .rdp-day_range_middle {
   /* No override — let modifiersStyles.approved/pending/blocked through */
-}
-
-/* Disabled days (blocked): reduce opacity, keep inline text color from modifiersStyles */
-.rdp-button[disabled]:not(.rdp-day_selected) {
-  opacity: 0.45 !important;
 }
 
 /* Blocked dates: gray bg (#E5E7EB) → dark text (#374151) */

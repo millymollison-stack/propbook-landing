@@ -104,7 +104,7 @@ function CheckoutForm({
         <Check className="h-8 w-8 flex-shrink-0" />
         <div>
           <p className="font-semibold text-base">Payment Successful!</p>
-          <p className="text-sm text-gray-600 mt-0.5">Your booking has been confirmed.</p>
+          <p className="body-on-light mt-0.5">Your booking has been confirmed.</p>
         </div>
       </div>
     );
@@ -162,7 +162,7 @@ function CheckoutForm({
             </div>
           </div>
         )}
-        <div ref={containerRef} className="p-4 border border-gray-200 rounded-lg bg-white min-h-[180px]">
+        <div ref={containerRef} className="p-4 border border-gray-200 rounded-lg sb-panel-bg min-h-[180px]">
           <PaymentElement
             onReady={() => { setReady(true); addLog('ok', 'PaymentElement onReady fired — card fields visible'); }}
             onChange={(e) => addLog('info', `PaymentElement onChange: complete=${e.complete}, empty=${e.empty}`)}
@@ -314,18 +314,18 @@ export function PaymentForm({
   }, [bookingId]);
 
   return (
-    <div className="bg-white rounded-lg space-y-5">
+    <div className="sb-panel-bg rounded-lg space-y-5">
       {/* Booking summary */}
       <div>
-        <h3 className="text-lg font-semibold text-gray-900 mb-3">Complete Payment</h3>
+        <h3 className="h4-on-light mb-3">Complete Payment</h3>
         <div className="bg-gray-50 rounded-lg p-4 text-sm space-y-2">
           <div className="flex justify-between">
-            <span className="text-gray-500">Property</span>
+            <span className="body-on-light">Property</span>
             <span className="font-medium text-gray-900 text-right max-w-[60%]">{propertyTitle}</span>
           </div>
           {dates && (
             <div className="flex justify-between">
-              <span className="text-gray-500">Dates</span>
+              <span className="body-on-light">Dates</span>
               <span className="font-medium text-gray-900 text-right">{dates}</span>
             </div>
           )}

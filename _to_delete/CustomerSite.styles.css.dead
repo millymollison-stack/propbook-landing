@@ -1,0 +1,191 @@
+/* Extracted from inline styles in CustomerSite.tsx (2026-09-11) */
+
+.cs-notfound-screen {
+  font-family: Inter, sans-serif;
+}
+.cs-notfound-title {
+  color: #fff;
+  margin-bottom: 16px;
+}
+.cs-notfound-message {
+  color: rgba(255, 255, 255, 0.6);
+}
+.cs-notfound-link {
+  margin-top: 24px;
+  color: #C47756;
+  display: inline-block;
+}
+
+/* Subscription confirmation banner — previously used raw HTML style="" strings,
+   which React's style prop does not accept (TS2559); the banner likely rendered
+   unstyled. Fixed as a byproduct of this cleanup. */
+.cs-sub-banner {
+  background: linear-gradient(135deg, #16a34a 0%, #15803d 100%);
+  color: #fff;
+  padding: 14px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  font-family: Inter, sans-serif;
+  position: relative;
+  z-index: 100;
+}
+.cs-sub-banner-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  min-width: 0;
+}
+.cs-sub-banner-icon {
+  width: 32px;
+  height: 32px;
+  background: rgba(255, 255, 255, 0.25);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 18px;
+}
+.cs-sub-banner-text {
+  min-width: 0;
+}
+.cs-sub-banner-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+.cs-sub-banner-sub {
+  margin: 2px 0 0;
+  font-size: 13px;
+  opacity: 0.9;
+}
+.cs-sub-banner-dismiss {
+  background: rgba(255, 255, 255, 0.2);
+  border: none;
+  border-radius: 6px;
+  color: #fff;
+  cursor: pointer;
+  padding: 6px 10px;
+  font-size: 18px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+/* Share popup */
+.cs-share-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  z-index: 9999;
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-end;
+  font-family: Inter, sans-serif;
+  transition: background 0.32s ease;
+  pointer-events: auto;
+}
+.cs-share-overlay.closing {
+  background: rgba(0, 0, 0, 0);
+  pointer-events: none;
+}
+.cs-share-modal {
+  background: rgba(10, 10, 10, 0.90);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 20px;
+  padding: 32px 36px;
+  max-width: 380px;
+  width: 90%;
+  text-align: center;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.3);
+  position: relative;
+  margin: auto;
+  transform: scale(1);
+  opacity: 1;
+  transform-origin: top right;
+  transition: transform 0.32s ease, opacity 0.32s ease;
+}
+.cs-share-modal.closing {
+  position: fixed;
+  top: 24px;
+  right: 24px;
+  margin: 0;
+  transform: scale(0.05);
+  opacity: 0;
+}
+.cs-share-icon-circle {
+  width: 56px;
+  height: 56px;
+  background: var(--brand, #C47756);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 16px;
+}
+.cs-share-title {
+  margin: 0 0 6px;
+  font-size: 1.3rem;
+  color: #fff;
+}
+.cs-share-subtitle {
+  margin: 0 0 20px;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 0.9rem;
+}
+.cs-share-qr-wrap {
+  margin-bottom: 20px;
+  display: flex;
+  justify-content: center;
+}
+.cs-share-qr-img {
+  border-radius: 12px;
+  border: 6px solid #fff;
+  display: block;
+}
+.cs-share-url-box {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  padding: 10px 14px;
+  margin-bottom: 20px;
+  font-size: 0.82rem;
+  color: #fff;
+  word-break: break-all;
+  font-family: monospace;
+}
+.cs-share-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+.cs-share-btn {
+  flex: 1;
+  min-width: 100px;
+  border-radius: 10px;
+  padding: 10px 16px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.cs-share-btn-primary {
+  background: var(--brand, #C47756);
+  color: #fff;
+  border: none;
+}
+.cs-share-btn-outline {
+  background: #fff;
+  color: var(--brand, #C47756);
+  border: 2px solid var(--brand, #C47756);
+}
+.cs-share-btn-neutral {
+  background: transparent;
+  color: rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+}
+
+/* Shared bg-layer / review-modal-title rules now live in index.css
+   (see "BACKGROUND-IMAGE LAYERS + REVIEW MODAL TITLE", Round 4) */

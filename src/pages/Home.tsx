@@ -7,18 +7,20 @@ import { PropertyAmenities } from '../components/PropertyAmenities';
 import { BookingCalendar } from '../components/BookingCalendar';
 import ReviewsList from '../components/ReviewsList';
 import ReviewForm from '../components/ReviewForm';
-import { OnboardingPopup } from '../components/OnboardingPopup';
 import { GuestAuthModal } from '../components/GuestAuthModal';
 import { GuestBookingRequest } from '../components/GuestBookingRequest';
-import '../components/OnboardingPopup.css';
 import { duplicateSiteAfterPayment } from '../services/siteDuplicationService';
 import { useAuth } from '../store/auth';
+import { useProperty } from '../store/property';
+import { saveBrandColor } from '../lib/brandColor';
+import { applyFontAccent } from '../lib/fontAccent';
 import type { Property, PropertyImage, Booking, BlockedDate } from '../types';
 
 const SURF_HOUSE_BAJA_ID = 'efa8d280-afee-4971-9145-d591740f484d';
 
 export function Home({ isEditing: externalIsEditing, onHasChanges, registerSaveAll, onSiteNameChange, onOpenSidebar, forceOpenOnboarding, onOnboardingClose, onOpenLogin, scrapedProperty: externalScrapedProperty, scrapedImages: externalScrapedImages }: { isEditing?: boolean; onHasChanges?: (hasChanges: boolean) => void; registerSaveAll?: (fn: () => Promise<void>) => void; onSiteNameChange?: (name: string) => void; onOpenSidebar?: () => void; forceOpenOnboarding?: boolean; onOnboardingClose?: () => void; onOpenLogin?: () => void; scrapedProperty?: Partial<Property> | null; scrapedImages?: PropertyImage[] }) {
   const [property, setProperty] = useState<Property | null>(null);
+  const [reviewsRefreshKey, setReviewsRefreshKey] = useState(0);
   const [images, setImages] = useState<PropertyImage[]>([]);
   const [backgroundImages, setBackgroundImages] = useState<PropertyImage[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
@@ -29,6 +31,23 @@ export function Home({ isEditing: externalIsEditing, onHasChanges, registerSaveA
   const [hasChanges, setHasChanges] = useState(false);
   const [scrapedImages, setScrapedImages] = useState<PropertyImage[]>([]);
   const [scrapedProperty, setScrapedProperty] = useState<Partial<Property> | null>(null);
+
+  // Keep the global activeProperty store in sync with whichever property is currently
+  // shown/edited here — Layout's <ColorPicker propertyId={activeProperty?.id}> (and anything
+  // else reading useProperty) needs this to actually know which row to write to.
+  useEffect(() => {
+    const current = scrapedProperty || property;
+    if (current) useProperty.getState().setActiveProperty(current as Property);
+    // Apply THIS property's own brand color/font. Without this, --brand (and the
+    // 'site-brand-color' localStorage key ColorPicker reads on mount) just keeps
+    // whatever was last set anywhere else in the app — a different property's color,
+    // or nothing — and bleeds into this property's edit view and the app chrome
+    // around it until someone happens to repick a color here.
+    const propBrandColor = (current as Property | null)?.brand_color;
+    saveBrandColor(propBrandColor || '#C47756');
+    const propFontAccent = (current as Property | null)?.font_accent;
+    if (propFontAccent) applyFontAccent(propFontAccent);
+  }, [property, scrapedProperty]);
   const [resetKey, setResetKey] = useState(0);
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [showGuestAuth, setShowGuestAuth] = useState(false);
@@ -217,20 +236,29 @@ export function Home({ isEditing: externalIsEditing, onHasChanges, registerSaveA
       setProperty(propData);
       setDefaultProperty(propData);
 
-      // Load images: prefer properties.images array (Airbnb URLs stored directly),
-      // fall back to property_images table for manually uploaded images
+      // Load images: property_images table is the source of truth (it's the
+      // only place with real row ids + is_featured/is_background/is_main
+      // flags, so Hero/Featured/Background toggles persist and the
+      // background-layer feature works) — fall back to the plain
+      // properties.images URL array only when a property has no
+      // property_images rows yet (e.g. never synced since being scraped).
+      // Previously this was inverted: properties.images was tried FIRST,
+      // which is populated on every publish, so real property_images data
+      // (and any Hero/Featured/Background flags on it) was silently ignored
+      // for every scraped site — Round 5, David: "works for surfhousebaja
+      // but not all created property sites."
       let imgList: PropertyImage[] = [];
-      if (propData.images && propData.images.length > 0) {
+      const { data: imgData, error: imgError } = await supabase
+        .from('property_images')
+        .select('*')
+        .eq('property_id', propertyId)
+        .order('position');
+      if (imgError) throw imgError;
+      if (imgData && imgData.length > 0) {
+        imgList = imgData;
+      } else if (propData.images && propData.images.length > 0) {
         imgList = propData.images.map((url: string, i: number) => ({ id: `img-${i}`, url, position: i }));
-        console.log('[Home loadProperty] Using images from properties.images:', imgList.length);
-      } else {
-        const { data: imgData, error: imgError } = await supabase
-          .from('property_images')
-          .select('*')
-          .eq('property_id', propertyId)
-          .order('position');
-        if (imgError) throw imgError;
-        imgList = imgData || [];
+        console.log('[Home loadProperty] No property_images rows — using properties.images:', imgList.length);
       }
 
       setImages(imgList);
@@ -657,9 +685,13 @@ export function Home({ isEditing: externalIsEditing, onHasChanges, registerSaveA
         // NOTE: do NOT set id to property?.id — that points to the old demo property.
         // A real id will be assigned when the site is published.
         title: imported.title || property?.title || '',
-        description: descText.replace(/\s+/g, ' ').trim(),
+        // description = 24-word teaser → ImageGallery hero-image overlay
+        // property_intro = full original text → PropertyDetails below-photos section
+        // (must match the mapping migrate-property/save-site-records use on publish,
+        // and what ImageGallery.tsx / PropertyDetails.tsx read post-publish)
+        description: intro24,
         property_title: property_headline,
-        property_intro: intro24,
+        property_intro: descText.replace(/\s+/g, ' ').trim(),
         property_headline: property_headline,  // ImageGallery reads property?.property_headline for hero text
         location: imported.location || property?.location || '',
         price_per_night: imported.price || property?.price_per_night || null,
@@ -715,10 +747,10 @@ export function Home({ isEditing: externalIsEditing, onHasChanges, registerSaveA
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
-          <h2 className="text-[1.65rem] text-gray-900 hero-title">
+          <h2 className="h2-on-light">
             {error || 'Property not found'}
           </h2>
-          <p className="mt-2 text-gray-600">Please try again later.</p>
+          <p className="mt-2 body-on-light">Please try again later.</p>
         </div>
       </div>
     );
@@ -751,11 +783,8 @@ export function Home({ isEditing: externalIsEditing, onHasChanges, registerSaveA
 
         <div className="amenities-bg">
           <div
-            className="absolute inset-0 bg-cover bg-center"
-            style={{
-              backgroundImage: backgroundImages[0] ? `url('${backgroundImages[0].url}')` : undefined,
-              opacity: backgroundImages[0] ? 0.6 : 0
-            }}
+            className={`absolute inset-0 bg-cover bg-center amenities-bg-layer ${backgroundImages[0] ? 'bg-layer-visible' : 'bg-layer-hidden'}`}
+            style={backgroundImages[0] ? ({ '--bg-image': `url('${backgroundImages[0].url}')` } as React.CSSProperties) : undefined}
           ></div>
           <div className="relative">
             <PropertyAmenities
@@ -783,11 +812,11 @@ export function Home({ isEditing: externalIsEditing, onHasChanges, registerSaveA
 
       {/* ── Guest Booking Section ── Only on published property pages, for guests ── */}
       {!isEditing && (window as any).__PROPERTY_DATA__?.id && !isGuest && user && (
-        <div className="py-16 px-4" style={{ background: 'var(--brand-color, #4F46E5)', color: 'white' }}>
+        <div className="py-16 px-4 brand-cta-section">
           <div className="max-w-md mx-auto">
-            <p className="text-sm uppercase tracking-widest opacity-80 mb-2 text-center">Welcome</p>
-            <h2 className="text-2xl font-bold mb-1 text-center">Book your stay</h2>
-            <p className="text-white/80 text-sm mb-6 text-center">Sign in to request a booking at this property</p>
+            <p className="eyebrow-on-dark mb-2 text-center">Welcome</p>
+            <h2 className="h2-on-dark mb-1 text-center">Book your stay</h2>
+            <p className="body-on-dark mb-6 text-center">Sign in to request a booking at this property</p>
             <button
               onClick={() => setShowGuestAuth(true)}
               className="w-full bg-white hover:bg-gray-100 text-indigo-600 font-semibold py-3 px-6 rounded-lg transition-colors"
@@ -801,8 +830,8 @@ export function Home({ isEditing: externalIsEditing, onHasChanges, registerSaveA
       {!isEditing && (window as any).__PROPERTY_DATA__?.id && isGuest && (
         <div className="py-16 px-4 bg-gray-50">
           <div className="max-w-md mx-auto">
-            <h2 className="text-2xl font-bold text-gray-900 mb-1">Request a Booking</h2>
-            <p className="text-gray-500 text-sm mb-6">You're signed in as a guest at this property</p>
+            <h2 className="h2-on-light mb-1">Request a Booking</h2>
+            <p className="body-on-light mb-6">You're signed in as a guest at this property</p>
             <GuestBookingRequest
               propertyId={(window as any).__PROPERTY_DATA__.id}
               propertyName={(window as any).__PROPERTY_DATA__.name || (window as any).__PROPERTY_DATA__.title}
@@ -815,19 +844,14 @@ export function Home({ isEditing: externalIsEditing, onHasChanges, registerSaveA
 
       <div className="reviews-section relative reviews-bg">
         <div
-          className="absolute inset-0 bg-cover bg-center"
-          style={{
-            backgroundImage: backgroundImages[1] ? `url('${backgroundImages[1].url}')` : undefined,
-            opacity: backgroundImages[1] ? 0.6 : 0,
-            width: '100vw',
-            marginLeft: 'calc(-50vw + 50%)'
-          }}
+          className={`absolute inset-0 bg-cover bg-center reviews-bg-layer ${backgroundImages[1] ? 'bg-layer-visible' : 'bg-layer-hidden'}`}
+          style={backgroundImages[1] ? ({ '--bg-image': `url('${backgroundImages[1].url}')` } as React.CSSProperties) : undefined}
         ></div>
         <div className="content-container relative">
           <div>
             <h1 className="reviews-section-heading">What our guests say</h1>
           </div>
-          <ReviewsList showStars={isEditing} isEditing={isEditing} />
+          <ReviewsList key={reviewsRefreshKey} showStars={isEditing} isEditing={isEditing} propertyId={property?.id || ''} />
           {!isEditing && (
             <div className="review-btn-wrap">
               <button
@@ -843,12 +867,12 @@ export function Home({ isEditing: externalIsEditing, onHasChanges, registerSaveA
 
       {showReviewModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
-              <h2 style={{ color: '#000', fontFamily: 'var(--font-accent, "Playfair Display"), serif', fontWeight: 400, textTransform: 'uppercase', fontSize: 'clamp(1.2rem, 2vw, 1.5rem)', margin: 0 }}>Leave a Review</h2>
+          <div className="sb-panel-bg rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="sticky top-0 sb-panel-bg border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+              <h2 className="review-modal-title">Leave a Review</h2>
             </div>
             <div className="p-6">
-              <ReviewForm onSuccess={() => setShowReviewModal(false)} />
+              <ReviewForm propertyId={property?.id || ''} onSuccess={() => { setShowReviewModal(false); setReviewsRefreshKey(k => k + 1); }} />
             </div>
           </div>
         </div>

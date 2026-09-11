@@ -3,7 +3,6 @@
  * Uses app's store/auth.ts, lib/supabase.ts, store/property.ts, types/index.ts
  */
 
-import '../components/sidebar.css';
 
 import React, { useState, useEffect, useMemo, memo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -179,7 +178,7 @@ const UserBookings = memo(function UserBookings({ bookings, onUpdateStatus, onRe
     return <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${bg} ${text}`}><Icon className="w-3.5 h-3.5 mr-1" />{label}</span>;
   };
 
-  if (!bookings.length) return <div className="text-center py-12"><p className="text-gray-500">No bookings found.</p></div>;
+  if (!bookings.length) return <div className="text-center py-12"><p className="body-on-light">No bookings found.</p></div>;
 
   return (
     <div className="space-y-6">
@@ -202,15 +201,15 @@ const UserBookings = memo(function UserBookings({ bookings, onUpdateStatus, onRe
             {isAdmin ? (
               <div className="space-y-2">
                 <div className="flex items-center"><User className="h-5 w-5 text-gray-400 mr-2" /><span className="font-medium">{booking.user?.full_name || 'Unknown User'}</span></div>
-                <div className="flex items-center text-sm text-gray-600"><Mail className="h-4 w-4 text-gray-400 mr-2" />{booking.user?.email || 'No email'}</div>
-                <div className="flex items-center text-sm text-gray-600"><Phone className="h-4 w-4 text-gray-400 mr-2" />{booking.user?.phone_number || 'No phone'}</div>
+                <div className="flex items-center body-on-light"><Mail className="h-4 w-4 text-gray-400 mr-2" />{booking.user?.email || 'No email'}</div>
+                <div className="flex items-center body-on-light"><Phone className="h-4 w-4 text-gray-400 mr-2" />{booking.user?.phone_number || 'No phone'}</div>
               </div>
             ) : (
               <div className="space-y-2">
                 <div className="flex items-center"><User className="h-5 w-5 text-gray-400 mr-2" /><span className="font-medium">{displayUser?.full_name || displayUser?.email || 'My Account'}</span></div>
-                <div className="flex items-center text-sm text-gray-600"><Mail className="h-4 w-4 text-gray-400 mr-2" />{displayUser?.email || ''}</div>
-                <div className="flex items-center text-sm text-gray-600"><Phone className="h-4 w-4 text-gray-400 mr-2" />{guestProfile?.phone_number || displayUser?.phone_number || ''}</div>
-                {booking.property && <div className="flex items-center text-sm text-gray-600"><Home className="h-4 w-4 text-gray-400 mr-2" />{booking.property?.title || 'Property'}</div>}
+                <div className="flex items-center body-on-light"><Mail className="h-4 w-4 text-gray-400 mr-2" />{displayUser?.email || ''}</div>
+                <div className="flex items-center body-on-light"><Phone className="h-4 w-4 text-gray-400 mr-2" />{guestProfile?.phone_number || displayUser?.phone_number || ''}</div>
+                {booking.property && <div className="flex items-center body-on-light"><Home className="h-4 w-4 text-gray-400 mr-2" />{booking.property?.title || 'Property'}</div>}
               </div>
             )}
             <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
@@ -240,8 +239,8 @@ const UserBookings = memo(function UserBookings({ bookings, onUpdateStatus, onRe
         <div className="fixed inset-0 z-50 overflow-y-auto" role="dialog">
           <div className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:p-0">
             <div className="fixed inset-0 bg-gray-500 bg-opacity-75" onClick={() => setShowDenialModal(null)} />
-            <div className="relative inline-block bg-white rounded-lg px-4 pt-5 pb-4 text-left shadow-xl sm:my-8 sm:max-w-lg sm:w-full sm:p-6">
-              <h3 className="text-lg font-medium text-gray-900 text-center">Provide Reason for Denial</h3>
+            <div className="relative inline-block sb-panel-bg rounded-lg px-4 pt-5 pb-4 text-left shadow-xl sm:my-8 sm:max-w-lg sm:w-full sm:p-6">
+              <h3 className="h4-on-light text-center">Provide Reason for Denial</h3>
               <textarea rows={4} className="mt-4 block w-full rounded-md border-gray-300 shadow-sm text-sm edit-textarea" placeholder="Enter reason for denying the booking..." value={denialReason} onChange={e => setDenialReason(e.target.value)} />
               <div className="mt-5 sm:grid sm:grid-cols-2 sm:gap-3">
                 <button disabled={isUpdating} className="w-full inline-flex justify-center rounded-md px-4 py-2 bg-red-600 text-white text-sm font-medium hover:bg-red-700 sm:col-start-2" onClick={() => { if (showDenialModal) { handleStatusUpdate(showDenialModal, 'denied', denialReason); setShowDenialModal(null); setDenialReason(''); } }}>{isUpdating ? 'Updating...' : 'Confirm Denial'}</button>
@@ -566,15 +565,31 @@ function ContactSection({ user, isEditing, fields, onChange, userProperties, act
     <div>
       {/* Property switcher — inside Contact section */}
       {userProperties.length >= 1 && (
-        <div style={{ position: 'relative', marginBottom: '12px' }}>
+        <div style={{
+          // .sb-section-body (the shared wrapper every nav section renders
+          // into) adds its own 4px left/right padding on top of
+          // .sidebar-content's 20px — so this switcher was sitting 4px
+          // narrower per side than the sidebar's other full-width controls
+          // (nav buttons, "Get your own booking website"). Negative-margin
+          // it back out so it lines up with them — David: "falls short".
+          position: 'relative',
+          marginBottom: '12px',
+          marginLeft: '-4px',
+          marginRight: '-4px',
+          width: 'calc(100% + 8px)',
+        }}>
           <button
             onClick={() => setShowPropertySwitcher(v => !v)}
             style={{
+              // Bumped to match the sidebar's other full-width buttons —
+              // David: "looks small still" (this is a hand-typed duplicate
+              // of GuestSidebar.tsx's .gs-property-switcher-btn, bumped the
+              // same way there, Round 5).
               background: '#f3f4f6',
               border: '1px solid #d1d5db',
-              borderRadius: '6px',
-              padding: '6px 10px',
-              fontSize: '12px',
+              borderRadius: '8px',
+              padding: '10px 16px',
+              fontSize: '0.9rem',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
@@ -1533,7 +1548,9 @@ export function AdminSidebar({ isOpen, onClose, mockMode = false, onPropertyLoad
       loadSubscriptionData();
 
       setPublishError(null);
-      // Redirect to the newly published site with ?published=1 so CustomerSite shows the share popup
+      // Redirect to the newly published site with ?published=1 so CustomerSite shows the
+      // share popup (shows for 3s, then retracts back into the nav Share icon — David confirmed
+      // he wants this animation, just clarifying after initially disliking something about it).
       window.__PROPERTY_DATA__ = null; window.location.replace(siteUrl + "?published=1&t=" + Date.now());
     } catch (err) {
       console.error('[sidebar publish] Error:', err);
@@ -1687,7 +1704,7 @@ export function AdminSidebar({ isOpen, onClose, mockMode = false, onPropertyLoad
                 </div>
               ) : (
                 <div className="flex items-center justify-between py-2">
-                  <p className="text-sm text-gray-500">No upcoming bookings</p>
+                  <p className="body-on-light">No upcoming bookings</p>
                   {bookingCardOpen ? <ChevronDown className="h-5 w-5 text-gray-500" /> : <ChevronRight className="h-5 w-5 text-gray-500" />}
                 </div>
               )}
@@ -1807,7 +1824,7 @@ export function AdminSidebar({ isOpen, onClose, mockMode = false, onPropertyLoad
           </div>
 
           {/* Sign out */}
-          <div className="flex justify-center" style={{ paddingBottom: '1rem' }}>
+          <div className="flex justify-center">
             <button onClick={async () => { await signOut(); onClose(); }} className="sidebar-signout">
               <LogOut className="h-4 w-4" /><span>Sign Out</span>
             </button>

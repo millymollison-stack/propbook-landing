@@ -8,9 +8,10 @@ import { format } from 'date-fns';
 interface ReviewsListProps {
   showStars?: boolean;
   isEditing?: boolean;
+  propertyId: string;
 }
 
-export default function ReviewsList({ showStars = true, isEditing = false }: ReviewsListProps) {
+export default function ReviewsList({ showStars = true, isEditing = false, propertyId }: ReviewsListProps) {
   const [reviews, setReviews] = useState<Review[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
@@ -22,11 +23,11 @@ export default function ReviewsList({ showStars = true, isEditing = false }: Rev
 
   useEffect(() => {
     loadReviews();
-  }, [isAdmin]);
+  }, [isAdmin, propertyId]);
 
   const loadReviews = async () => {
     try {
-      let query = supabase.from('reviews').select('*');
+      let query = supabase.from('reviews').select('*').eq('property_id', propertyId);
 
       if (!isAdmin) {
         query = query.eq('is_verified', true);
@@ -123,7 +124,7 @@ export default function ReviewsList({ showStars = true, isEditing = false }: Rev
   if (reviews.length === 0) {
     return (
       <div className="text-center py-12">
-        <p className="text-gray-500 text-lg">No reviews yet. Be the first to share your experience!</p>
+        <p className="body-on-light text-lg">No reviews yet. Be the first to share your experience!</p>
       </div>
     );
   }
@@ -182,13 +183,20 @@ export default function ReviewsList({ showStars = true, isEditing = false }: Rev
               className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-md p-4 border border-white/20 hover:shadow-xl transition-all duration-300 flex flex-col h-full width-full-min"
             >
               {/* Review Text */}
-              <p className="text-gray-700 leading-relaxed mb-3 flex-grow italic">"{review.review_text}"</p>
+              {/* Round 5: dropped flex-grow (it stretched this box to fill
+                  the card's full height, pushing the author/name section
+                  down by a variable, often large gap depending on review
+                  length) and tightened pt-4 -> pt-2 — David: "space between
+                  the review and the name... too big". Any extra height
+                  needed to keep cards in a row level now falls at the very
+                  bottom of the card instead of between text and name. */}
+              <p className="body-on-light leading-relaxed mb-2 italic">"{review.review_text}"</p>
 
               {/* Author & Date with Stars */}
-              <div className="border-t border-gray-100 pt-4 flex justify-between items-start">
+              <div className="border-t border-gray-100 pt-2 flex justify-between items-start">
                 <div>
-                  <h4 className="text-lg font-semibold text-gray-900">{review.guest_name}</h4>
-                  <p className="text-sm text-gray-500 mt-1">
+                  <h4 className="h4-on-light">{review.guest_name}</h4>
+                  <p className="body-on-light mt-1">
                     Stayed {format(new Date(review.stay_date), 'MMMM yyyy')}
                   </p>
                 </div>

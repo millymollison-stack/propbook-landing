@@ -106,7 +106,7 @@ export function GuestBookingRequest({ propertyId, propertyName, pricePerNight, m
   const formatDate = (d: string) => new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 
   return (
-    <div className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
+    <div className="sb-panel-bg rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
       {/* Header */}
       <div className="bg-gradient-to-r from-indigo-600 to-purple-600 px-6 py-4">
         <h3 className="text-white text-lg font-semibold">Request to Book</h3>
@@ -133,7 +133,7 @@ export function GuestBookingRequest({ propertyId, propertyName, pricePerNight, m
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Check-in</label>
+              <label className="label-on-light">Check-in</label>
               <input
                 type="date"
                 className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none text-sm"
@@ -144,7 +144,7 @@ export function GuestBookingRequest({ propertyId, propertyName, pricePerNight, m
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Check-out</label>
+              <label className="label-on-light">Check-out</label>
               <input
                 type="date"
                 className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none text-sm"
@@ -157,7 +157,7 @@ export function GuestBookingRequest({ propertyId, propertyName, pricePerNight, m
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="label-on-light">
               Guests {maxGuests && <span className="text-gray-400 font-normal">(max {maxGuests})</span>}
             </label>
             <select
@@ -183,7 +183,7 @@ export function GuestBookingRequest({ propertyId, propertyName, pricePerNight, m
           )}
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Special Requests <span className="text-gray-400 font-normal">(optional)</span></label>
+            <label className="label-on-light">Special Requests <span className="text-gray-400 font-normal">(optional)</span></label>
             <textarea
               className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none text-sm resize-none"
               rows={3}

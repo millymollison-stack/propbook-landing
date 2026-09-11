@@ -1,0 +1,33 @@
+/* Extracted from inline styles in Home.tsx (2026-09-11) */
+
+.amenities-bg-layer,
+.reviews-bg-layer {
+  background-image: var(--bg-image, none);
+}
+
+.reviews-bg-layer {
+  width: 100vw;
+  margin-left: calc(-50vw + 50%);
+}
+
+.bg-layer-visible {
+  opacity: 0.6;
+}
+
+.bg-layer-hidden {
+  opacity: 0;
+}
+
+.brand-cta-section {
+  background: var(--brand-color, #4F46E5);
+  color: white;
+}
+
+.review-modal-title {
+  color: #000;
+  font-family: var(--font-accent, "Playfair Display"), serif;
+  font-weight: 400;
+  text-transform: uppercase;
+  font-size: clamp(1.2rem, 2vw, 1.5rem);
+  margin: 0;
+}

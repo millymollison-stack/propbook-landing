@@ -57,14 +57,14 @@ function CheckoutForm({ booking, property }: { booking: BookingDetails; property
   if (success) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-        <div className="bg-white rounded-lg shadow-xl p-8 max-w-md w-full text-center">
+        <div className="sb-panel-bg rounded-lg shadow-xl p-8 max-w-md w-full text-center">
           <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
             <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
             </svg>
           </div>
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">Payment Successful!</h2>
-          <p className="text-gray-600 mb-6">Your booking has been confirmed. You will receive a confirmation email shortly.</p>
+          <h2 className="h2-on-light mb-2">Payment Successful!</h2>
+          <p className="body-on-light mb-6">Your booking has been confirmed. You will receive a confirmation email shortly.</p>
           <button onClick={() => navigate('/')} className="bg-[var(--brand)] text-white px-6 py-3 rounded-lg font-medium hover:bg-[var(--brand-hover)] transition-colors">
             Return to Home
           </button>
@@ -76,34 +76,34 @@ function CheckoutForm({ booking, property }: { booking: BookingDetails; property
   return (
     <div className="min-h-screen bg-gray-50 py-12 px-4">
       <div className="max-w-2xl mx-auto">
-        <div className="bg-white rounded-lg shadow-xl overflow-hidden">
+        <div className="sb-panel-bg rounded-lg shadow-xl overflow-hidden">
           <div className="bg-[var(--brand)] px-8 py-6">
-            <h1 className="text-2xl font-bold text-white">Complete Your Payment</h1>
-            <p className="text-white/80 mt-1">Secure your booking at {property?.title || 'the property'}</p>
+            <h1 className="h2-on-dark">Complete Your Payment</h1>
+            <p className="body-on-dark mt-1">Secure your booking at {property?.title || 'the property'}</p>
           </div>
           <div className="p-8">
             <div className="bg-gray-50 rounded-lg p-6 mb-8">
-              <h2 className="font-semibold text-gray-900 mb-4">Booking Summary</h2>
+              <h2 className="h4-on-light mb-4">Booking Summary</h2>
               <div className="grid grid-cols-2 gap-4 text-sm mb-4">
                 <div>
-                  <p className="text-gray-500">Check-in</p>
+                  <p className="body-on-light">Check-in</p>
                   <p className="font-medium">{booking.start_date}</p>
                 </div>
                 <div>
-                  <p className="text-gray-500">Check-out</p>
+                  <p className="body-on-light">Check-out</p>
                   <p className="font-medium">{booking.end_date}</p>
                 </div>
                 <div>
-                  <p className="text-gray-500">Guests</p>
+                  <p className="body-on-light">Guests</p>
                   <p className="font-medium">{booking.guest_count}</p>
                 </div>
               </div>
               <div className="border-t border-gray-200 pt-4 space-y-2 text-sm">
-                <div className="flex justify-between text-gray-600">
+                <div className="flex justify-between body-on-light">
                   <span>Rental subtotal</span>
                   <span>${booking.total_price.toFixed(2)}</span>
                 </div>
-                <div className="flex justify-between text-gray-600">
+                <div className="flex justify-between body-on-light">
                   <span>Handling fee (2%)</span>
                   <span>${(booking.total_price * 0.02).toFixed(2)}</span>
                 </div>
@@ -116,7 +116,7 @@ function CheckoutForm({ booking, property }: { booking: BookingDetails; property
 
             <form onSubmit={handleSubmit}>
               <div className="mb-6">
-                <label className="block text-sm font-medium text-gray-700 mb-2">Payment Details</label>
+                <label className="label-on-light">Payment Details</label>
                 <div className="border border-gray-300 rounded-lg p-4">
                   <PaymentElement />
                 </div>
@@ -139,7 +139,7 @@ function CheckoutForm({ booking, property }: { booking: BookingDetails; property
                   </span>
                 ) : `Pay $${(booking.total_price * 1.02).toFixed(2)}`}
               </button>
-              <p className="text-center text-gray-500 text-sm mt-4">Your payment is secured by Stripe</p>
+              <p className="body-on-light text-center mt-4">Your payment is secured by Stripe</p>
             </form>
           </div>
         </div>
@@ -238,14 +238,14 @@ export default function PaymentPage() {
   if (alreadyPaid) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-        <div className="bg-white rounded-lg shadow-xl p-8 max-w-md w-full text-center">
+        <div className="sb-panel-bg rounded-lg shadow-xl p-8 max-w-md w-full text-center">
           <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
             <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
             </svg>
           </div>
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">Already Paid</h2>
-          <p className="text-gray-600 mb-6">This booking has already been paid for.</p>
+          <h2 className="h2-on-light mb-2">Already Paid</h2>
+          <p className="body-on-light mb-6">This booking has already been paid for.</p>
           <button onClick={() => navigate('/')} className="bg-[var(--brand)] text-white px-6 py-3 rounded-lg font-medium hover:bg-[var(--brand-hover)] transition-colors">
             Return to Home
           </button>
@@ -257,9 +257,9 @@ export default function PaymentPage() {
   if (error || !booking) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-        <div className="bg-white rounded-lg shadow-xl p-8 max-w-md w-full text-center">
+        <div className="sb-panel-bg rounded-lg shadow-xl p-8 max-w-md w-full text-center">
           <h2 className="text-2xl font-bold text-red-600 mb-2">Payment Error</h2>
-          <p className="text-gray-600 mb-6">{error || 'Booking not found'}</p>
+          <p className="body-on-light mb-6">{error || 'Booking not found'}</p>
           <button onClick={() => navigate('/')} className="bg-[var(--brand)] text-white px-6 py-3 rounded-lg font-medium hover:bg-[var(--brand-hover)] transition-colors">
             Return to Home
           </button>

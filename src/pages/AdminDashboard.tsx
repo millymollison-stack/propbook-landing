@@ -232,7 +232,7 @@ export function AdminDashboard() {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <h1 className="text-[2rem] md:text-[3.3rem] text-gray-900 mb-8">Admin Dashboard</h1>
-      <p className="text-sm text-gray-500 mb-4">Tabs should appear below this line:</p>
+      <p className="body-on-light mb-4">Tabs should appear below this line:</p>
 
       {/* Tab Navigation */}
       <div className="mb-8 border-b-2 border-gray-300">
@@ -276,10 +276,10 @@ export function AdminDashboard() {
         <>
           {/* Statistics Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        <div className="bg-white rounded-lg shadow p-6">
+        <div className="sb-panel-bg rounded-lg shadow p-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-500">Total Bookings</p>
+              <p className="body-on-light">Total Bookings</p>
               <p className="text-2xl font-semibold">{stats.total}</p>
             </div>
             <Calendar className="h-8 w-8 text-[var(--brand)]" />
@@ -290,15 +290,15 @@ export function AdminDashboard() {
                 <ArrowUp className="h-4 w-4 mr-1" />
                 {((stats.approved / stats.total) * 100).toFixed(1)}%
               </span>
-              <span className="ml-2 text-gray-500">Approval rate</span>
+              <span className="ml-2 body-on-light">Approval rate</span>
             </div>
           </div>
         </div>
 
-        <div className="bg-white rounded-lg shadow p-6">
+        <div className="sb-panel-bg rounded-lg shadow p-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-500">Pending Requests</p>
+              <p className="body-on-light">Pending Requests</p>
               <p className="text-2xl font-semibold">{stats.pending}</p>
             </div>
             <Users className="h-8 w-8 text-yellow-500" />
@@ -310,27 +310,27 @@ export function AdminDashboard() {
           </div>
         </div>
 
-        <div className="bg-white rounded-lg shadow p-6">
+        <div className="sb-panel-bg rounded-lg shadow p-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-500">Total Revenue</p>
+              <p className="body-on-light">Total Revenue</p>
               <p className="text-2xl font-semibold">${stats.totalRevenue}</p>
             </div>
             <DollarSign className="h-8 w-8 text-green-500" />
           </div>
           <div className="mt-4">
             <div className="flex items-center text-sm">
-              <span className="text-gray-500">
+              <span className="body-on-light">
                 Avg. ${stats.averageBookingValue.toFixed(2)} per booking
               </span>
             </div>
           </div>
         </div>
 
-        <div className="bg-white rounded-lg shadow p-6">
+        <div className="sb-panel-bg rounded-lg shadow p-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-500">Booking Trends</p>
+              <p className="body-on-light">Booking Trends</p>
               <p className="text-2xl font-semibold">
                 {dailyStats.length > 0
                   ? dailyStats[dailyStats.length - 1].bookings
@@ -357,17 +357,17 @@ export function AdminDashboard() {
                   )}
                 </>
               )}
-              <span className="ml-2 text-gray-500">Today's bookings</span>
+              <span className="ml-2 body-on-light">Today's bookings</span>
             </div>
           </div>
         </div>
       </div>
 
       {/* Bookings Table */}
-      <div className="bg-white shadow rounded-lg overflow-hidden">
+      <div className="sb-panel-bg shadow rounded-lg overflow-hidden">
         <div className="px-4 py-5 sm:px-6 border-b border-gray-200">
           <div className="flex items-center justify-between">
-            <h2 className="text-xl font-semibold text-gray-900">Recent Bookings</h2>
+            <h2 className="h4-on-light">Recent Bookings</h2>
             <div className="flex items-center space-x-2">
               {selectedBookings.length > 0 && (
                 <>
@@ -396,7 +396,7 @@ export function AdminDashboard() {
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th scope="col" className="px-6 py-3 text-left table-header-on-light">
                   <input
                     type="checkbox"
                     checked={selectedBookings.length === bookings.length}
@@ -410,19 +410,19 @@ export function AdminDashboard() {
                     className="h-4 w-4 text-[var(--brand)] focus:ring-[#C47756] border-gray-300 rounded"
                   />
                 </th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th scope="col" className="px-6 py-3 text-left table-header-on-light">
                   Guest
                 </th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th scope="col" className="px-6 py-3 text-left table-header-on-light">
                   Property
                 </th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th scope="col" className="px-6 py-3 text-left table-header-on-light">
                   Dates
                 </th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th scope="col" className="px-6 py-3 text-left table-header-on-light">
                   Status
                 </th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th scope="col" className="px-6 py-3 text-left table-header-on-light">
                   Amount
                 </th>
               </tr>
@@ -450,7 +450,7 @@ export function AdminDashboard() {
                         <div className="text-sm font-medium text-gray-900">
                           {booking.user?.full_name || 'Unknown User'}
                         </div>
-                        <div className="text-sm text-gray-500">
+                        <div className="body-on-light">
                           {booking.user?.email || 'No email provided'}
                         </div>
                       </div>
@@ -464,7 +464,7 @@ export function AdminDashboard() {
                       {format(new Date(booking.start_date), 'MMM d')} -{' '}
                       {format(new Date(booking.end_date), 'MMM d, yyyy')}
                     </div>
-                    <div className="text-sm text-gray-500">
+                    <div className="body-on-light">
                       {booking.guest_count} guests
                     </div>
                   </td>
@@ -481,7 +481,7 @@ export function AdminDashboard() {
                       {booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
                     </span>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  <td className="px-6 py-4 whitespace-nowrap body-on-light">
                     ${booking.total_price}
                   </td>
                 </tr>
@@ -494,8 +494,8 @@ export function AdminDashboard() {
       {/* Denial Reason Modal */}
       {showDenialModal && (
         <div className="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full">
-            <h3 className="text-lg font-medium text-gray-900 mb-4">
+          <div className="sb-panel-bg rounded-lg p-6 max-w-md w-full">
+            <h3 className="h4-on-light mb-4">
               Provide Reason for Denial
             </h3>
             <textarea

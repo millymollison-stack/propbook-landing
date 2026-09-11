@@ -96,3 +96,23 @@
   align-items: center;
   gap: 8px;
 }
+
+/* Extracted from inline styles (2026-09-11) */
+.lm-address-row {
+  width: 100%;
+}
+.lm-address-input {
+  flex: 1;
+}
+.lm-search-btn {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px;
+  font-size: 0.8rem;
+}
+.lm-maps-link {
+  margin-top: 0.75rem;
+  display: inline-flex;
+}

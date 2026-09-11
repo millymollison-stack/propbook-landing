@@ -142,7 +142,7 @@ export function EmailConfirmation() {
     <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center px-4 py-12 sm:px-6 lg:px-8">
       <div className="w-full max-w-md space-y-8">
         <div className="text-center">
-          <h1 className="text-[1.65rem] text-gray-900 mb-4">Email Confirmation</h1>
+          <h1 className="h2-on-light mb-4">Email Confirmation</h1>
           
           <div className="email-confirm-box">
             <strong>DEBUG INFO:</strong><br/>
@@ -156,10 +156,10 @@ export function EmailConfirmation() {
               <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-blue-100">
                 <Loader className="h-6 w-6 text-blue-600 animate-spin" />
               </div>
-              <h2 className="mt-6 text-xl font-bold text-gray-900">
+              <h2 className="h2-on-light mt-6">
                 Confirming your email...
               </h2>
-              <p className="mt-2 text-sm text-gray-600">
+              <p className="body-on-light mt-2">
                 Please wait while we verify your email address.
               </p>
             </>
@@ -170,13 +170,13 @@ export function EmailConfirmation() {
               <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-green-100">
                 <Check className="h-6 w-6 text-green-600" />
               </div>
-              <h2 className="mt-6 text-xl font-bold text-gray-900">
+              <h2 className="h2-on-light mt-6">
                 Email Confirmed!
               </h2>
-              <p className="mt-2 text-sm text-gray-600">
+              <p className="body-on-light mt-2">
                 {message}
               </p>
-              <p className="mt-4 text-sm text-gray-500">
+              <p className="body-on-light mt-4">
                 Redirecting you in 3 seconds...
               </p>
             </>
@@ -187,7 +187,7 @@ export function EmailConfirmation() {
               <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100">
                 <X className="h-6 w-6 text-red-600" />
               </div>
-              <h2 className="mt-6 text-xl font-bold text-gray-900">
+              <h2 className="h2-on-light mt-6">
                 Confirmation Failed
               </h2>
               <p className="mt-2 text-sm text-red-600">

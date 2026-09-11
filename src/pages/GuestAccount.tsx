@@ -65,7 +65,7 @@ export function GuestAccount() {
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
           <Loader size={32} className="animate-spin text-indigo-600 mx-auto mb-3" />
-          <p className="text-gray-600">Loading your bookings...</p>
+          <p className="body-on-light">Loading your bookings...</p>
         </div>
       </div>
     );
@@ -83,8 +83,8 @@ export function GuestAccount() {
             <ArrowLeft size={20} className="text-gray-600" />
           </button>
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">My Bookings</h1>
-            <p className="text-gray-500 text-sm mt-0.5">Your requests for this property</p>
+            <h1 className="h2-on-light">My Bookings</h1>
+            <p className="body-on-light mt-0.5">Your requests for this property</p>
           </div>
         </div>
 
@@ -96,10 +96,10 @@ export function GuestAccount() {
         )}
 
         {!error && bookings.length === 0 && (
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-10 text-center">
+          <div className="sb-panel-bg rounded-2xl shadow-sm border border-gray-100 p-10 text-center">
             <div className="text-5xl mb-4">🏠</div>
-            <h2 className="text-xl font-semibold text-gray-800 mb-2">No bookings yet</h2>
-            <p className="text-gray-500 mb-6">You haven't made any booking requests for this property.</p>
+            <h2 className="h4-on-light mb-2">No bookings yet</h2>
+            <p className="body-on-light mb-6">You haven't made any booking requests for this property.</p>
             <button
               onClick={() => navigate(-1)}
               className="bg-indigo-600 hover:bg-indigo-700 text-white font-medium px-6 py-2.5 rounded-lg transition-colors"
@@ -112,7 +112,7 @@ export function GuestAccount() {
         {!error && bookings.length > 0 && (
           <div className="space-y-4">
             {bookings.map(booking => (
-              <div key={booking.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+              <div key={booking.id} className="sb-panel-bg rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
                 {/* Status Banner */}
                 <div className={`px-6 py-3 flex items-center justify-between ${
                   booking.status === 'approved' ? 'bg-green-50 border-b border-green-100' :
@@ -127,27 +127,27 @@ export function GuestAccount() {
                 <div className="p-6">
                   <div className="grid grid-cols-2 gap-6">
                     <div>
-                      <p className="text-xs text-gray-400 uppercase tracking-wide font-medium mb-1">Check-in</p>
+                      <p className="caption-on-light">Check-in</p>
                       <p className="text-gray-900 font-semibold">{formatDate(booking.start_date)}</p>
                     </div>
                     <div>
-                      <p className="text-xs text-gray-400 uppercase tracking-wide font-medium mb-1">Check-out</p>
+                      <p className="caption-on-light">Check-out</p>
                       <p className="text-gray-900 font-semibold">{formatDate(booking.end_date)}</p>
                     </div>
                     <div>
-                      <p className="text-xs text-gray-400 uppercase tracking-wide font-medium mb-1">Guests</p>
+                      <p className="caption-on-light">Guests</p>
                       <p className="text-gray-900 font-semibold">{booking.guest_count}</p>
                     </div>
                     <div>
-                      <p className="text-xs text-gray-400 uppercase tracking-wide font-medium mb-1">Total</p>
+                      <p className="caption-on-light">Total</p>
                       <p className="text-gray-900 font-semibold">${booking.total_price.toLocaleString()}</p>
                     </div>
                   </div>
 
                   {booking.special_requests && (
                     <div className="mt-4 pt-4 border-t border-gray-100">
-                      <p className="text-xs text-gray-400 uppercase tracking-wide font-medium mb-1">Special Requests</p>
-                      <p className="text-gray-600 text-sm">{booking.special_requests}</p>
+                      <p className="caption-on-light">Special Requests</p>
+                      <p className="body-on-light">{booking.special_requests}</p>
                     </div>
                   )}
 

@@ -23,13 +23,13 @@ const require = createRequire(import.meta.url);
 
 const PROJECT_ROOT = pathJoin(dirname(fileURLToPath(import.meta.url)), '..', '..');
 
-const DEPLOY_TOKEN = 'propbook-deploy-2026';
+const DEPLOY_TOKEN = process.env.DEPLOY_SECRET || '';
 const UPLOAD_URL = 'https://www.propbook.pro/scripts/deploy-react-upload.php';
 const HOSTINGER_CREDS = {
-  host: '82.29.86.252',
-  port: '65002',
-  user: 'u805830916',
-  pass: 'Clawbot12!',
+  host: process.env.SSH_HOST || '',
+  port: process.env.SSH_PORT || '',
+  user: process.env.SSH_USER || '',
+  pass: process.env.SSH_PASS || '',
 };
 
 function sshExec(cmd: string): string {

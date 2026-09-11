@@ -3,22 +3,39 @@
 PropBook Site Upload — Upload HTML bundle and update site HTML with cache-busting version.
 Usage: python3 upload-site.py <slug> [slug2 ...]
 
-Env vars (or edit below):
-  FTP_HOST=82.29.86.252
-  FTP_PORT=21
-  FTP_USER=u805830916
-  FTP_PASS=Propbook-2025!
-  UPLOAD_URL=https://propbook.pro/upload.php
-  UPLOAD_SECRET=propbook-deploy-2026
+Required env vars (set in src/.env):
+  FTP_HOST, FTP_PORT, FTP_USER, FTP_PASS, UPLOAD_SECRET
+  UPLOAD_URL (optional, defaults to https://propbook.pro/upload.php)
 """
 import subprocess, json, base64, re, os, sys
 
-FTP_HOST   = os.environ.get("FTP_HOST",   "82.29.86.252")
-FTP_PORT   = os.environ.get("FTP_PORT",   "21")
-FTP_USER   = os.environ.get("FTP_USER",   "u805830916")
-FTP_PASS   = os.environ.get("FTP_PASS",   "Propbook-2025!")
+def _load_env(path):
+    """Minimal .env loader — no external deps."""
+    if not os.path.exists(path):
+        return
+    with open(path) as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith('#') or '=' not in line:
+                continue
+            k, v = line.split('=', 1)
+            os.environ.setdefault(k.strip(), v.strip())
+
+_load_env(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'src', '.env'))
+
+def _require(name):
+    val = os.environ.get(name)
+    if not val:
+        raise RuntimeError(f"{name} not set — add it to src/.env")
+    return val
+
+
+FTP_HOST   = _require("FTP_HOST")
+FTP_PORT   = _require("FTP_PORT")
+FTP_USER   = _require("FTP_USER")
+FTP_PASS   = _require("FTP_PASS")
 UPLOAD_URL = os.environ.get("UPLOAD_URL", "https://propbook.pro/upload.php")
-UPLOAD_SECRET = os.environ.get("UPLOAD_SECRET", "propbook-deploy-2026")
+UPLOAD_SECRET = _require("UPLOAD_SECRET")
 DEV_DIR   = f"/home/u805830916/domains/propbook.pro/public_html/dev/assets"
 
 def ftp(cmd):

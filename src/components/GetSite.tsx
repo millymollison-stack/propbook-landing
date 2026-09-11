@@ -1,8 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
-import './styles.css';
-import './GetSite.css';
 import { TemplatePreview } from './TemplatePreview';
 import { FontDropdown } from './FontDropdown';
 import { FONT_OPTIONS, applyFontAccent } from '../lib/fontAccent';
@@ -178,38 +176,16 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
  const descSyncTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
  // ── Stripe post-payment handler ─────────────────────────────────────────────
- // App.tsx detects ?paid=true and sets stripe_paid_returning.
- // This effect fires when GetSite mounts and runs handleSaveSiteInPopup.
- useEffect(() => {
-   if (!user) return;
-   if (!sessionStorage.getItem('stripe_paid_returning')) return;
-   if (sessionStorage.getItem('stripe_payment_returning')) {
-     sessionStorage.removeItem('stripe_paid_returning');
-     return;
-   }
-   console.log('[GetSite Stripe return] Running post-payment handler');
-   sessionStorage.removeItem('stripe_paid_returning');
-   sessionStorage.setItem('stripe_payment_returning', '1');
-   setIsOpen(false);
-   setShowSaveOverlay(true);
-   setSavingSite(true);
-   handleSaveSiteInPopup(true).then(async siteResult => {
-     setShowSaveOverlay(false);
-     // Refresh user subscription data from Supabase so the sidebar shows correct plan
-     try { await refreshUser(); } catch (e) { console.warn('[Stripe return] refreshUser error:', e); }
-     // Show the finish-building popup
-     setShowFinishPopup(true);
-     // In migration mode, stay on the app page so user can review their migrated data
-     // and publish from the sidebar. Only redirect if explicitly needed.
-     if (siteResult?.propertyId) {
-       sessionStorage.setItem('home_loaded_property_id', siteResult.propertyId);
-     }
-   }).catch(err => {
-     console.error('[GetSite Stripe return] Error:', err);
-     setStripeError('Site saved but deploy may have failed. Check your sidebar.');
-     setSavingSite(false);
-   });
- }, [user]);
+ // REMOVED (was here): a duplicate, unverified handler that raced against the
+ // real one below (~line 960s). It fired on the same [user] render, ran FIRST
+ // (declaration order), and immediately set stripe_payment_returning='1' and
+ // called handleSaveSiteInPopup WITHOUT ever verifying the Stripe session — so
+ // the real handler below (which verifies via the stripe-subscription edge
+ // function, updates the subscription status, THEN saves) always saw
+ // stripe_payment_returning already set and bailed out as "already handled"
+ // before it could run. This is the confirmed root cause of the Stripe
+ // redirect landing back with no site created and no subscription registered.
+ // The single remaining handler below now owns this entire flow.
 
  // Inline auth state
  const [authEmail, setAuthEmail] = useState('');
@@ -606,13 +582,17 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
             if (prop) {
               const headlineText = prop.property_title || prop.title || '';
               const descText = prop.property_intro || prop.description || '';
+              const desc24 = extractFirst24Words(descText);
               // Update sessionStorage so other parts of the app see the migrated values
               sessionStorage.setItem('popup_property_headline', headlineText);
-              sessionStorage.setItem('popup_website_desc', descText);
-              // Store full property_intro for the 2nd text box
+              // Upper box (property-description) is the 24-word-limited field — must stay truncated,
+              // same as every other code path in this file. Full text belongs only in the 2nd text box.
+              sessionStorage.setItem('popup_website_desc', desc24);
+              // Store full property_intro for the 2nd text box (lower, unedited full description)
               sessionStorage.setItem('popup_property_intro', prop.property_intro || prop.description || '');
               setPropertyHeadline(headlineText);
-              setWebsiteDesc(descText);
+              setWebsiteDesc(desc24);
+              setPropertyIntroFull(prop.property_intro || prop.description || '');
               setScrapedData(prev => ({
                 ...prev,
                 title: (prop.title || '').slice(0, 16),
@@ -761,6 +741,22 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
  // Persist immediately so Stripe redirect can't lose the user's typed input
  sessionStorage.setItem('popup_website_name', limited);
  sessionStorage.setItem('popup_user_website_name', limited);
+ // Live-update the preview behind the popup as the user types — previously this only
+ // happened on blur (handleNameBlur), so the site name/nav title behind the popup sat
+ // stale the whole time someone was actively typing it. Same debounce pattern as
+ // handlePropertyHeadlineChange/handleDescChange below.
+ if (onSiteNameChange) {
+ const display = limited.trim().length > 0 ? '@' + limited.trim() : '@surfhousebaja';
+ onSiteNameChange(display);
+ }
+ clearTimeout(descSyncTimer.current);
+ descSyncTimer.current = setTimeout(() => {
+ if (onImported) {
+ const latestHeadline = sessionStorage.getItem('popup_property_headline') || propertyHeadline || 'surfhousebaja';
+ const latestDesc = sessionStorage.getItem('popup_website_desc') || websiteDesc;
+ onImported({ title: limited, property_title: latestHeadline, description: latestDesc });
+ }
+ }, 500);
  };
  const handlePropertyHeadlineChange = (val: string) => {
  // No character limit - store the full property headline
@@ -1224,6 +1220,18 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
    if (!planChoice) { setStripeError('Please select a subscription plan first.'); return; }
    if (!websiteName.trim()) { setStripeError('Please enter a website name first.'); return; }
    console.log('[handlePublish] 🔵 No active sub — redirecting to Stripe. subStatus=' + (user?.stripe_subscription_status || 'none'));
+   // Clear stale Stripe-return state from any previous attempt in this browser tab
+   // (a different account, a failed attempt, a different session_id). Without this,
+   // a leftover 'stripe_payment_returning' flag makes the real post-payment handler
+   // in the ?paid=true effect below think THIS brand-new payment was "already
+   // handled" and it silently no-ops — the user lands back with no site created.
+   // (openStripeGateway already did this; handlePublish — the function actually
+   // wired to the Create Draft Site / Publish button — did not, until now.)
+   sessionStorage.removeItem('stripe_payment_returning');
+   sessionStorage.removeItem('stripe_paid_returning');
+   sessionStorage.removeItem('stripe_redirect_initiated');
+   sessionStorage.removeItem('stripe_migration_done');
+   sessionStorage.setItem('popup_website_name', websiteName);
    setStripeError('');
    setStripeProcessing(true);
    await saveToSupabase();
@@ -1354,6 +1362,9 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
          || user.full_name
          || 'My Property',
        websiteDesc: sessionStorage.getItem('popup_website_desc') || websiteDesc || '',
+       // Full, unedited description ("Full description (unedited)" text box) — previously
+       // dropped entirely on first-time publish (only the migrate-mode path saved it).
+       propertyIntroFull: sessionStorage.getItem('popup_property_intro') || propertyIntroFull || '',
        propertyHeadline: sessionStorage.getItem('popup_property_headline') || propertyHeadline || '',
        propertyTitle: sessionStorage.getItem('popup_property_headline') || propertyHeadline || '',
        planChoice: planChoice as 'starter' | 'pro' | 'agency',
@@ -1719,7 +1730,10 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
  type="file"
  accept="image/*"
  multiple
- capture="environment"
+ // Round 6: `capture="environment"` forced iOS/Android straight into the
+ // camera instead of the photo library -- removed so the normal
+ // library/camera choice sheet shows (the user can still tap through to
+ // the live camera from there if they want).
  style={{ display: 'none' }}
  onChange={async (e) => {
  const files = Array.from(e.target.files || []);
@@ -1819,7 +1833,7 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
  )}
  {designChoice === 'airbnb' && (
  <div style={{ paddingTop: 16 }}>
- <p style={{ fontSize: '0.9rem', color: '#ccc', margin: '0 0 12px 0' }}>Paste your Airbnb profile link to import your property photos and text. A small fee is charged to access Airbnb data.</p>
+ <p style={{ fontSize: '0.9rem', color: '#ccc', margin: '0 0 12px 0' }}>Paste your Airbnb profile link to import your property photos and text. $10 fee to access Airbnb data.</p>
  <input
  type="text"
  placeholder="Airbnb listing url"
@@ -1844,7 +1858,7 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
 
  {/* Preview - only show when scrape has fully landed (not during countdown) */}
  {scrapedData && !isImporting && (
- <div className="popup-preview">
+ <div className="popup-preview popup-preview-compact">
  <h3>Preview:</h3>
  <TemplatePreview
  title={propertyHeadline || scrapedData.title || websiteName || ''}
@@ -1863,6 +1877,7 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
  />
  </div>
  )}
+
  </div>
  )}
  </div>
@@ -1964,28 +1979,10 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
  )}
 
 
- {/* Live preview — ONLY when NOT in scrape/manual flow (no scrapedData).
- Shows the user's own typed content in the preview. */}
- {!scrapedData && !isImporting && (propertyHeadline || websiteDesc) && (
- <div className="popup-preview" style={{ marginTop: 16 }}>
- <h3>Preview:</h3>
- <TemplatePreview
- title={propertyHeadline || websiteName || ''}
- location={scrapedData?.location || ''}
- price={scrapedData?.price || ''}
- description={websiteDesc || ''}
- hero_image={scrapedData?.hero_image || scrapedData?.images?.[1] || ''}
- images={scrapedData?.images || []}
- guests={scrapedData?.guests}
- bedrooms={scrapedData?.bedrooms}
- beds={scrapedData?.beds}
- baths={scrapedData?.baths}
- rating={scrapedData?.rating}
- reviews={scrapedData?.reviews}
- host_name={scrapedData?.host_name}
- />
- </div>
- )}
+ {/* NOTE: the manual-flow "Preview:" card for photos/description already
+ renders earlier (next to the photo upload section) when manualImages.length > 0.
+ A second, near-duplicate preview used to render again here, right above
+ Hosting options — that's the "phantom preview window" reported; removed. */}
  <div style={{ marginBottom: 24 }} />
 
  <hr />
@@ -1999,7 +1996,7 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
  </li>
  <li>
  <input type="radio" name="hosting" id="4-2" checked={hostingChoice === 'our'} onChange={() => setHostingChoice('our')} style={{ accentColor: brandColor }} />
- <label htmlFor="4-2">Published to our server - $5 p/m</label>
+ <label htmlFor="4-2">Publish to our server - $10 p/m</label>
  </li>
  </ul>
  <br /><hr />

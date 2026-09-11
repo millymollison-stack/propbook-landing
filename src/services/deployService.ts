@@ -11,7 +11,7 @@
 
 import { supabaseAdmin } from '../lib/supabase';
 
-const DEPLOY_SECRET = 'propbook-deploy-2026';
+const DEPLOY_SECRET = import.meta.env.VITE_DEPLOY_SECRET_DEPRECATED || '';
 const UPLOAD_URL = 'https://propbook.pro/upload.php';
 
 export interface DeployResult {

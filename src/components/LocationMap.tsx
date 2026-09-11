@@ -4,9 +4,6 @@ import { CreditCard as Edit2, X, MapPin, Check, Search } from 'lucide-react';
 import { useAuth } from '../store/auth';
 import type { Property } from '../types';
 import 'leaflet/dist/leaflet.css';
-import './LocationMap.css';
-import './sidebar.css';
-import './OnboardingPopup.css';
 import L from 'leaflet';
 
 // Fix for default marker icon in Leaflet
@@ -136,9 +133,15 @@ export function LocationMap({ property, onSave, onClose, isOpen }: LocationMapPr
           <div className="absolute inset-0 bg-gray-500 opacity-75" onClick={onClose}></div>
         </div>
 
-        <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-3xl w-full location-map-modal">
-          <div className="bg-white px-3 pt-4 pb-3 sm:px-6 sm:pt-5 sm:pb-4">
-            <div className="flex justify-between items-center mb-4">
+        <div className="inline-block align-bottom sb-panel-bg rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-2xl w-full location-map-modal">
+          {/* Round 6: was `bg-white` here on top of the outer sb-panel-bg wrapper --
+              a plain opaque white layered over the app-wide 0.92 panel color, so this
+              modal looked different (fully opaque) from every other sb-panel-bg surface.
+              Dropped it so the shared variable shows through consistently. Also
+              narrowed sm:max-w-3xl -> sm:max-w-2xl (matches the booking modal) and
+              mb-4 -> mb-2 under the heading -- David: "the modal looks very big". */}
+          <div className="px-3 pt-4 pb-3 sm:px-6 sm:pt-5 sm:pb-4">
+            <div className="flex justify-between items-center mb-2">
               <h1>Location</h1>
               <div className="location-edit-container">
                 {isAdmin && (
@@ -212,20 +215,18 @@ export function LocationMap({ property, onSave, onClose, isOpen }: LocationMapPr
                     <label className="location-edit-label">
                       Street Address
                     </label>
-                    <div className="mt-1 flex items-center gap-2" style={{ width: '100%' }}>
+                    <div className="mt-1 flex items-center gap-2 lm-address-row">
                       <input
                         type="text"
                         value={address}
                         onChange={(e) => setAddress(e.target.value)}
                         onKeyDown={(e) => e.key === 'Enter' && handleAddressSearch()}
-                        className="sb-input-light"
-                        style={{ flex: 1 }}
+                        className="sb-input-light lm-address-input"
                         placeholder="Enter street address"
                       />
                       <button
                         onClick={handleAddressSearch}
-                        className="btn"
-                        style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 4, padding: '6px 12px', fontSize: '0.8rem' }}
+                        className="btn lm-search-btn"
                         aria-label="Search address"
                       >
                         <Search className="h-4 w-4" />Search
@@ -318,8 +319,7 @@ export function LocationMap({ property, onSave, onClose, isOpen }: LocationMapPr
                   href={mapsUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="edit-location-btn"
-                  style={{ marginTop: '0.75rem', display: 'inline-flex' }}
+                  className="edit-location-btn lm-maps-link"
                 >
                   <MapPin className="h-4 w-4" />
                   Open in Google Maps

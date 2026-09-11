@@ -11,15 +11,36 @@ What it does:
 """
 import subprocess, os, json, base64, re, ssl, time
 
+def _load_env(path):
+    """Minimal .env loader — no external deps."""
+    if not os.path.exists(path):
+        return
+    with open(path) as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith('#') or '=' not in line:
+                continue
+            k, v = line.split('=', 1)
+            os.environ.setdefault(k.strip(), v.strip())
+
+_load_env(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'src', '.env'))
+
+def _require(name):
+    val = os.environ.get(name)
+    if not val:
+        raise RuntimeError(f"{name} not set — add it to src/.env")
+    return val
+
+
 # ─── CONFIG ───────────────────────────────────────────────────
-HOST = "u805830916@82.29.86.252"
-PORT = 65002
-PASS = "Clawbot12!"
+HOST = f"{_require('SSH_USER')}@{_require('SSH_HOST')}"
+PORT = int(_require('SSH_PORT'))
+PASS = _require('SSH_PASS')
 BASE = "/home/u805830916/domains/propbook.pro/public_html"
 DEV_DIR = f"{BASE}/dev/assets"
 PROPS_DIR = f"{BASE}/props"
 UPLOAD_URL = "https://www.propbook.pro/upload.php"
-UPLOAD_SECRET = "propbook-deploy-2026"
+UPLOAD_SECRET = _require('DEPLOY_SECRET')
 
 # Garbage to delete
 DELETE_SLUGS = [

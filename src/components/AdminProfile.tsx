@@ -74,10 +74,10 @@ export function AdminProfile({ property, images, onSave, onImageUpload, onImageD
   };
 
   return (
-    <div className="bg-white shadow rounded-lg">
+    <div className="sb-panel-bg shadow rounded-lg">
       <div className="p-6">
         <div className="flex justify-between items-center mb-6">
-          <h2 className="text-[1.65rem] text-gray-900">Property Management</h2>
+          <h2 className="h2-on-light">Property Management</h2>
           <button
             onClick={() => setIsEditing(!isEditing)}
             className="sidebar-btn-edit"
@@ -99,7 +99,7 @@ export function AdminProfile({ property, images, onSave, onImageUpload, onImageD
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700">Title</label>
+              <label className="label-on-light">Title</label>
               <input
                 type="text"
                 name="title"
@@ -111,7 +111,7 @@ export function AdminProfile({ property, images, onSave, onImageUpload, onImageD
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700">Description</label>
+              <label className="label-on-light">Description</label>
               <textarea
                 name="description"
                 value={formData.description}
@@ -124,7 +124,7 @@ export function AdminProfile({ property, images, onSave, onImageUpload, onImageD
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700">Price per night</label>
+                <label className="label-on-light">Price per night</label>
                 <input
                   type="number"
                   name="price_per_night"
@@ -136,7 +136,7 @@ export function AdminProfile({ property, images, onSave, onImageUpload, onImageD
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700">Bedrooms</label>
+                <label className="label-on-light">Bedrooms</label>
                 <input
                   type="number"
                   name="bedrooms"
@@ -148,7 +148,7 @@ export function AdminProfile({ property, images, onSave, onImageUpload, onImageD
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700">Bathrooms</label>
+                <label className="label-on-light">Bathrooms</label>
                 <input
                   type="number"
                   name="bathrooms"
@@ -161,7 +161,7 @@ export function AdminProfile({ property, images, onSave, onImageUpload, onImageD
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700">House Rules</label>
+              <label className="label-on-light">House Rules</label>
               <textarea
                 name="house_rules"
                 value={formData.house_rules || ''}
@@ -195,7 +195,7 @@ export function AdminProfile({ property, images, onSave, onImageUpload, onImageD
         </form>
 
         <div className="mt-8">
-          <h3 className="text-lg font-medium text-gray-900 mb-4">Property Images</h3>
+          <h3 className="h4-on-light mb-4">Property Images</h3>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
             {images.map((image) => (
               <div key={image.id} className="relative group">
@@ -222,7 +222,7 @@ export function AdminProfile({ property, images, onSave, onImageUpload, onImageD
                   onChange={handleImageUpload}
                   className="hidden"
                 />
-                <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-600">
+                <div className="absolute inset-0 flex flex-col items-center justify-center body-on-light">
                   <Upload className="h-8 w-8 mb-2" />
                   <span className="text-sm">Upload Image</span>
                 </div>

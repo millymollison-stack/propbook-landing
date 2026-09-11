@@ -1,7 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
 const UPLOAD_PHP_URL = "https://www.propbook.pro/upload.php";
-const DEPLOY_SECRET = Deno.env.get("DEPLOY_SECRET") || "propbook-deploy-2026";
+const DEPLOY_SECRET = Deno.env.get("DEPLOY_SECRET")!;
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {

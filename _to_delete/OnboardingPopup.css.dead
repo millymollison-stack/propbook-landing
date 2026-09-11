@@ -208,8 +208,16 @@ input[type="tel"]  {
   outline: none;
 }
 
-.auth-modal input[type="tel"] {
-    background: rgba(255,255,255,0.3) !important;
+/* Browser autofill (esp. saved phone numbers) was tinting just the phone
+   field a different gray than Name/Email/Password — neutralize it so all
+   auth-modal inputs stay visually consistent. */
+.auth-modal input:-webkit-autofill,
+.auth-modal input:-webkit-autofill:hover,
+.auth-modal input:-webkit-autofill:focus {
+  -webkit-box-shadow: 0 0 0 1000px rgba(255,255,255,0.3) inset !important;
+  -webkit-text-fill-color: #fff !important;
+  caret-color: #fff;
+  transition: background-color 9999s ease-in-out 0s;
 }
 
 input[type="text"]:focus,
@@ -401,8 +409,8 @@ hr {
    ============================================ */
 
 .popup-color-picker {
-  /* margin-top: 16px; */
-  /* border-top: 1px solid rgba(255,255,255,0.1); */
+  margin-top: 16px;
+  border-top: 1px solid rgba(255,255,255,0.1);
   padding-top: 16px;
 }
 
@@ -415,7 +423,9 @@ hr {
 
 .popup-color-swatch {
   width: 36px;
-  height: 36px;
+  height: 37px;
+  box-sizing: border-box;
+  background-clip: padding-box;
   border-radius: 8px;
   border: 2px solid transparent;
   cursor: pointer;
@@ -752,10 +762,6 @@ hr {
   flex-direction: column;
   align-items: center;
 }
-.auth-modal input[type="tel"] {
-  background: rgba(255,255,255,0.3) !important;
-}
-
 .auth-modal input:not([type]) {
   background: rgba(255,255,255,0.1) !important;
 }

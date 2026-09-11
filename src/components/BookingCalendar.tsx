@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import './Editmode.css';
 import { DayPicker, DateRange } from 'react-day-picker';
 import { format, isWithinInterval, parseISO, addDays } from 'date-fns';
 import { Calendar, Lock, AlertCircle, Ban, Check } from 'lucide-react';
@@ -10,7 +9,19 @@ import { useAuth } from '../store/auth';
 import { EmailNotificationService } from '../services/emailService';
 import { supabase } from '../lib/supabase';
 import { PaymentForm } from './PaymentForm';
-import 'react-day-picker/dist/style.css';
+// Round 6: removed `import 'react-day-picker/dist/style.css'` — this was the actual
+// root cause of the header/date-grid misalignment David flagged (tried to fix 20
+// times). <DayPicker disableDefaultStyles> already tells the library not to inject
+// its own default inline styles, but that prop does NOT stop an explicit CSS import
+// like this one from still loading react-day-picker's bundled style.css. That
+// stylesheet sets `.rdp-day { display: flex; max-width: 40px; ... }` (a block-level,
+// fixed-width box) which silently fought every custom override below and in
+// index.css: text-align:center on the wide 14.2857%-wide <td>/<th> columns has no
+// effect on a block-level child, so every day-number button stayed pinned to the
+// LEFT edge of its column while the header text centered normally -- producing the
+// exact drift in David's screenshot. The custom styles prop below plus index.css's
+// .rdp-* rules already re-implement everything this app actually needs, so the
+// import was just dead weight left over from before disableDefaultStyles was added.
 
 interface BookingCalendarProps {
   bookings: Booking[];
@@ -104,7 +115,7 @@ export function BookingCalendar({
   useEffect(() => {
     if (authTimerRef.current) clearTimeout(authTimerRef.current);
     if (selected?.from && selected?.to && !user) {
-      authTimerRef.current = setTimeout(() => { window.dispatchEvent(new CustomEvent('open-auth', { detail: { mode: 'login' } })); }, 2000);
+      authTimerRef.current = setTimeout(() => { window.dispatchEvent(new CustomEvent('open-auth', { detail: { mode: 'signup' } })); }, 2000);
     }
     return () => { if (authTimerRef.current) clearTimeout(authTimerRef.current); };
   }, [selected, user]);
@@ -145,10 +156,11 @@ export function BookingCalendar({
   };
 
   const modifiersStyles = {
-    approved: { backgroundColor: '#FEE2E2', color: '#991B1B' },
-    pending: { backgroundColor: '#FEF3C7', color: '#92400E' },
-    blocked: { backgroundColor: '#E5E7EB', color: '#374151' },
-    selected: { backgroundColor: '#FDF2F8', color: 'var(--brand)' }
+    approved: { backgroundColor: '#FCA5A5', color: '#7F1D1D', fontWeight: 600 },
+    pending: { backgroundColor: '#FCD34D', color: '#78350F', fontWeight: 600 },
+    blocked: { backgroundColor: '#9CA3AF', color: '#FFFFFF', fontWeight: 600 },
+    // Brighter selection blue (David, Round 6) -- was the pale #93C5FD/#1E3A8A pair.
+    selected: { backgroundColor: '#3B82F6', color: '#FFFFFF', fontWeight: 600 }
   };
 
   const calculateTotalPrice = () => {
@@ -330,7 +342,7 @@ export function BookingCalendar({
 
   return (
     <div className="space-y-6">
-      <div className="p-2 sm:p-4 bg-white rounded-lg shadow">
+      <div className="p-2 sm:p-4 sb-panel-bg rounded-lg shadow">
         <div className="flex justify-between items-center mb-4 pt-2 pl-1">
           <h1 className="hero-title-edit">
             {isAdmin && !isBookingMode ? 'Block Dates' : 'Select your dates'}
@@ -403,19 +415,21 @@ export function BookingCalendar({
                 fontSize: 'clamp(12px, 2.5vw, 16px)',
                 textAlign: 'center'
               },
+              // Brighter selection blue (David, Round 6) -- was the pale
+              // #93C5FD/#1E3A8A pair; matches the modifiersStyles.selected above.
               day_range_middle: {
-                backgroundColor: '#DBEAFE !important',
-                color: '#1E40AF !important'
+                backgroundColor: '#3B82F6 !important',
+                color: '#FFFFFF !important'
               },
               day_range_start: {
-                backgroundColor: '#DBEAFE !important',
-                color: '#1E40AF !important',
+                backgroundColor: '#3B82F6 !important',
+                color: '#FFFFFF !important',
                 borderTopRightRadius: '0 !important',
                 borderBottomRightRadius: '0 !important'
               },
               day_range_end: {
-                backgroundColor: '#DBEAFE !important',
-                color: '#1E40AF !important',
+                backgroundColor: '#3B82F6 !important',
+                color: '#FFFFFF !important',
                 borderTopLeftRadius: '0 !important',
                 borderBottomLeftRadius: '0 !important'
               }
@@ -437,26 +451,33 @@ export function BookingCalendar({
 
         <div className="mt-4 flex flex-wrap gap-4 text-sm">
           <div className="flex items-center space-x-2">
-            <div className="w-4 h-4 bg-red-100 rounded" />
+            <div className="w-4 h-4 bg-red-300 rounded" />
             <span className="text-xs text-gray-600 whitespace-nowrap">Booked</span>
           </div>
           <div className="flex items-center space-x-2">
-            <div className="w-4 h-4 bg-yellow-100 rounded" />
+            <div className="w-4 h-4 bg-amber-300 rounded" />
             <span className="text-xs text-gray-600 whitespace-nowrap">Pending</span>
           </div>
           <div className="flex items-center space-x-2">
-            <div className="w-4 h-4 bg-gray-200 rounded" />
+            <div className="w-4 h-4 bg-gray-400 rounded" />
             <span className="text-xs text-gray-600 whitespace-nowrap">Blocked</span>
           </div>
           <div className="flex items-center space-x-2">
-            <div className="w-4 h-4 bg-blue-100 rounded" />
+            <div className="w-4 h-4 bg-blue-300 rounded" />
             <span className="text-xs text-gray-600 whitespace-nowrap">Selected</span>
           </div>
         </div>
       </div>
 
-      {selected?.from && selected?.to && (
-        <div className="booking-modal-body">
+      {selected?.from && selected?.to && createPortal(
+        <div className="fixed inset-0 z-[9997] overflow-y-auto" aria-labelledby="booking-modal-title" role="dialog" aria-modal="true">
+          <div className="flex items-center justify-center min-h-screen p-4 text-center">
+            <div
+              className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity"
+              aria-hidden="true"
+              onClick={() => setSelected(undefined)}
+            />
+            <div className="inline-block align-middle sb-panel-bg rounded-lg text-left overflow-hidden shadow-xl transform transition-all w-full max-w-2xl booking-modal-body relative">
           <div className="booking-modal-grid">
             <div className="booking-modal-col-left">
               <p className="booking-modal-checkin">Check-in: {format(selected.from, 'PPP')} at 3:00 PM</p>
@@ -507,7 +528,7 @@ export function BookingCalendar({
               )}
               {!user ? (
                 <button
-                  onClick={() => { const event = new CustomEvent('open-auth', { detail: { mode: 'login' } }); window.dispatchEvent(event); }}
+                  onClick={() => { const event = new CustomEvent('open-auth', { detail: { mode: 'signup' } }); window.dispatchEvent(event); }}
                   className="booking-modal-submit-btn w-full"
                 >
                   <Lock className="h-5 w-5" />
@@ -528,7 +549,7 @@ export function BookingCalendar({
           {!isBookingMode && (
             <div className="booking-modal-block-section">
               <div>
-                <label htmlFor="blockReason" className="block text-sm font-medium text-gray-700">
+                <label htmlFor="blockReason" className="label-on-light">
                   Reason (Optional)
                 </label>
                 <textarea
@@ -551,7 +572,10 @@ export function BookingCalendar({
               </button>
             </div>
           )}
-        </div>
+            </div>
+          </div>
+        </div>,
+        document.body
       )}
 
       {/* Payment Form — rendered in a portal to escape any parent overflow/transform */}
@@ -560,7 +584,7 @@ export function BookingCalendar({
           <div className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
             <div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" aria-hidden="true" />
             <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
-            <div className="inline-block align-bottom bg-white rounded-lg px-4 pt-5 pb-4 text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full sm:p-6">
+            <div className="inline-block align-bottom sb-panel-bg rounded-lg px-4 pt-5 pb-4 text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full sm:p-6">
               <PaymentForm
                 bookingId={createdBookingId}
                 amount={bookingAmount}
@@ -592,13 +616,13 @@ export function BookingCalendar({
           <div className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
             <div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" aria-hidden="true"></div>
             <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
-            <div className="inline-block align-bottom bg-white rounded-lg px-4 pt-5 pb-4 text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full sm:p-6">
+            <div className="inline-block align-bottom sb-panel-bg rounded-lg px-4 pt-5 pb-4 text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full sm:p-6">
               <div>
                 <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-green-100">
                   <Check className="h-6 w-6 text-green-600" />
                 </div>
                 <div className="mt-3 text-center sm:mt-5">
-                  <h3 className="text-lg leading-6 font-medium text-gray-900" id="modal-title">
+                  <h3 className="h4-on-light leading-6" id="modal-title">
                     Booking Request Submitted!
                   </h3>
                   <div className="mt-4 text-left">
@@ -606,24 +630,24 @@ export function BookingCalendar({
                       <h4 className="font-medium text-gray-900">Booking Details:</h4>
                       <div className="space-y-2 text-sm">
                         <div className="flex justify-between">
-                          <span className="text-gray-600">Check-in:</span>
+                          <span className="body-on-light">Check-in:</span>
                           <span className="font-medium">{bookingConfirmation.checkIn}</span>
                         </div>
                         <div className="flex justify-between">
-                          <span className="text-gray-600">Check-out:</span>
+                          <span className="body-on-light">Check-out:</span>
                           <span className="font-medium">{bookingConfirmation.checkOut}</span>
                         </div>
                         <div className="flex justify-between">
-                          <span className="text-gray-600">Guests:</span>
+                          <span className="body-on-light">Guests:</span>
                           <span className="font-medium">{bookingConfirmation.guests}</span>
                         </div>
                         <div className="flex justify-between">
-                          <span className="text-gray-600">Total Price:</span>
+                          <span className="body-on-light">Total Price:</span>
                           <span className="font-medium">${bookingConfirmation.totalPrice}</span>
                         </div>
                         {bookingConfirmation.specialRequests && (
                           <div className="pt-2 border-t">
-                            <span className="text-gray-600 block">Special Requests:</span>
+                            <span className="body-on-light block">Special Requests:</span>
                             <span className="text-sm">{bookingConfirmation.specialRequests}</span>
                           </div>
                         )}
@@ -643,7 +667,7 @@ export function BookingCalendar({
                       </div>
                     )}
 
-                    <div className="mt-4 text-sm text-gray-600">
+                    <div className="body-on-light mt-4">
                       <h4 className="font-medium text-gray-900 mb-2">Thank you for your booking!</h4>
                       <ul className="space-y-1 list-disc list-inside">
                         <li>We're excited to host you at our beautiful surf house!</li>

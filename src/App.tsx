@@ -115,9 +115,17 @@ function AppContent() {
   // After verifying the session, opens GetSite so handleSaveSiteInPopup runs inside it.
   useEffect(() => {
     if (!user) return;
+    // Supabase's own auth client can strip URL query params shortly after load
+    // (detectSessionInUrl cleanup) — this races against us reading ?paid=true here,
+    // and Supabase can win before this effect (or even the first render) runs.
+    // main.tsx captures the raw URL synchronously, before React or Supabase touch
+    // anything, into sessionStorage.__earliest_url — fall back to that so a lost
+    // race doesn't silently swallow a completed Stripe payment.
+    const earliestUrl = sessionStorage.getItem('__earliest_url') || '';
+    const earliestParams = new URLSearchParams(earliestUrl.split('?')[1] || '');
     const params = new URLSearchParams(window.location.search);
-    const paid = params.get('paid');
-    const sessionId = params.get('session_id');
+    const paid = params.get('paid') || earliestParams.get('paid');
+    const sessionId = params.get('session_id') || earliestParams.get('session_id');
     if (paid === 'true' && sessionId) {
       console.log('[App ?paid handler] Detected Stripe return, sessionId:', sessionId);
       // Remember where the user came from so we redirect back after the save completes
@@ -130,9 +138,18 @@ function AppContent() {
       // Set role to admin so they see the admin sidebar immediately — wait for it to complete
       // before opening GetSite so the sidebar shows the correct state on first render
       if (user.role !== 'admin') {
-        supabase.from('profiles').update({ role: 'admin' }).eq('id', user.id).then(() => {
-          refreshUser().then(() => setShowGetSite(true));
-        });
+        (async () => {
+          try {
+            await supabase.from('profiles').update({ role: 'admin' }).eq('id', user.id);
+            await refreshUser();
+          } catch (e: any) {
+            console.error('[App ?paid handler] role update failed:', e?.message || e);
+            // Don't strand the user without GetSite just because the admin-role
+            // promotion failed — still open it so the save/migration can run.
+          } finally {
+            setShowGetSite(true);
+          }
+        })();
       } else {
         setShowGetSite(true);
       }
@@ -182,30 +199,43 @@ function AppContent() {
     host_name?: string;
   }) => {
     setSiteName(imported.title.startsWith('@') ? imported.title : '@' + imported.title);
-    // property_intro = first 24 words of description (shown under photos on the published page).
+    // description = first 24 words (hero-image overlay teaser, via ImageGallery.tsx).
+    // property_intro = full original text (below-photos section, via PropertyDetails.tsx).
     // Read the full original from sessionStorage so re-edits always have the untruncated text to
-    // work from, then apply the 24-word limit for the page display.
+    // work from, then apply the 24-word limit for the teaser.
     let fullDesc = imported.description || '';
+    // GetSite.tsx's onImported(...) calls never include a `location` field — there is no
+    // location input anywhere in the onboarding popup, location only ever comes from the
+    // original Airbnb scrape. Previously `location: imported.location || ''` silently WIPED
+    // the real scraped location back to '' on every single field edit (headline, description,
+    // and now website name too), because setScrapedProperty fully replaces the object. This
+    // is the root cause of sites saved via the "already subscribed, skip Stripe" direct-save
+    // path (handlePublish -> handleSaveSiteInPopup) coming out with an empty location: whatever
+    // was left in this state right before that save is exactly what gets sent. Fix: recover the
+    // real scraped location from sessionStorage (the same place fullDesc already falls back to),
+    // and as a last resort keep whatever location was already in state instead of blanking it.
+    let resolvedLocation = imported.location;
     try {
       const scrapedRaw = sessionStorage.getItem('popup_scraped_data');
       if (scrapedRaw) {
         const scraped = JSON.parse(scrapedRaw);
         if (scraped?.description) fullDesc = scraped.description;
+        if (!resolvedLocation && scraped?.location) resolvedLocation = scraped.location;
       }
     } catch { /* use imported.description as fallback */ }
-    // 24-word limit for the published page text
+    // 24-word limit for the hero-overlay teaser
     const words = fullDesc.trim().split(/\s+/);
     const propertyIntro24 = words.length > 24 ? words.slice(0, 24).join(' ') : fullDesc;
-    setScrapedProperty({
+    setScrapedProperty(prev => ({
       title: imported.title,
       // property_title: user's edited Property Headline input — respect it
       property_title: imported.property_title || imported.title,
-      property_intro: propertyIntro24,
-      description: fullDesc,
-      location: imported.location || '',
+      property_intro: fullDesc,
+      description: propertyIntro24,
+      location: resolvedLocation || (prev as any)?.location || '',
       price_per_night: imported.price || null,
       max_guests: imported.guests || null,
-    });
+    }));
     if (imported.images && imported.images.length > 0) {
       setScrapedImages(imported.images.map((url, idx) => ({
         id: 'scraped-' + Date.now() + '-' + idx,
