@@ -6,12 +6,15 @@
  */
 
 import React, { useEffect, useState } from 'react';
+import { X } from 'lucide-react';
 import { useParams } from 'react-router-dom';
 import { Login } from './Login';
 import { Signup } from './Signup';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../store/auth';
 import { useProperty } from '../store/property';
+import { applyFontAccentFromServer } from '../lib/fontAccent';
+import { applyBrandColorFromServer } from '../lib/brandColor';
 import type { Property, PropertyImage, Booking, BlockedDate } from '../types';
 import { ImageGallery } from '../components/ImageGallery';
 import { PropertyDetails } from '../components/PropertyDetails';
@@ -151,41 +154,11 @@ export function CustomerSite({ onSiteNameChange, isEditing: externalIsEditing, r
   const [reviewsRefreshKey, setReviewsRefreshKey] = useState(0);
   const [subscriptionPlan, setSubscriptionPlan] = useState<string | null>(null);
 
-  // ── Share popup ───────────────────────────────────────────────────────────────
-  const [showSharePopup, setShowSharePopup] = useState(false);
-  const [sharePopupClosing, setSharePopupClosing] = useState(false);
-  const siteUrl = property?.site_url || (property?.slug ? `https://www.propbook.pro/props/${property.slug}` : window.location.href);
-  const qrCodeUrl = siteUrl ? `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(siteUrl)}` : '';
-
-  // Animate the popup back into the nav's Share icon, then dismiss it.
-  const closeSharePopup = () => {
-    setSharePopupClosing(true);
-    setTimeout(() => {
-      setShowSharePopup(false);
-      setSharePopupClosing(false);
-    }, 320);
-  };
-
-  // Nav Share button (Layout.tsx) dispatches this event instead of duplicating the nav here —
-  // same button, same nav, it just opens this popup when viewing a published property.
-  useEffect(() => {
-    const handler = () => setShowSharePopup(true);
-    window.addEventListener('propbook:open-share-popup', handler);
-    return () => window.removeEventListener('propbook:open-share-popup', handler);
-  }, []);
-
-  // Detect first visit after publishing — sidebar redirects with ?published=1
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    if (params.get('published') === '1') {
-      // Remove the param without a page reload
-      window.history.replaceState({}, '', window.location.pathname);
-      setShowSharePopup(true);
-      // Auto-close after 3 seconds, animating back into the share icon
-      const timer = setTimeout(() => closeSharePopup(), 3000);
-      return () => clearTimeout(timer);
-    }
-  }, []);
+  // Share/QR popup — Round 6 follow-up: moved into Layout.tsx so it works
+  // everywhere Layout mounts (it used to live only here, so the nav Share
+  // button silently did nothing on Home.tsx, which doesn't render
+  // CustomerSite). Layout also now owns the ?published=1 auto-open effect
+  // that used to live here.
 
   // ── Handle ?auth=login / ?auth=signup params ─────────────────────────────────
   // Clear the param AFTER reading it so that a page reload doesn't re-open the modal
@@ -222,8 +195,8 @@ export function CustomerSite({ onSiteNameChange, isEditing: externalIsEditing, r
     }
     document.title = sp.name || sp.property_headline || sp.property_title || '@' + slug;
     onSiteNameChange?.(document.title);
-    if (sp.brand_color) document.documentElement.style.setProperty('--brand', sp.brand_color);
-    if (sp.font_accent) document.documentElement.style.setProperty('--font-accent', `'${sp.font_accent}', serif`);
+    if (sp.brand_color) applyBrandColorFromServer(sp.brand_color);
+    if (sp.font_accent) applyFontAccentFromServer(sp.font_accent);
   }, [scrapedProperty, scrapedImages]);
 
   // ── No hiding CSS needed — published page uses minimal HTML shell ──
@@ -331,8 +304,8 @@ export function CustomerSite({ onSiteNameChange, isEditing: externalIsEditing, r
           setBackgroundImages([]);
           document.title = cached.name || cached.property_headline || cached.property_title || '@' + slug;
           onSiteNameChange?.(document.title);
-          if (cached.brand_color) document.documentElement.style.setProperty('--brand', cached.brand_color);
-          if (cached.font_accent) document.documentElement.style.setProperty('--font-accent', `'${cached.font_accent}', serif`);
+          if (cached.brand_color) applyBrandColorFromServer(cached.brand_color);
+          if (cached.font_accent) applyFontAccentFromServer(cached.font_accent);
           setLoading(false);
           console.log('[CustomerSite loadProperty] Fast-path SUCCESS, property set');
           // Fetch bookings/blocked dates in background — don't block render
@@ -423,13 +396,14 @@ export function CustomerSite({ onSiteNameChange, isEditing: externalIsEditing, r
           .eq('property_id', propData.id);
         setBlockedDates(blkData || []);
 
-        // Apply brand color if saved
+        // Apply brand color / font if saved (guarded helpers -- no-op once
+        // the user has already picked one this session, so this fetch
+        // resolving late can't revert a fresh choice)
         if (propData.brand_color) {
-          document.documentElement.style.setProperty('--brand', propData.brand_color);
+          applyBrandColorFromServer(propData.brand_color);
         }
-        // Apply font accent if saved
         if (propData.font_accent) {
-          document.documentElement.style.setProperty('--font-accent', `'${propData.font_accent}', serif`);
+          applyFontAccentFromServer(propData.font_accent);
         }
 
         // Update parent Layout nav with property name
@@ -602,63 +576,7 @@ export function CustomerSite({ onSiteNameChange, isEditing: externalIsEditing, r
 
 
 
-      {/* ── Share popup ─────────────────────────────────────────────────────────── */}
-      {showSharePopup && (
-        <div
-          className={`cs-share-overlay${sharePopupClosing ? ' closing' : ''}`}
-          onClick={(e) => { if (e.target === e.currentTarget) closeSharePopup(); }}
-        >
-          {/* Centered normally; when closing, shrinks and slides up toward the Share icon
-              in the top-right of the nav so the popup reads as "collapsing back into it". */}
-          <div className={`cs-share-modal${sharePopupClosing ? ' closing' : ''}`}>
-            {/* Top share icon */}
-            <div className="cs-share-icon-circle">
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
-                <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
-              </svg>
-            </div>
-            <h2 className="cs-share-title">Share this link with your audience</h2>
-            <p className="cs-share-subtitle">Copy the link or scan the QR code</p>
-
-            {/* QR Code */}
-            {qrCodeUrl && (
-              <div className="cs-share-qr-wrap">
-                <img src={qrCodeUrl} alt="QR Code" width={160} height={160} className="cs-share-qr-img" />
-              </div>
-            )}
-
-            {/* URL */}
-            <div className="cs-share-url-box">
-              {siteUrl}
-            </div>
-
-            {/* Actions */}
-            <div className="cs-share-actions">
-              <button
-                onClick={() => {
-                  navigator.clipboard?.writeText(siteUrl).catch(() => {});
-                  closeSharePopup();
-                }}
-                className="cs-share-btn cs-share-btn-primary"
-              >Copy Link</button>
-              {navigator.share ? (
-                <button
-                  onClick={() => {
-                    navigator.share({ title: property?.property_headline || '@' + property?.slug || 'Property', url: siteUrl }).catch(() => {});
-                    closeSharePopup();
-                  }}
-                  className="cs-share-btn cs-share-btn-outline"
-                >Share</button>
-              ) : null}
-              <button
-                onClick={() => closeSharePopup()}
-                className="cs-share-btn cs-share-btn-neutral"
-              >Close</button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Share popup now lives in Layout.tsx (Round 6 follow-up) — see there. */}
 
       {/* ── Auth modals (inline, stay on property site) ───────────────────────────── */}
       {showAuthLogin && (
@@ -752,13 +670,21 @@ export function CustomerSite({ onSiteNameChange, isEditing: externalIsEditing, r
 
       {showReviewModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="sb-panel-bg rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="sticky top-0 sb-panel-bg border-b border-gray-200 px-5 py-3 flex items-center justify-between">
-              <h2 className="review-modal-title">Leave a Review</h2>
-            </div>
-            <div className="p-5">
-              <ReviewForm propertyId={property.id} onSuccess={() => { setShowReviewModal(false); setReviewsRefreshKey(k => k + 1); }} />
-            </div>
+          {/* Round 7: dropped the separate white sticky header bar -- the
+              close X now floats over the panel via the shared .popup-close
+              class (same system as the auth modal / booking modal) instead
+              of a bordered header strip, and the panel uses the same
+              .modal-panel-light padding as the booking modal. */}
+          <div className="sb-panel-bg rounded-xl shadow-2xl max-w-[400px] w-full max-h-[90vh] overflow-y-auto modal-panel-light">
+            <button
+              onClick={() => setShowReviewModal(false)}
+              aria-label="Close"
+              className="popup-close"
+            >
+              <X className="h-5 w-5" />
+            </button>
+            <h2 className="hero-title-edit review-modal-title">Leave a Review</h2>
+            <ReviewForm propertyId={property.id} onSuccess={() => { setShowReviewModal(false); setReviewsRefreshKey(k => k + 1); }} />
           </div>
         </div>
       )}

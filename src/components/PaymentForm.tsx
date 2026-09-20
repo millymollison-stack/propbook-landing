@@ -17,7 +17,7 @@ interface PaymentFormProps {
 type LogLevel = 'info' | 'ok' | 'warn' | 'error';
 interface LogEntry { time: string; level: LogLevel; msg: string; }
 
-function ts() { return new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit', fractionalSecondDigits: 3 }); }
+function ts() { return new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit', fractionalSecondDigits: 3 } as Intl.DateTimeFormatOptions); }
 
 // ─── DiagPanel ────────────────────────────────────────────────────────────────
 function DiagPanel({ logs }: { logs: LogEntry[] }) {

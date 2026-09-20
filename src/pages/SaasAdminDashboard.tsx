@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { format, fromUnixTime } from 'date-fns';
 import {
-  DollarSign, Building2, TrendingUp, AlertCircle, CheckCircle,
-  XCircle, ChevronRight, ChevronLeft, RefreshCw, ExternalLink,
+  DollarSign, Building2, AlertCircle, CheckCircle,
+  XCircle, ChevronRight, RefreshCw,
   CreditCard, ArrowDownToLine, Search, Filter,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';

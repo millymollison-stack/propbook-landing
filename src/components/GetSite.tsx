@@ -3,12 +3,12 @@ import { loadStripe } from '@stripe/stripe-js';
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
 import { TemplatePreview } from './TemplatePreview';
 import { FontDropdown } from './FontDropdown';
-import { FONT_OPTIONS, applyFontAccent } from '../lib/fontAccent';
+import { FONT_OPTIONS, applyFontAccent, saveFontAccent } from '../lib/fontAccent';
 import { supabase } from '../lib/supabase';
 import { saveBrandColor } from '../lib/brandColor';
+import { markAppearanceEdited, hasAppearanceBeenEdited } from '../lib/appearanceGuard';
 
 import { useAuth } from '../store/auth';
-import { StripeConnectSetup } from './StripeConnectSetup';
 import { createSlug } from '../services/slugService';
 import { generateTemplateHtml } from '../services/templateHelpers';
 // ── Scraped text helpers ─────────────────────────────────────────────────────────────
@@ -66,6 +66,7 @@ export interface OnboardingPopupProps {
  onSiteNameChange?: (name: string) => void;
  scrapedImages?: any[];
  onOpenSidebar?: () => void;
+ onSiteCreated?: (propertyId: string, siteUrl: string) => void;
 }
 
 // Persisted flag: survives across remounts (key changes) so user-closed state is not lost
@@ -73,20 +74,8 @@ const POPUP_CLOSED_KEY = 'onboarding_popup_closed';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-/** Convert any string to a URL-safe slug */
-function generateSlug(text: string): string {
-  return text
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '') // strip accents
-    .replace(/[^a-z0-9\s-]/g, '')     // remove non-alphanumeric (keep spaces/hyphens)
-    .trim()
-    .replace(/\s+/g, '-')             // spaces → hyphens
-    .replace(/-+/g, '-');              // collapse multiple hyphens
-}
-
 // ── Stripe CheckoutForm (must be inside <Elements> context) ─────────────────
-function CheckoutForm({ clientSecret, onSuccess, onError, monthlyTotal }: {
+function CheckoutForm({ onSuccess, onError, monthlyTotal }: {
   clientSecret: string;
   onSuccess: () => void;
   onError: (msg: string) => void;
@@ -152,7 +141,7 @@ function CheckoutForm({ clientSecret, onSuccess, onError, monthlyTotal }: {
   );
 }
 
-export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scrapedImages, onSiteNameChange, onOpenSidebar, onSiteCreated }: OnboardingPopupProps) {
+export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scrapedImages, onSiteNameChange, onSiteCreated }: OnboardingPopupProps) {
  const { user, refreshUser } = useAuth();
  const [isOpen, setIsOpen] = useState(true); // Always open when rendered (parent controls visibility)
  const [brandColor, setBrandColor] = useState('#C47756');
@@ -172,7 +161,6 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
    fetch(`https://propbook.pro/scraper/health/index.php`, { method: 'GET' }).catch(() => {});
  }, []);
  // Tracks whether this popup instance is still mounted (used to cancel auto-open timer on unmount)
- const isMountedRef = { current: true };
  const descSyncTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
  // ── Stripe post-payment handler ─────────────────────────────────────────────
@@ -187,64 +175,7 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
  // redirect landing back with no site created and no subscription registered.
  // The single remaining handler below now owns this entire flow.
 
- // Inline auth state
- const [authEmail, setAuthEmail] = useState('');
- const [authPassword, setAuthPassword] = useState('');
- const [authFullName, setAuthFullName] = useState('');
- const [authPhone, setAuthPhone] = useState('');
- const [authError, setAuthError] = useState('');
- const [authLoading, setAuthLoading] = useState(false);
 
- const handleSignUp = async () => {
-   if (!authEmail || !authPassword || !authFullName) {
-     setAuthError('Please fill in all fields.');
-     return;
-   }
-   setAuthLoading(true);
-   setAuthError('');
-   try {
-     const { data: { user: newUser }, error } = await supabase.auth.signUp({
-       email: authEmail,
-       password: authPassword,
-       options: { data: { full_name: authFullName, phone_number: authPhone } },
-     });
-     if (error) throw error;
-     if (newUser) {
-       await supabase.from('profiles').upsert({
-         id: newUser.id,
-         email: authEmail,
-         full_name: authFullName,
-         phone_number: authPhone,
-         role: 'admin',
-       }, { onConflict: 'id' });
-       setAccountCreated(true);
-       await refreshUser();
-     }
-   } catch (e: any) {
-     setAuthError(e.message || 'Could not create account.');
-   } finally {
-     setAuthLoading(false);
-   }
- };
-
- const handleSignIn = async () => {
-   if (!authEmail || !authPassword) {
-     setAuthError('Please enter your email and password.');
-     return;
-   }
-   setAuthLoading(true);
-   setAuthError('');
-   try {
-     const { error } = await supabase.auth.signInWithPassword({ email: authEmail, password: authPassword });
-     if (error) throw error;
-     await refreshUser();
-     setAccountCreated(false);
-   } catch (e: any) {
-     setAuthError(e.message || 'Could not sign in. Check your credentials.');
-   } finally {
-     setAuthLoading(false);
-   }
- };
 
  const [bookingsEmail, setBookingsEmail] = useState('');
  const [bankChoice, setBankChoice] = useState('');
@@ -253,143 +184,26 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
  const [websiteName, setWebsiteName] = useState('');
  const [propertyHeadline, setPropertyHeadline] = useState('');
  const [websiteDesc, setWebsiteDesc] = useState('');
- const [descInitialized, setDescInitialized] = useState(false);
+ const [_descInitialized, _setDescInitialized] = useState(false);
  const [hostingChoice, setHostingChoice] = useState('');
  const [planChoice, setPlanChoice] = useState('');
  const [extras, setExtras] = useState({ seo: false, ads: false, analytics: false, social: false });
  // agreed / Terms state removed — T&C checkbox deleted from UI
  const [stripeError, setStripeError] = useState('');
- const openStripeGateway = async (e?: React.MouseEvent) => {
-  if (e) e.stopPropagation();
-  console.log('[openStripeGateway] running...');
-  // Clear any stale Stripe redirect state from previous page loads
-  sessionStorage.removeItem('stripe_payment_returning');
-  sessionStorage.removeItem('stripe_redirect_initiated');
-  sessionStorage.removeItem('stripe_migration_done');  // allow fresh migration on new payment
-  // Re-save popup_website_name from current React state so it's fresh when we return from Stripe
-  sessionStorage.setItem('popup_website_name', websiteName);
-  console.log('[openStripeGateway] clicked, user:', !!user, 'planChoice:', planChoice);
-   if (!user) {
-     setStripeError('Please sign in or create an account above first.');
-     return;
-   }
-   if (!planChoice) {
-     setStripeError('Please select a subscription plan first.');
-     return;
-   }
-   setStripeError('');
-
-   // Validate required fields before calling edge function
-   const slugValue = generateSlug(websiteName) || 'mysite';
-   const userIdValue = user?.id;
-   if (!userIdValue) {
-     setStripeError('User not authenticated. Please sign in again.');
-     return;
-   }
-   console.log('[openStripeGateway] validated - userId:', userIdValue, 'slug:', slugValue);
-
-   // Save form data before redirecting to Stripe so we can restore it on return
-   try {
-     await saveToSupabase();
-     console.log('[openStripeGateway] saveToSupabase done');
-   } catch(e) {
-     console.error('[openStripeGateway] saveToSupabase failed:', e);
-     // Continue anyway - payment is more important than saving form data
-     console.log('[openStripeGateway] continuing without save...');
-   }
-
-   // Timeout wrapper - if fetch takes >15s, treat as network error
-   const fetchWithTimeout = (url: string, opts: RequestInit, timeoutMs = 15000) =>
-     Promise.race([
-       fetch(url, opts),
-       new Promise((_, reject) => setTimeout(() => reject(new Error('fetch timeout')), timeoutMs)),
-     ]);
-
-   try {
-     const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-     const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-
-     const activeExtras: string[] = [];
-     if (extras.seo) activeExtras.push('seo');
-     if (extras.ads) activeExtras.push('ads');
-     if (extras.analytics) activeExtras.push('analytics');
-     if (extras.social) activeExtras.push('social');
-
-     const sessionResult = await supabase.auth.getSession();
-     console.log('[openStripeGateway] session token:', sessionResult.data.session?.access_token ? 'present' : 'MISSING');
-
-     console.log('[openStripeGateway] calling edge function...');
-     const res = await fetchWithTimeout(`${supabaseUrl}/functions/v1/stripe-subscription`, {
-       method: 'POST',
-       headers: {
-         'Content-Type': 'application/json',
-         'Authorization': `Bearer ${sessionResult.data.session?.access_token}`,
-         'Apikey': supabaseAnonKey,
-       },
-       body: JSON.stringify({
-         action: 'create_checkout_session',
-         plan: planChoice,
-         hosting_choice: hostingChoice,
-         extras: activeExtras,
-         include_scrape: designChoice === 'airbnb',
-         email: user.email,
-         user_id: userIdValue,
-         slug: slugValue, // needed for post-payment deploy trigger
-         return_url: (window.location.origin.replace(/\/$/, '')) + '/app/?paid=true&session_id={CHECKOUT_SESSION_ID}',
-       }),
-     });
-     console.log('[openStripeGateway] response:', res.status, res.ok);
-     const data = await res.json();
-     console.log('[openStripeGateway] data:', JSON.stringify(data));
-
-     // Guard: ensure session was actually created before redirecting to Stripe
-     if (!data.sessionId || !data.url) {
-       const errMsg = data.error || (res.ok ? 'No checkout session created. Please try again.' : `Server error: ${res.status}`);
-       console.error('[openStripeGateway] ❌ Checkout session missing:', errMsg);
-       setStripeError(errMsg);
-       setStripeProcessing(false);
-       return;
-     }
-
-     // Persist session_id so the ?paid=true handler survives Vite HMR reloads
-     // that can fire after the Stripe redirect and wipe URL params
-     // Guard against the literal string "undefined" which can happen if Stripe
-     // returns a malformed response
-     const safeSessionId = String(data.sessionId ?? '');
-     if (!safeSessionId || safeSessionId === 'undefined') {
-       setStripeError('Payment session could not be created. Please try again.');
-       setStripeProcessing(false);
-       return;
-     }
-     sessionStorage.setItem('stripe_session_id', safeSessionId);
-     sessionStorage.setItem('stripe_redirect_initiated', myTabId);
-     // Remember where the user came from so we redirect back after Stripe
-     sessionStorage.setItem('stripe_original_pathname', window.location.pathname);
-     console.log('[DEBUG] stripe_session_id saved=', safeSessionId, ', redirect href=', data.url);
-     window.location.href = data.url;
-   } catch(e: any) {
-     console.error('[openStripeGateway] error:', e.message || e);
-     setStripeError(e.message === 'fetch timeout'
-       ? 'Connection timed out. Check your network and try again.'
-       : 'Could not connect to payment server.');
-   } finally {
-   }
- };
 
  const [showFinishPopup, setShowFinishPopup] = useState(false);
  const [showStripeModal, setShowStripeModal] = useState(false);
  const [stripeClientSecret, setStripeClientSecret] = useState('');
  const [stripePayMethod, setStripePayMethod] = useState<'card' | 'paypal' | 'venmo'>('card');
- const [stripeSubscriptionId, setStripeSubscriptionId] = useState('');
+ const [_stripeSubscriptionId, setStripeSubscriptionId] = useState('');
  const [showCongrats, setShowCongrats] = useState(false);
  const [congratsUrl, setCongratsUrl] = useState('');
- const [showBuilding, setShowBuilding] = useState(false);
+ const [showBuilding, _setShowBuilding] = useState(false);
  const [buildingCountdown, setBuildingCountdown] = useState(120);
  const [deployUrl, setDeployUrl] = useState('');
  const [stripeProcessing, setStripeProcessing] = useState(false);
- const [accountCreated, setAccountCreated] = useState(false);
  const [popupConnectAccountId, setPopupConnectAccountId] = useState<string | null>(null);
- const [savingSite, setSavingSite] = useState(false);
+ const [_savingSite, setSavingSite] = useState(false);
  const [showSaveOverlay, setShowSaveOverlay] = useState(false);
 
  // Auto-reload after 5 seconds when saving overlay is shown
@@ -452,7 +266,7 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
  const [countdown, setCountdown] = useState(0);
  const [importError, setImportError] = useState('');
  const [scrapedData, setScrapedData] = useState<any>(null);
- const [showColorPicker, setShowColorPicker] = useState(false);
+ const [_showColorPicker, _setShowColorPicker] = useState(false);
  const [fontAccent, setFontAccent] = useState(
  typeof window !== 'undefined' ? localStorage.getItem('site-font-accent') || 'Playfair Display' : 'Playfair Display'
  );
@@ -593,7 +407,7 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
               setPropertyHeadline(headlineText);
               setWebsiteDesc(desc24);
               setPropertyIntroFull(prop.property_intro || prop.description || '');
-              setScrapedData(prev => ({
+              setScrapedData((prev: any) => ({
                 ...prev,
                 title: (prop.title || '').slice(0, 16),
                 description: stripWhitespace(descText),
@@ -665,14 +479,14 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
      setExtras(parsed);
    } catch { /* ignore corrupt extras */ }
  }
- if (data.brand_color) {
+ if (data.brand_color && !hasAppearanceBeenEdited()) {
    setBrandColor(data.brand_color);
    sessionStorage.setItem('popup_brand_color', data.brand_color);
- } else {
+ } else if (!data.brand_color) {
    // Fallback: try profiles table (where stripe-subscription writes brand_color)
    supabase.from('profiles').select('brand_color').eq('id', user?.id || '').single()
      .then(({ data: prof }) => {
-       if (prof?.brand_color) {
+       if (prof?.brand_color && !hasAppearanceBeenEdited()) {
          setBrandColor(prof.brand_color);
          sessionStorage.setItem('popup_brand_color', prof.brand_color);
        }
@@ -749,7 +563,7 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
  const display = limited.trim().length > 0 ? '@' + limited.trim() : '@surfhousebaja';
  onSiteNameChange(display);
  }
- clearTimeout(descSyncTimer.current);
+ clearTimeout(descSyncTimer.current ?? undefined);
  descSyncTimer.current = setTimeout(() => {
  if (onImported) {
  const latestHeadline = sessionStorage.getItem('popup_property_headline') || propertyHeadline || 'surfhousebaja';
@@ -764,7 +578,7 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
  setPropertyHeadline(cleaned);
  sessionStorage.setItem('popup_property_headline', cleaned);
  // Debounce real-time preview sync so typing in Property headline keeps the preview updated
- clearTimeout(descSyncTimer.current);
+ clearTimeout(descSyncTimer.current ?? undefined);
  descSyncTimer.current = setTimeout(() => {
  if (onImported) {
  const latestHeadline = sessionStorage.getItem('popup_property_headline') || cleaned || 'surfhousebaja';
@@ -783,7 +597,7 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
  // NOTE: do NOT overwrite popup_property_intro here — that key holds the full
  // unedited scraped description for the independent text box below the photos.
  // Debounce the preview sync — read from sessionStorage (fresh) not React state (stale)
- clearTimeout(descSyncTimer.current);
+ clearTimeout(descSyncTimer.current ?? undefined);
  descSyncTimer.current = setTimeout(() => {
  if (onImported) {
  const latestHeadline = sessionStorage.getItem('popup_property_headline') || propertyHeadline || 'surfhousebaja';
@@ -793,20 +607,6 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
  onImported({ title: latestName, property_title: latestHeadline, description: latestDesc });
  }
  }, 1000);
- };
- const handleNameBlur = () => {
- if (onSiteNameChange) {
- // Strip ALL leading @ to ensure we never double up, no matter where the value came from
- const stripped = websiteName.replace(/^@+/, '');
- const display = stripped.trim().length > 0 ? '@' + stripped.trim().slice(0, 20) : '@surfhousebaja';
- onSiteNameChange(display);
- }
- if (onImported) {
- const latestHeadline = sessionStorage.getItem('popup_property_headline') || propertyHeadline || 'surfhousebaja';
- const latestName = sessionStorage.getItem('popup_website_name') || websiteName;
- const latestDesc = sessionStorage.getItem('popup_website_desc') || websiteDesc;
- onImported({ title: latestName, property_title: latestHeadline, description: latestDesc });
- }
  };
  const handleDescBlur = () => {
  if (onImported) {
@@ -838,8 +638,8 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
  setShowStripeConnectSuccess(true);
  }, []);
 
- const [myTabId] = useState(() => Math.random().toString(36).slice(2, 10));
- const [showStripeConnectSuccess, setShowStripeConnectSuccess] = useState(false);
+ const [_myTabId] = useState(() => Math.random().toString(36).slice(2, 10));
+ const [_showStripeConnectSuccess, setShowStripeConnectSuccess] = useState(false);
 
 // ── Countdown timer for building/redirect screen ──────────────────────────
  useEffect(() => {
@@ -1342,14 +1142,6 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
        }
      }
 
-     // Read scraped data from sessionStorage before building the data object
-     const scrapedFromSession = (() => {
-       try {
-         const raw = sessionStorage.getItem('popup_scraped_data');
-         return raw ? JSON.parse(raw) : null;
-       } catch { return null; }
-     })();
-
      const data = {
        email: user.email,
        userId: user.id,
@@ -1661,7 +1453,7 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
  <button onClick={handleClose} className="popup-close">×</button>
 
  {/* Intro */}
- <h1 style={{ fontSize: "clamp(1.5rem, 2.8vw, 1.875rem)" }}>Create your site</h1>
+ <h1>Create your site</h1>
  <p>Set up your own property booking site now. You can continue editing the site once published.</p>
  <div style={{ height: 16 }} />
 
@@ -1684,7 +1476,7 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
 
  {/* Design */}
  <hr />
- <h1 style={{ fontSize: "clamp(1.5rem, 2.8vw, 1.875rem)" }}>Design your website</h1>
+ <h1>Design your website</h1>
  <div className="popup-airbnb-section" style={{ paddingBottom: 0 }}>
  <div style={{ display: 'flex', gap: 0 }}>
  <button
@@ -1736,8 +1528,18 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
  // the live camera from there if they want).
  style={{ display: 'none' }}
  onChange={async (e) => {
- const files = Array.from(e.target.files || []);
+ // David: "Photo upload only lets you upload 1 photo at a time. Change
+ // it so you can upload 8 photos at once." -- the <input multiple> above
+ // and this loop already accept any number of files; capping (and
+ // telling the user) at 8 per selection makes that limit explicit
+ // instead of silently unbounded.
+ const MAX_PHOTOS_PER_SELECTION = 8;
+ let files = Array.from(e.target.files || []);
  if (files.length === 0) return;
+ if (files.length > MAX_PHOTOS_PER_SELECTION) {
+ alert(`You can upload up to ${MAX_PHOTOS_PER_SELECTION} photos at once -- using the first ${MAX_PHOTOS_PER_SELECTION}.`);
+ files = files.slice(0, MAX_PHOTOS_PER_SELECTION);
+ }
  const newBlobUrls: string[] = [];
  const newBase64s: string[] = [];
  for (const file of files) {
@@ -1753,7 +1555,6 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
  setManualHeroImage(newBlobUrls[0]);
  }
  if (onImported) {
- const prevBase64s = manualBase64Images; // capture before state update
  const heroBase64 = newBlobUrls[0] ? allBase64s[manualImages.length] : allBase64s[0] || '';
  onImported({
  title: (websiteName.trim() || 'surfhousebaja'),
@@ -1837,7 +1638,7 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
  <input
  type="text"
  placeholder="Airbnb listing url"
- className="editmode"
+ className="editmode field-dark"
  value={airbnbUrl}
  onChange={e => setAirbnbUrl(e.target.value)}
  />
@@ -1889,6 +1690,7 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
  <button
  key={hex}
  onClick={(e) => { e.stopPropagation();
+ markAppearanceEdited();
  setBrandColor(hex);
  document.documentElement.style.setProperty('--brand', hex);
  const hover = adjustBrightness(hex, -20);
@@ -1932,41 +1734,40 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
  options={fontOptions}
  onChange={font => {
  setFontAccent(font);
- localStorage.setItem('site-font-accent', font);
- document.documentElement.style.setProperty('--font-accent', `'${font}', serif`);
- document.querySelectorAll('h1').forEach(el => {
- (el as HTMLElement).style.fontFamily = `'${font}', serif`;
- });
+ // Was duplicating applyFontAccent()'s logic here (and missing the
+ // --title-size-multiplier boost it now also sets for the 6 large-condensed
+ // fonts) -- routed through the shared helper instead.
+ saveFontAccent(font);
  }}
- previewText="The quick brown fox"
  triggerClassName="popup-font-dropdown-trigger"
  />
  </div>
 
  {/* Name property */}
  <hr />
- <h1 style={{ fontSize: "clamp(1.5rem, 2.8vw, 1.875rem)" }}>Name your property</h1>
+ <h1>Name your website</h1>
+ <p style={{ fontSize: '0.9rem', color: '#ccc', margin: '0 0 12px 0' }}>Text from your Airbnb profile imports into the text boxes where it can be edited.</p>
  <h4>Website name <span style={{ color: '#e53e3e', fontWeight: 700 }}>(IMPORTANT)</span></h4>
- <input type="text" id="website-name" name="websiteName" placeholder="Website name (max 16 chars)" className="editmode" value={websiteName} onChange={e => handleNameChange(e.target.value)} style={{ maxWidth: 360 }} />
+ <input type="text" id="website-name" name="websiteName" placeholder="Website name (max 16 chars)" className="editmode field-dark" value={websiteName} onChange={e => handleNameChange(e.target.value)} style={{ maxWidth: 360 }} />
  <h4 style={{ marginTop: 16 }}>Property headline</h4>
- <input type="text" id="property-headline" name="propertyHeadline" placeholder="Property headline" className="editmode" value={propertyHeadline} onChange={e => handlePropertyHeadlineChange(e.target.value)} style={{ maxWidth: 360 }} />
+ <input type="text" id="property-headline" name="propertyHeadline" placeholder="Property headline" className="editmode field-dark" value={propertyHeadline} onChange={e => handlePropertyHeadlineChange(e.target.value)} style={{ maxWidth: 360 }} />
  <h4 style={{ marginTop: 16 }}>Property description</h4>
  <textarea
  id="property-description"
  name="propertyDescription"
  placeholder="Property description"
- className="popup-textarea editmode"
+ className="popup-textarea editmode field-dark"
  value={websiteDesc}
  onChange={e => handleDescChange(e.target.value)}
  onBlur={handleDescBlur}
  />
  {propertyIntroFull && (
  <div style={{ marginTop: 8, width: '100%', maxWidth: '100%' }}>
- <p style={{ color: '#ccc', fontSize: '0.85rem', fontWeight: 600, marginBottom: 6 }}>Full description (unedited)</p>
+ <h4 style={{ marginTop: 16 }}>Full description (unedited)</h4>
  <textarea
  id="property-intro-full"
  name="propertyIntroFull"
- className="popup-textarea editmode"
+ className="popup-textarea editmode field-dark"
  style={{ minHeight: 80, overflowY: 'auto', whiteSpace: 'pre-wrap' }}
  value={propertyIntroFull}
  placeholder="Full scraped description will appear here after import"
@@ -1988,7 +1789,7 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
  <hr />
 
  {/* Hosting */}
- <h1 style={{ fontSize: "clamp(1.5rem, 2.8vw, 1.875rem)" }}>Hosting options</h1>
+ <h1>Hosting options</h1>
  <ul>
  <li>
  <input type="radio" name="hosting" id="4-1" checked={hostingChoice === 'own'} onChange={() => setHostingChoice('own')} style={{ accentColor: brandColor }} />
@@ -2002,7 +1803,7 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
  <br /><hr />
 
  {/* Subscription */}
- <h1 style={{ fontSize: "clamp(1.5rem, 2.8vw, 1.875rem)" }}>Subscription</h1>
+ <h1>Subscription</h1>
  {(user?.stripe_subscription_status === 'active' || user?.stripe_subscription_status === 'trialing') ? (
  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', padding: '12px 16px', background: 'rgba(80,180,100,0.12)', border: '1px solid rgba(80,180,100,0.35)', borderRadius: 8, fontSize: '0.95rem', color: '#a8d8b0', marginBottom: 8 }}>
  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -2012,10 +1813,12 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
  <button
  onClick={async () => {
  try {
- const session = await supabase.auth.getSession();
+ const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+ const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+ const { data: { session } } = await supabase.auth.getSession();
  const res = await fetch(`${supabaseUrl}/functions/v1/stripe-subscription`, {
  method: 'POST',
- headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.session?.access_token}`, 'Apikey': supabaseAnonKey },
+ headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session?.access_token}`, 'Apikey': supabaseAnonKey },
  body: JSON.stringify({ action: 'create_portal', return_url: window.location.href }),
  });
  const data = await res.json();
@@ -2056,7 +1859,7 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
  <br /><hr />
 
  {/* Payment */}
- <h1 style={{ fontSize: "clamp(1.5rem, 2.8vw, 1.875rem)" }}>Publish your site</h1>
+ <h1>Publish your site</h1>
  <p>After payment your site will build and then you can continue editing the site once published.</p>
  <br />
  <button
@@ -2129,6 +1932,7 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
  }}
  onError={async (msg) => {
  if (msg === 'RETRY_NEEDED') {
+ if (!user) { setStripeError('Please sign in again.'); return; }
  setStripeError('Updating payment details...');
  try {
  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;

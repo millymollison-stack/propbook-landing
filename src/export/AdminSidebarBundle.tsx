@@ -7,14 +7,13 @@
 import React, { useState, useEffect, useMemo, memo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { format, fromUnixTime, addDays } from 'date-fns';
-import { ChevronRight, ChevronDown, X, LogOut, ExternalLink, Check, CreditCard as Edit2, Clock, CreditCard, AlertCircle, XCircle, CheckCircle, MapPin, Eye, EyeOff, Mail, Phone, User, MessageSquare, Home } from 'lucide-react';
+import { ChevronRight, ChevronDown, X, LogOut, ExternalLink, Check, CreditCard as Edit2, Clock, CreditCard, AlertCircle, XCircle, CheckCircle, MapPin, Eye, EyeOff, Mail, Phone, User, MessageSquare, Home, Image, Bed, Bath, Users } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../store/auth';
 import { useProperty } from '../store/property';
 import type { Profile, Booking, Property } from '../types';
 import { duplicateSiteAfterPayment } from '../services/siteDuplicationService';
 import { SeoSection } from './SeoSection';
-import { GetSite } from '../components/GetSite';
 
 // ─────────────────────────────────────────────
 // SECTION 1 — Extended Profile (app type + services fields)
@@ -82,20 +81,6 @@ function InlineLoader() {
   );
 }
 
-function EditField({ label, value, isEditing, onChange, type = 'text' }: {
-  label: string; value: string; isEditing: boolean; onChange: (v: string) => void; type?: string;
-}) {
-  return (
-    <div className="py-3 border-b border-gray-100 last:border-0">
-      <h4 className="sb-h4-grey">{label}</h4>
-      {isEditing
-        ? <input type={type} value={value} onChange={e => onChange(e.target.value)} className="w-full text-base font-bold text-gray-900 bg-white border border-gray-300 rounded-md px-2 py-1 focus:outline-none focus:border-gray-500" />
-        : <p className="text-base font-bold text-gray-900">{value || '—'}</p>
-      }
-    </div>
-  );
-}
-
 function StatusDot({ ok }: { ok: boolean }) {
   return ok
     ? <CheckCircle className="h-4 w-4 text-green-500 flex-shrink-0" />
@@ -115,10 +100,10 @@ interface UserBookingsProps {
 const UserBookings = memo(function UserBookings({ bookings, onUpdateStatus, onRefund }: UserBookingsProps) {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [denialReason, setDenialReason] = useState('');
-  const [isAccessDenied, setIsAccessDenied] = useState(false);
+  const [_isAccessDenied, _setIsAccessDenied] = useState(false);
   const [showDenialModal, setShowDenialModal] = useState<string | null>(null);
-  const [adminProfile, setAdminProfile] = useState<Profile | null>(null);
-  const [guestProfile, setGuestProfile] = useState<Profile | null>(null);
+  const [_adminProfile, setAdminProfile] = useState<Profile | null>(null);
+  const [guestProfile, _setGuestProfile] = useState<Profile | null>(null);
   const [isUpdating, setIsUpdating] = useState(false);
   const [isRefunding, setIsRefunding] = useState<string | null>(null);
   const { user } = useAuth();
@@ -206,9 +191,9 @@ const UserBookings = memo(function UserBookings({ bookings, onUpdateStatus, onRe
               </div>
             ) : (
               <div className="space-y-2">
-                <div className="flex items-center"><User className="h-5 w-5 text-gray-400 mr-2" /><span className="font-medium">{displayUser?.full_name || displayUser?.email || 'My Account'}</span></div>
-                <div className="flex items-center body-on-light"><Mail className="h-4 w-4 text-gray-400 mr-2" />{displayUser?.email || ''}</div>
-                <div className="flex items-center body-on-light"><Phone className="h-4 w-4 text-gray-400 mr-2" />{guestProfile?.phone_number || displayUser?.phone_number || ''}</div>
+                <div className="flex items-center"><User className="h-5 w-5 text-gray-400 mr-2" /><span className="font-medium">{user?.full_name || user?.email || 'My Account'}</span></div>
+                <div className="flex items-center body-on-light"><Mail className="h-4 w-4 text-gray-400 mr-2" />{user?.email || ''}</div>
+                <div className="flex items-center body-on-light"><Phone className="h-4 w-4 text-gray-400 mr-2" />{guestProfile?.phone_number || user?.phone_number || ''}</div>
                 {booking.property && <div className="flex items-center body-on-light"><Home className="h-4 w-4 text-gray-400 mr-2" />{booking.property?.title || 'Property'}</div>}
               </div>
             )}
@@ -278,7 +263,7 @@ interface SubscriptionData {
   plan: string;
   amount: number;
   interval: string;
-  current_period_end: number;
+  current_period_end: number | null;
   cancel_at_period_end: boolean;
 }
 
@@ -288,7 +273,7 @@ function googleMapsUrl(address: string, lat: string, lng: string): string {
   return '';
 }
 
-function PropertySection({ property, imageCount, isEditing, fields, onChange }: {
+function PropertySection({ imageCount, isEditing, fields, onChange }: {
   property: Property | null;
   imageCount: number;
   isEditing: boolean;
@@ -373,39 +358,49 @@ function PropertySection({ property, imageCount, isEditing, fields, onChange }: 
           </a>
         </div>
       )}
-      <div className="sb-field-row" style={{ borderBottom: 'none' }}>
-        <h4 className="sb-h4-grey">Uploaded photos</h4>
-        <p className="sb-field-value">{imageCount}</p>
-      </div>
-      <div className="sb-field-row">
-        <h4 className="sb-h4-grey">Bedrooms</h4>
-        {isEditing
-          ? <input type="number" min="0" value={fields.bedrooms} onChange={e => onChange(p => ({ ...p, bedrooms: e.target.value }))} className="sb-input" style={{ width: 80 }} />
-          : <p className="sb-field-value">{fields.bedrooms || '—'}</p>}
-      </div>
-      <div className="sb-field-row">
-        <h4 className="sb-h4-grey">Beds</h4>
-        {isEditing
-          ? <input type="number" min="0" value={fields.beds} onChange={e => onChange(p => ({ ...p, beds: e.target.value }))} className="sb-input" style={{ width: 80 }} />
-          : <p className="sb-field-value">{fields.beds || '—'}</p>}
-      </div>
-      <div className="sb-field-row">
-        <h4 className="sb-h4-grey">Baths</h4>
-        {isEditing
-          ? <input type="number" min="0" step="0.5" value={fields.baths} onChange={e => onChange(p => ({ ...p, baths: e.target.value }))} className="sb-input" style={{ width: 80 }} />
-          : <p className="sb-field-value">{fields.baths || '—'}</p>}
-      </div>
-      <div className="sb-field-row">
-        <h4 className="sb-h4-grey">Max guests</h4>
-        {isEditing
-          ? <input type="number" min="1" value={fields.max_guests} onChange={e => onChange(p => ({ ...p, max_guests: e.target.value }))} className="sb-input" style={{ width: 80 }} />
-          : <p className="sb-field-value">{fields.max_guests || '—'}</p>}
+      <div className="sb-field-row" style={{ borderBottom: 'none', flexDirection: 'column', alignItems: 'flex-start', gap: 8 }}>
+        <h4 className="sb-h4-grey">Property stats</h4>
+        <div className="sb-stats-grid">
+          <span className="sb-stat-pill" title="Uploaded photos">
+            <Image className="h-3.5 w-3.5" />
+            <span className="sb-stat-pill-value">{imageCount}</span>
+            <span className="sb-stat-pill-label">Photos</span>
+          </span>
+          <span className="sb-stat-pill" title="Bedrooms">
+            <Bed className="h-3.5 w-3.5" />
+            {isEditing
+              ? <input type="number" min="0" value={fields.bedrooms} onChange={e => onChange(p => ({ ...p, bedrooms: e.target.value }))} className="sb-stat-pill-input" />
+              : <span className="sb-stat-pill-value">{fields.bedrooms || 0}</span>}
+            <span className="sb-stat-pill-label">Bedrooms</span>
+          </span>
+          <span className="sb-stat-pill" title="Beds">
+            <Bed className="h-3.5 w-3.5" />
+            {isEditing
+              ? <input type="number" min="0" value={fields.beds} onChange={e => onChange(p => ({ ...p, beds: e.target.value }))} className="sb-stat-pill-input" />
+              : <span className="sb-stat-pill-value">{fields.beds || 0}</span>}
+            <span className="sb-stat-pill-label">Beds</span>
+          </span>
+          <span className="sb-stat-pill" title="Baths">
+            <Bath className="h-3.5 w-3.5" />
+            {isEditing
+              ? <input type="number" min="0" step="0.5" value={fields.baths} onChange={e => onChange(p => ({ ...p, baths: e.target.value }))} className="sb-stat-pill-input" />
+              : <span className="sb-stat-pill-value">{fields.baths || 0}</span>}
+            <span className="sb-stat-pill-label">Baths</span>
+          </span>
+          <span className="sb-stat-pill" title="Max guests">
+            <Users className="h-3.5 w-3.5" />
+            {isEditing
+              ? <input type="number" min="1" value={fields.max_guests} onChange={e => onChange(p => ({ ...p, max_guests: e.target.value }))} className="sb-stat-pill-input" />
+              : <span className="sb-stat-pill-value">{fields.max_guests || 0}</span>}
+            <span className="sb-stat-pill-label">Guests</span>
+          </span>
+        </div>
       </div>
     </div>
   );
 }
 
-function WebsiteSection({ devUpdates, setDevUpdates, serverIp, siteUrl, websiteName, propertySlug, propertyId }: {
+function WebsiteSection({ devUpdates, setDevUpdates, siteUrl, websiteName, propertySlug, propertyId }: {
   devUpdates: boolean; setDevUpdates: (v: boolean) => void;
   serverIp?: string | null;
   siteUrl?: string | null;
@@ -529,7 +524,7 @@ function ContactSection({ user, isEditing, fields, onChange, userProperties, act
   fields: { full_name: string; email: string; phone_number: string };
   onChange: React.Dispatch<React.SetStateAction<{ full_name: string; email: string; phone_number: string }>>;
   userProperties: Property[]; activeProperty: Property | null;
-  showPropertySwitcher: boolean; setShowPropertySwitcher: (v: boolean) => void;
+  showPropertySwitcher: boolean; setShowPropertySwitcher: React.Dispatch<React.SetStateAction<boolean>>;
   handleSwitchProperty: (prop: Property) => void;
 }) {
   const [showPasswordForm, setShowPasswordForm] = useState(false);
@@ -563,87 +558,6 @@ function ContactSection({ user, isEditing, fields, onChange, userProperties, act
 
   return (
     <div>
-      {/* Property switcher — inside Contact section */}
-      {userProperties.length >= 1 && (
-        <div style={{
-          // .sb-section-body (the shared wrapper every nav section renders
-          // into) adds its own 4px left/right padding on top of
-          // .sidebar-content's 20px — so this switcher was sitting 4px
-          // narrower per side than the sidebar's other full-width controls
-          // (nav buttons, "Get your own booking website"). Negative-margin
-          // it back out so it lines up with them — David: "falls short".
-          position: 'relative',
-          marginBottom: '12px',
-          marginLeft: '-4px',
-          marginRight: '-4px',
-          width: 'calc(100% + 8px)',
-        }}>
-          <button
-            onClick={() => setShowPropertySwitcher(v => !v)}
-            style={{
-              // Bumped to match the sidebar's other full-width buttons —
-              // David: "looks small still" (this is a hand-typed duplicate
-              // of GuestSidebar.tsx's .gs-property-switcher-btn, bumped the
-              // same way there, Round 5).
-              background: '#f3f4f6',
-              border: '1px solid #d1d5db',
-              borderRadius: '8px',
-              padding: '10px 16px',
-              fontSize: '0.9rem',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '4px',
-              width: '100%',
-            }}
-          >
-            <span style={{ flex: 1, textAlign: 'left', color: '#374151' }}>
-              {activeProperty?.name || activeProperty?.title || activeProperty?.slug || 'Switch property'}
-            </span>
-            <ChevronDown className="h-3 w-3" style={{ opacity: 0.6 }} />
-          </button>
-          {showPropertySwitcher && (
-            <div style={{
-              position: 'absolute',
-              top: '100%',
-              left: 0,
-              right: 0,
-              zIndex: 9999,
-              background: 'white',
-              border: '1px solid #e5e7eb',
-              borderRadius: '8px',
-              boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-              maxHeight: '200px',
-              overflowY: 'auto',
-              marginTop: '2px',
-            }}>
-              {userProperties.map(prop => (
-                <button
-                  key={prop.id}
-                  onClick={() => handleSwitchProperty(prop)}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    width: '100%',
-                    padding: '8px 12px',
-                    background: prop.id === activeProperty?.id ? '#f0fdf4' : 'none',
-                    border: 'none',
-                    cursor: 'pointer',
-                    fontSize: '13px',
-                    textAlign: 'left',
-                    gap: '8px',
-                  }}
-                >
-                  {prop.id === activeProperty?.id && <Check className="h-3 w-3 text-green-500" />}
-                  <span style={{ color: prop.id === activeProperty?.id ? '#166534' : '#374151' }}>
-                    {prop.name || prop.title || prop.slug}
-                  </span>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
       <div className="py-3">
         <h4 className="sb-h4-grey">Role</h4>
         <p className="text-base text-gray-900"><span className="font-bold">{user.role === 'admin' ? 'Super Host' : user.role === 'saas_admin' ? 'SaaS Admin' : 'Guest'}</span>{user.role === 'admin' && <span className="font-normal text-gray-500"> (New Site Admin)</span>}</p>
@@ -698,6 +612,75 @@ function ContactSection({ user, isEditing, fields, onChange, userProperties, act
           </div>
         )}
       </div>
+      {/* Property switcher — moved to the bottom of Contact (David: was too
+          prominent sitting at the top) and given its own heading. */}
+      {userProperties.length >= 1 && (
+        <div className="py-3" style={{ borderTop: '1px solid #f3f4f6', marginTop: 4 }}>
+          <h4 className="sb-h4-grey">Linked property</h4>
+          <div style={{ position: 'relative' }}>
+            <button
+              onClick={() => setShowPropertySwitcher(v => !v)}
+              style={{
+                background: '#f3f4f6',
+                border: '1px solid #d1d5db',
+                borderRadius: '8px',
+                padding: '10px 16px',
+                fontSize: '0.9rem',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+                width: '100%',
+              }}
+            >
+              <span style={{ flex: 1, textAlign: 'left', color: '#374151' }}>
+                {activeProperty?.name || activeProperty?.title || activeProperty?.slug || 'Switch property'}
+              </span>
+              <ChevronDown className="h-3 w-3" style={{ opacity: 0.6 }} />
+            </button>
+            {showPropertySwitcher && (
+              <div style={{
+                position: 'absolute',
+                top: '100%',
+                left: 0,
+                right: 0,
+                zIndex: 9999,
+                background: 'white',
+                border: '1px solid #e5e7eb',
+                borderRadius: '8px',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                maxHeight: '200px',
+                overflowY: 'auto',
+                marginTop: '2px',
+              }}>
+                {userProperties.map(prop => (
+                  <button
+                    key={prop.id}
+                    onClick={() => handleSwitchProperty(prop)}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      width: '100%',
+                      padding: '8px 12px',
+                      background: prop.id === activeProperty?.id ? '#f0fdf4' : 'none',
+                      border: 'none',
+                      cursor: 'pointer',
+                      fontSize: '13px',
+                      textAlign: 'left',
+                      gap: '8px',
+                    }}
+                  >
+                    {prop.id === activeProperty?.id && <Check className="h-3 w-3 text-green-500" />}
+                    <span style={{ color: prop.id === activeProperty?.id ? '#166534' : '#374151' }}>
+                      {prop.name || prop.title || prop.slug}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -845,7 +828,7 @@ function SubscriptionSection({ subscription, loading, checkoutLoading, onSubscri
         </div>
         <div className="py-3 grid grid-cols-2 gap-4">
           <div><h4 className="sb-h4-grey">Amount</h4><p className="text-base font-bold text-gray-900">${subscription.amount > 0 ? (subscription.amount / 100).toFixed(2) : '–'}<span className="text-sm font-normal text-gray-500">/{subscription.interval}</span></p></div>
-          <div><h4 className="sb-h4-grey">{isTrialing ? 'Trial Ends' : 'Next Payment'}</h4><p className="text-base font-bold text-gray-900">{format(fromUnixTime(subscription.current_period_end), 'MMM d, yyyy')}</p></div>
+          <div><h4 className="sb-h4-grey">{isTrialing ? 'Trial Ends' : 'Next Payment'}</h4><p className="text-base font-bold text-gray-900">{subscription.current_period_end ? format(fromUnixTime(subscription.current_period_end), 'MMM d, yyyy') : '–'}</p></div>
         </div>
         {subscription.cancel_at_period_end && <div className="py-3"><div className="flex items-center gap-2 text-yellow-700 bg-yellow-50 rounded-lg px-3 py-2"><AlertCircle className="h-4 w-4" /><p className="text-xs font-medium">Cancels at end of billing period</p></div></div>}
         <div className="py-3"><h4 className="sb-h4-grey">Subscription ID</h4><p className="sb-mono">{subscription.id}</p></div>
@@ -905,7 +888,7 @@ interface NextBooking {
   startDay: number; endDay: number; month: string; status: string;
 }
 
-export function AdminSidebar({ isOpen, onClose, mockMode = false, onPropertyLoaded, onOpenOnboarding, showGetSite, setShowGetSite }: AdminSidebarProps) {
+export function AdminSidebar({ isOpen, onClose, mockMode = false, onPropertyLoaded}: AdminSidebarProps) {
   const { user, signOut, refreshUser } = useAuth();
   const navigate = useNavigate();
   const setPropertyTitle = useProperty(s => s.setTitle);
@@ -1045,7 +1028,6 @@ export function AdminSidebar({ isOpen, onClose, mockMode = false, onPropertyLoad
     // Layer 1 (activeProperty): Works when CustomerSite has already set the active property.
     // Layer 2 (slug): Works immediately on mount — doesn't wait for CustomerSite to load.
     // Admins bypass this guard during the migration period.
-    const activeProperty = useProperty.getState().activeProperty;
     const urlSlug = (() => {
       const m = window.location.pathname.match(/\/props\/([^/]+)/);
       return m ? m[1] : '';
@@ -1110,12 +1092,19 @@ export function AdminSidebar({ isOpen, onClose, mockMode = false, onPropertyLoad
           onPropertyLoaded(propName);
         }
         setPropFields({ title: pd.name || pd.title || '', property_headline: pd.property_headline || od?.property_headline || '', property_intro: pd.property_intro || '', address: pd.address || '', latitude: pd.latitude?.toString() || '', longitude: pd.longitude?.toString() || '', location_type: (pd.location_type as 'address' | 'coordinates') || 'coordinates', bedrooms: pd.bedrooms?.toString() || '', beds: pd.beds?.toString() || '', baths: pd.bathrooms?.toString() || '', max_guests: pd.max_guests?.toString() || '' });
+        // David (item 11): SEO section should pull its page title / meta
+        // description from the website name and property description when
+        // the admin hasn't explicitly set a custom SEO value -- these are
+        // only fallback DEFAULTS, an explicit custom_page_title/
+        // meta_description already saved on the property always wins.
+        const websiteNameFallback = pd.name || pd.title || '';
+        const propertyDescriptionFallback = pd.property_intro || pd.description || '';
         setSeoFields(prev => ({
-          meta_description: pd.meta_description || '',
+          meta_description: pd.meta_description || propertyDescriptionFallback || '',
           og_image_url: pd.og_image_url || '',
           google_business_url: pd.google_business_url || '',
           robots_noindex: pd.robots_noindex ?? false,
-          custom_page_title: pd.custom_page_title || '',
+          custom_page_title: pd.custom_page_title || websiteNameFallback || '',
           google_verification: pd.google_verification || '',
           // Preserve local sessionStorage defaults for new toggle fields
           generate_robots_txt: prev.generate_robots_txt,
@@ -1144,9 +1133,9 @@ export function AdminSidebar({ isOpen, onClose, mockMode = false, onPropertyLoad
             const featured = pending || upcoming;
             if (featured) {
               const [sy, sm, sd] = featured.start_date.slice(0, 10).split('-').map(Number);
-              const [, , ed] = featured.end_date.slice(0, 10).split('-').map(Number);
+              const [ey, em, ed] = featured.end_date.slice(0, 10).split('-').map(Number);
               const start = new Date(sy, sm - 1, sd);
-              const endDate = new Date(featured.end_date.slice(0, 10).split('-').map(Number) as [number, number, number]);
+              const endDate = new Date(ey, em - 1, ed);
               const nights = Math.ceil(Math.abs(endDate.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
               setNextBooking({ guestName: featured.user?.full_name || 'Guest', location: featured.property?.address || featured.property?.title || '', guestCount: featured.guest_count, nights, startDay: sd, endDay: ed, month: format(start, 'MMM').toUpperCase(), status: featured.status });
             } else setNextBooking(null);
@@ -1174,9 +1163,9 @@ export function AdminSidebar({ isOpen, onClose, mockMode = false, onPropertyLoad
             const featured = pending || upcoming;
             if (featured) {
               const [sy, sm, sd] = featured.start_date.slice(0, 10).split('-').map(Number);
-              const [, , ed] = featured.end_date.slice(0, 10).split('-').map(Number);
+              const [ey, em, ed] = featured.end_date.slice(0, 10).split('-').map(Number);
               const start = new Date(sy, sm - 1, sd);
-              const endDate = new Date(featured.end_date.slice(0, 10).split('-').map(Number) as [number, number, number]);
+              const endDate = new Date(ey, em - 1, ed);
               const nights = Math.ceil(Math.abs(endDate.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
               setNextBooking({ guestName: featured.user?.full_name || 'Guest', location: featured.property?.address || featured.property?.title || '', guestCount: featured.guest_count, nights, startDay: sd, endDay: ed, month: format(start, 'MMM').toUpperCase(), status: featured.status });
             }
@@ -1440,8 +1429,6 @@ export function AdminSidebar({ isOpen, onClose, mockMode = false, onPropertyLoad
     setPublishLoading(true);
     setPublishError(null);
     try {
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
       // Reload fresh property data from DB
       const { data: freshProp } = await supabase
@@ -1455,48 +1442,6 @@ export function AdminSidebar({ isOpen, onClose, mockMode = false, onPropertyLoad
         ? sessionStorage.getItem('popup_website_name')!.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '').replace(/-+/g, '-')
         : (property?.slug || websiteName.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '').replace(/-+/g, '-'));
 
-      // Build scrapedData from fresh property
-      const scrapedData = freshProp ? {
-        title: freshProp.title || '',
-        location: freshProp.address || '',
-        description: freshProp.description || '',
-        hero_image: freshProp.hero_image || '',
-        images: freshProp.images || [],
-        guests: freshProp.max_guests || null,
-        bedrooms: freshProp.bedrooms || null,
-        beds: freshProp.beds || null,
-        baths: freshProp.bathrooms ?? 1,
-        rating: null,
-        reviews: null,
-        host_name: null,
-        price: '',
-        property_headline: freshProp.property_headline || propFields.property_headline || '',
-      } : null;
-
-      const siteData = {
-        email: user.email,
-        userId: user.id,
-        userStripeAccountId: connectData?.account_id || null,
-        bookingsEmail: user.email,
-        websiteName,
-        websiteDesc: freshProp?.description || '',
-        slug,
-        planChoice: subscriptionData?.plan as 'starter' | 'pro' | 'agency' || 'starter',
-        hostingChoice: 'our' as const,
-        designChoice: '',
-        extras: { seo: false, ads: false, analytics: false, social: false },
-        scrapedData,
-        propertyHeadline: propFields.property_headline || freshProp?.property_headline || '',
-        bankChoice: '',
-        seoData: {
-          meta_description: seoFields.meta_description,
-          og_image_url: seoFields.og_image_url,
-          google_business_url: seoFields.google_business_url,
-          robots_noindex: seoFields.robots_noindex,
-          custom_page_title: seoFields.custom_page_title,
-          google_verification: seoFields.google_verification,
-        },
-      };
 
       // Use the existing property — don't create a new DB record every publish
       const existingPropertyId = property.id;
@@ -1525,7 +1470,6 @@ export function AdminSidebar({ isOpen, onClose, mockMode = false, onPropertyLoad
 
       // Deploy via edge function → deploy-react-upload.php → Mac Mini SSH → rsync
       // This is the correct path: builds React app on Mac Mini and rsyncs to Hostinger
-      let deploySucceeded = false;
       let deployError: string | null = null;
       try {
         const deployResult = await duplicateSiteAfterPayment(existingSlug, existingPropertyId, seoFileToggles);
@@ -1533,7 +1477,6 @@ export function AdminSidebar({ isOpen, onClose, mockMode = false, onPropertyLoad
         if (deployResult.deployUrl) {
           sessionStorage.setItem('popup_site_url', deployResult.deployUrl);
         }
-        deploySucceeded = true;
       } catch (deployErr) {
         console.error('[sidebar publish] Deploy failed:', deployErr);
         deployError = deployErr instanceof Error ? deployErr.message : String(deployErr);
@@ -1551,7 +1494,7 @@ export function AdminSidebar({ isOpen, onClose, mockMode = false, onPropertyLoad
       // Redirect to the newly published site with ?published=1 so CustomerSite shows the
       // share popup (shows for 3s, then retracts back into the nav Share icon — David confirmed
       // he wants this animation, just clarifying after initially disliking something about it).
-      window.__PROPERTY_DATA__ = null; window.location.replace(siteUrl + "?published=1&t=" + Date.now());
+      (window as any).__PROPERTY_DATA__ = null; window.location.replace(siteUrl + "?published=1&t=" + Date.now());
     } catch (err) {
       console.error('[sidebar publish] Error:', err);
       setPublishError(err instanceof Error ? err.message : 'Publish failed. Please try again.');
@@ -1791,7 +1734,7 @@ export function AdminSidebar({ isOpen, onClose, mockMode = false, onPropertyLoad
                     {key === 'banking' && <BankingSection connectData={connectData} connectLoading={connectLoading} connectOnboarding={connectOnboarding} payoutLoading={payoutLoading} payoutSuccess={payoutSuccess} onOnboard={handleConnectOnboard} onRequestPayout={handleRequestPayout} />}
                     {key === 'services' && <ServicesSection services={services} onToggle={handleServiceToggle} />}
                     {key === 'subscription' && <SubscriptionSection
-                      subscription={subscriptionData || (hasSubscription ? { status: profileSubStatus as 'active' | 'trialing', plan: effectivePlan || 'starter', current_period_end: null } : null)}
+                      subscription={subscriptionData || (hasSubscription ? { id: '', status: profileSubStatus as 'active' | 'trialing', plan: effectivePlan || 'starter', amount: 0, interval: '', current_period_end: null, cancel_at_period_end: false } : null)}
                       loading={subLoading} checkoutLoading={checkoutLoading} onSubscribe={handleSubscribeCheckout} />}
                   </div>
                 )}

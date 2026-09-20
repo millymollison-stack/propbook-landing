@@ -109,9 +109,6 @@ export default function ReviewsList({ showStars = true, isEditing = false, prope
     setCurrentIndex((prev) => (prev - 1 + reviews.length) % reviews.length);
   };
 
-  const goToSlide = (index: number) => {
-    setCurrentIndex(index);
-  };
 
   if (loading) {
     return (
@@ -129,12 +126,6 @@ export default function ReviewsList({ showStars = true, isEditing = false, prope
     );
   }
 
-  const reviewsPerPage = () => {
-    if (typeof window === 'undefined') return 1;
-    if (window.innerWidth < 768) return 1;
-    if (window.innerWidth < 1024) return 2;
-    return 3;
-  };
 
   const getVisibleReviews = () => {
     // Show one review at a time for full width

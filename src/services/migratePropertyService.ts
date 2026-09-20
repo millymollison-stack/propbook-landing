@@ -5,7 +5,6 @@
  */
 
 import { supabase } from '../lib/supabase';
-import type { MigratePropertyData } from '../types';
 
 export interface MigratePropertyData {
   title: string;

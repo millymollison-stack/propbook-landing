@@ -9,7 +9,6 @@
  * 4. Browser marks property as active in Supabase
  */
 
-import { supabaseAdmin } from '../lib/supabase';
 
 const DEPLOY_SECRET = import.meta.env.VITE_DEPLOY_SECRET_DEPRECATED || '';
 const UPLOAD_URL = 'https://propbook.pro/upload.php';
@@ -18,24 +17,6 @@ export interface DeployResult {
   success: boolean;
   url?: string;
   error?: string;
-}
-
-/**
- * Recursively read a directory and return all files as base64 + path pairs
- */
-async function readDirAsFiles(dir: FileSystemDirectoryHandle, basePath = ''): Promise<Array<{ path: string; data: ArrayBuffer }>> {
-  const files: Array<{ path: string; data: ArrayBuffer }> = [];
-  for await (const entry of dir.values()) {
-    const fullPath = basePath ? `${basePath}/${entry.name}` : entry.name;
-    if (entry.kind === 'directory') {
-      const subFiles = await readDirAsFiles(entry as FileSystemDirectoryHandle, fullPath);
-      files.push(...subFiles);
-    } else {
-      const file = await (entry as FileSystemFileHandle).getFile();
-      files.push({ path: fullPath, data: await file.arrayBuffer() });
-    }
-  }
-  return files;
 }
 
 /**
@@ -59,8 +40,6 @@ export async function deploySiteToHostinger(
 
     // Get the list of files by fetching the directory listing via a manifest
     // Since we can't list directories over HTTP, we use a known manifest
-    const manifestRes = await fetch(`https://propbook.pro/_templates/migration/manifest.json`).catch(() => null);
-    const manifest = manifestRes?.ok ? await manifestRes.json() : null;
 
     onProgress?.(20, 'Connecting to server...');
 

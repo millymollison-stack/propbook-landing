@@ -10,17 +10,16 @@
  */
 
 
-import React, { useState, useEffect, memo, useRef } from 'react';
+import React, { useState, useEffect, memo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { format, addDays } from 'date-fns';
-import { ChevronRight, ChevronDown, X, LogOut, ExternalLink, Check, CreditCard as Edit2, Clock, CreditCard, AlertCircle, CheckCircle, MapPin, Mail, Phone, User, MessageSquare, Home } from 'lucide-react';
+import { ChevronRight, ChevronDown, X, LogOut, Check, CreditCard as Edit2, Clock, CreditCard, AlertCircle, Mail, MessageSquare, Home } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../store/auth';
 import type { Profile, Booking, Property } from '../types';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-type BookingStatus = 'pending' | 'approved' | 'denied' | 'cancelled';
 type PaymentStatus = 'unpaid' | 'pending' | 'paid' | 'refunded' | 'failed';
 
 interface NextBooking {
@@ -38,30 +37,6 @@ interface GuestSidebarProps {
 
 // ─── Shared UI primitives ────────────────────────────────────────────────────
 
-function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
-  return (
-    <button
-      type="button"
-      onClick={() => onChange(!checked)}
-      className={`relative inline-flex h-5 w-9 flex-shrink-0 items-center rounded-full transition-colors duration-200 focus:outline-none ${checked ? 'bg-green-500' : 'bg-gray-300'}`}
-    >
-      <span className={`inline-block h-[17px] w-[17px] transform rounded-full bg-white shadow transition-transform duration-200 ${checked ? 'translate-x-[18px]' : 'translate-x-0.5'}`} />
-    </button>
-  );
-}
-
-function Loader() {
-  return (
-    <div className="flex items-center justify-center py-6">
-      <div className="flex gap-1.5">
-        {[0, 1, 2].map(i => (
-          <div key={i} className="h-2 w-2 rounded-full bg-gray-400 animate-bounce" style={{ animationDelay: `${i * 0.15}s` }} />
-        ))}
-      </div>
-    </div>
-  );
-}
-
 function InlineLoader() {
   return (
     <div className="flex gap-1">
@@ -70,12 +45,6 @@ function InlineLoader() {
       ))}
     </div>
   );
-}
-
-function StatusDot({ ok }: { ok: boolean }) {
-  return ok
-    ? <CheckCircle className="h-4 w-4 text-green-500 flex-shrink-0" />
-    : <XCircle className="h-4 w-4 text-red-500 flex-shrink-0" />;
 }
 
 // ─── UserBookings (for guest view — read-only, no approve/deny) ───────────────
@@ -251,7 +220,7 @@ interface ContactSectionProps {
   userProperties: Property[];
   activeProperty: Property | null;
   showPropertySwitcher: boolean;
-  setShowPropertySwitcher: (v: boolean) => void;
+  setShowPropertySwitcher: React.Dispatch<React.SetStateAction<boolean>>;
   handleSwitchProperty: (prop: Property) => void;
 }
 
@@ -329,7 +298,7 @@ function ContactSection({
 
 // ─── Main GuestSidebar export ─────────────────────────────────────────────────
 
-export function GuestSidebar({ isOpen, onClose, currentSlug, onOpenGetSite }: GuestSidebarProps) {
+export function GuestSidebar({ isOpen, onClose, currentSlug}: GuestSidebarProps) {
   const { user, signOut, updateProfile } = useAuth();
   const navigate = useNavigate();
 
@@ -407,9 +376,9 @@ export function GuestSidebar({ isOpen, onClose, currentSlug, onOpenGetSite }: Gu
           const featured = pending || upcoming;
           if (featured) {
             const [sy, sm, sd] = featured.start_date.slice(0, 10).split('-').map(Number);
-            const [, , ed] = featured.end_date.slice(0, 10).split('-').map(Number);
+            const [ey, em, ed] = featured.end_date.slice(0, 10).split('-').map(Number);
             const start = new Date(sy, sm - 1, sd);
-            const endDate = new Date(featured.end_date.slice(0, 10).split('-').map(Number) as [number, number, number]);
+            const endDate = new Date(ey, em - 1, ed);
             const nights = Math.ceil(Math.abs(endDate.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
             setNextBooking({
               guestName: featured.user?.full_name || 'Guest',
@@ -481,6 +450,15 @@ export function GuestSidebar({ isOpen, onClose, currentSlug, onOpenGetSite }: Gu
   const isPending = nextBooking?.status === 'pending';
 
   // ─── Render ───────────────────────────────────────────────────────────────
+  // David: "there are still two property selectors. I only wanted one
+  // property selector moved to the bottom of the contacts section.
+  // Delete the other property selector and the user name above it.
+  // Bookings should be at the top of the sidebar under the hr line."
+  // Removed the standalone username label + top-of-sidebar
+  // PropertySwitcher below (used to sit right after sidebar-content
+  // opens); ContactSection already renders the one property switcher at
+  // the bottom of Contact ("moved to the bottom of Contact" there).
+  // Bookings is now the first thing under the header's divider.
   return (
     <>
       {isOpen && <div className="sidebar-overlay" onClick={onClose} />}
@@ -514,23 +492,8 @@ export function GuestSidebar({ isOpen, onClose, currentSlug, onOpenGetSite }: Gu
         </div>
 
         <div className="sidebar-content">
-          {/* User label */}
-          <p className="sidebar-header-label">
-            {displayUser.full_name || displayUser.email || 'Guest'}
-          </p>
-
-          {/* Property Switcher — always visible at top of sidebar */}
-          <div className="gs-switcher-wrap">
-            <PropertySwitcher
-              userProperties={userProperties}
-              activeProperty={activeProperty}
-              show={showPropertySwitcher}
-              onToggle={() => setShowPropertySwitcher(v => !v)}
-              onSelect={handleSwitchProperty}
-            />
-          </div>
-
-          {/* Next Booking Card — mirrors AdminSidebar styling exactly */}
+          {/* Next Booking Card — mirrors AdminSidebar styling exactly, now
+             first: see the removed-selector note above render(). */}
           <div className="sb-next-booking">
             <button
               onClick={() => setBookingCardOpen(prev => !prev)}

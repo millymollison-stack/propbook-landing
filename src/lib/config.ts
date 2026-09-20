@@ -50,6 +50,7 @@ export function useConfig() {
       try {
         // In production, this would fetch from a property-specific config endpoint
         // For now, we'll dynamically import the config
+        // @ts-expect-error - config.json is generated per-property at deploy time and may not exist locally
         const configModule = await import('../config.json');
         setConfig({ ...defaultConfig, ...configModule.default });
       } catch (error) {

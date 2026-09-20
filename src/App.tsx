@@ -14,7 +14,6 @@ import { PropertyAdmin } from './pages/PropertyAdmin';
 import { EmailConfirmation } from './pages/EmailConfirmation';
 import { loadFontAccent } from './lib/fontAccent';
 import { loadBrandColor } from './lib/brandColor';
-import { Onboarding } from './pages/Onboarding';
 import { CustomerSite } from './pages/CustomerSite';
 import PaymentPage from './pages/PaymentPage';
 import { SaasAdminDashboard } from './pages/SaasAdminDashboard';
@@ -69,7 +68,12 @@ function AppContent() {
   // Controls the onboarding popup (triggered from sidebar button)
   const [showOnboarding, setShowOnboarding] = useState(false);
   // Controls the GetSite popup (shown when guest clicks 'Get your own booking website')
-  const [showGetSite, setShowGetSite] = useState(false);
+  // David: "set this page to open with the GetSite.tsx already opened
+  // and displayed on the page" -- defaults to true so localhost:5173/app
+  // loads straight into the GetSite popup instead of requiring the
+  // sidebar button click first. Flip back to false to restore the old
+  // behavior.
+  const [showGetSite, setShowGetSite] = useState(true);
   // Lifted state for GetSite → Home real-time preview
   const [scrapedProperty, setScrapedProperty] = useState<Partial<Property> | null>(null);
   const [scrapedImages, setScrapedImages] = useState<PropertyImage[]>([]);
@@ -81,7 +85,7 @@ function AppContent() {
     return () => { delete (window as any).__openGetSite; };
   }, []);
   // Looked up once when user logs in — the slug of the user's own property
-  const [userPropertySlug, setUserPropertySlug] = useState<string | null>(null);
+  const [_userPropertySlug, setUserPropertySlug] = useState<string | null>(null);
 
   // Resolve the user's property slug from the DB — look up directly by owner_id
   useEffect(() => {

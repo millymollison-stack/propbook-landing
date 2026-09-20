@@ -55,6 +55,10 @@ export interface Property {
   server_ip: string | null;
   folder_path: string | null;
   owner_id: string | null;
+  // Real Supabase column names that don't match the app's normalized field names above
+  // (bathrooms is the DB column; `baths` is the normalized in-app field derived from it).
+  bathrooms?: number | null;
+  house_rules?: string | null;
   created_at: string;
   updated_at: string;
 }

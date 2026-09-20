@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { DayPicker, DateRange } from 'react-day-picker';
-import { format, isWithinInterval, parseISO, addDays } from 'date-fns';
-import { Calendar, Lock, AlertCircle, Ban, Check } from 'lucide-react';
+import { format, parseISO, addDays } from 'date-fns';
+import { Calendar, Lock, AlertCircle, Ban, Check, X } from 'lucide-react';
 import type { Booking, BlockedDate } from '../types';
 import { useAuth } from '../store/auth';
 
@@ -58,8 +58,7 @@ export function BookingCalendar({
   propertyId,
   property,
   pricePerNight,
-  maxGuests,
-  onBookingSubmit
+  maxGuests
 }: BookingCalendarProps) {
   const [numberOfMonths, setNumberOfMonths] = useState(1);
   const [selected, setSelected] = useState<DateRange | undefined>();
@@ -75,6 +74,7 @@ export function BookingCalendar({
   const [createdBookingId, setCreatedBookingId] = useState<string | null>(null);
   const [bookingAmount, setBookingAmount] = useState(0);
   const [bookingDates, setBookingDates] = useState<{ from: Date; to: Date } | null>(null);
+  const [liabilityAccepted, setLiabilityAccepted] = useState(false);
   const authTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const loadingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { user } = useAuth();
@@ -180,6 +180,11 @@ export function BookingCalendar({
       return;
     }
 
+    if (isBookingMode && !liabilityAccepted) {
+      setError('Please agree to the liability waiver before booking.');
+      return;
+    }
+
     console.log('[BookingCalendar] Selected dates:', selected.from, selected.to);
     console.log('[BookingCalendar] User:', user);
 
@@ -268,8 +273,7 @@ export function BookingCalendar({
       .single();
 
     if (bookingData.data) {
-      // Send confirmation email (non-blocking)
-      EmailNotificationService.sendBookingConfirmationEmail({
+      const confirmedBookingEmailData = {
         booking: {
           start_date: bookingData.data.start_date,
           end_date: bookingData.data.end_date,
@@ -279,10 +283,21 @@ export function BookingCalendar({
         },
         user: user!,
         property
-      }).then(() => {
+      };
+
+      // Send confirmation email (non-blocking)
+      EmailNotificationService.sendBookingConfirmationEmail(confirmedBookingEmailData).then(() => {
         console.log('Confirmation email sent successfully');
       }).catch((emailError) => {
         console.error('Failed to send confirmation email:', emailError);
+      });
+
+      // David (item 9): follow-up ID-on-file request, sent right after the
+      // booking confirmation email.
+      EmailNotificationService.sendIdRequestEmail(confirmedBookingEmailData).then(() => {
+        console.log('ID request email sent successfully');
+      }).catch((emailError) => {
+        console.error('Failed to send ID request email:', emailError);
       });
     }
 
@@ -342,7 +357,7 @@ export function BookingCalendar({
 
   return (
     <div className="space-y-6">
-      <div className="p-2 sm:p-4 sb-panel-bg rounded-lg shadow">
+      <div className="p-2 sm:p-4 sb-panel-bg rounded-lg shadow booking-calendar-outer">
         <div className="flex justify-between items-center mb-4 pt-2 pl-1">
           <h1 className="hero-title-edit">
             {isAdmin && !isBookingMode ? 'Block Dates' : 'Select your dates'}
@@ -372,7 +387,7 @@ export function BookingCalendar({
             disabled={disabledDays}
             numberOfMonths={numberOfMonths}
             fromDate={new Date()}
-            modifiers={modifiers}
+            modifiers={modifiers as any}
             modifiersStyles={modifiersStyles}
             styles={{
               root: { width: '100%', paddingRight: '8px' },
@@ -407,10 +422,13 @@ export function BookingCalendar({
                 textAlign: 'center',
                 paddingLeft: '0px'
               },
-              day: { 
-                width: '100%', 
+              day: {
+                // Round 6 follow-up: David — "make the selection and other
+                // circle color indicator 30% smaller in size" (was 100% of
+                // the cell, i.e. filling the whole 14.28%-wide column).
+                width: '70%',
                 height: 'auto',
-                minHeight: '40px',
+                minHeight: '28px',
                 aspectRatio: '1',
                 fontSize: 'clamp(12px, 2.5vw, 16px)',
                 textAlign: 'center'
@@ -433,9 +451,9 @@ export function BookingCalendar({
                 borderTopLeftRadius: '0 !important',
                 borderBottomLeftRadius: '0 !important'
               }
-            }}
+            } as any}
             components={{
-              HeadCell: ({ ...props }) => (
+              HeadCell: ({ ...props }: any) => (
                 <th 
                   {...props} 
                   style={{ 
@@ -445,7 +463,7 @@ export function BookingCalendar({
                   }} 
                 />
               )
-            }}
+            } as any}
           />
         </div>
 
@@ -477,7 +495,18 @@ export function BookingCalendar({
               aria-hidden="true"
               onClick={() => setSelected(undefined)}
             />
-            <div className="inline-block align-middle sb-panel-bg rounded-lg text-left overflow-hidden shadow-xl transform transition-all w-full max-w-2xl booking-modal-body relative">
+            <div className="inline-block align-middle sb-panel-bg rounded-lg text-left overflow-hidden shadow-xl transform transition-all w-full max-w-[400px] modal-panel-light">
+          <button
+            type="button"
+            onClick={() => setSelected(undefined)}
+            aria-label="Close"
+            className="popup-close"
+          >
+            <X className="h-5 w-5" />
+          </button>
+          <h2 id="booking-modal-title" className="hero-title-edit booking-modal-title">
+            {isAdmin && !isBookingMode ? 'Block These Dates' : 'Confirm Your Booking'}
+          </h2>
           <div className="booking-modal-grid">
             <div className="booking-modal-col-left">
               <p className="booking-modal-checkin">Check-in: {format(selected.from, 'PPP')} at 3:00 PM</p>
@@ -518,6 +547,20 @@ export function BookingCalendar({
                   placeholder="Any special requirements or requests?"
                 />
               </div>
+              {isBookingMode && (
+                <label className="booking-liability-row">
+                  <input
+                    type="checkbox"
+                    id="liabilityWaiver"
+                    checked={liabilityAccepted}
+                    onChange={(e) => setLiabilityAccepted(e.target.checked)}
+                    className="booking-liability-checkbox"
+                  />
+                  <span className="booking-liability-text">
+                    I release the property owner from all liability in the event of injury while staying at the property.
+                  </span>
+                </label>
+              )}
               {error && (
                 <div className="rounded-md bg-red-50 p-4">
                   <div className="flex">
@@ -537,7 +580,7 @@ export function BookingCalendar({
               ) : (
                 <button
                   onClick={handleBookingSubmit}
-                  disabled={loading}
+                  disabled={loading || (isBookingMode && !liabilityAccepted)}
                   className="booking-modal-submit-btn"
                 >
                   <Calendar className="h-5 w-5" />

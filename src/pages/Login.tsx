@@ -58,8 +58,8 @@ export function Login({ onSuccess, onClose, onSwitchToSignup }: LoginProps = {})
         <p>Or create a <button type="button" className="popup-link" onClick={onSwitchToSignup}>new account</button></p>
         <form onSubmit={handleSubmit}>
           {localError && <p className="popup-error">{localError}</p>}
-          <input id="email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email address" autoComplete="email" />
-          <input id="password" type="password" required value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Password" autoComplete="current-password" />
+          <input id="email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email address" autoComplete="email" className="field-dark" />
+          <input id="password" type="password" required value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Password" autoComplete="current-password" className="field-dark" />
           <button type="submit" disabled={loading} className="btn">
             {loading ? 'Signing in...' : 'Sign in'}
           </button>

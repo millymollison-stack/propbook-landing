@@ -130,7 +130,7 @@ export function GuestBookingRequest({ propertyId, propertyName, pricePerNight, m
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4 guest-booking-form">
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="label-on-light">Check-in</label>

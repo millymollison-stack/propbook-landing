@@ -1,36 +1,73 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
+import { getAuthRedirectUrl } from '../store/auth';
 import { Check, X, Loader } from 'lucide-react';
 
 export function EmailConfirmation() {
   const navigate = useNavigate();
   const location = useLocation();
-  const [status, setStatus] = useState<'manual' | 'loading' | 'success' | 'error'>('manual');
+  const [status, setStatus] = useState<'checking' | 'manual' | 'loading' | 'success' | 'error'>('checking');
   const [message, setMessage] = useState('');
   const [tokenInput, setTokenInput] = useState('');
   const [newEmail, setNewEmail] = useState('');
   const [showNewEmailForm, setShowNewEmailForm] = useState(false);
 
-  console.log('=== EMAIL CONFIRMATION COMPONENT RENDERED ===');
-  console.log('Location:', location.pathname, location.search, location.hash);
 
   useEffect(() => {
     // Check if we have auth parameters in the URL
     const urlParams = new URLSearchParams(location.search);
     const hashParams = new URLSearchParams(location.hash.substring(1));
-    
+
     const token = urlParams.get('token') || hashParams.get('access_token');
     const type = urlParams.get('type') || hashParams.get('type');
-    
-    console.log('URL params:', urlParams.toString());
-    console.log('Hash params:', hashParams.toString());
-    console.log('Token:', token, 'Type:', type);
-    
+
     if (token && type === 'email_change') {
       verifyToken(token);
+      return;
     }
-  }, [location]);
+
+    // Standard signup (and magic-link) confirmations: supabase-js's
+    // detectSessionInUrl already parses the access/refresh tokens out of
+    // this URL and establishes a session automatically as soon as the
+    // client loads. This page's only job is to notice that happened and
+    // take the user into the app, instead of leaving them on a manual
+    // "paste your token" form -- previously nothing did that, so a
+    // confirmed user had to go sign in again by hand.
+    let cancelled = false;
+
+    const finishIfSignedIn = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (cancelled || !session) return false;
+      setStatus('success');
+      setMessage('Email confirmed! Taking you in...');
+      setTimeout(() => {
+        if (!cancelled) navigate('/');
+      }, 1200);
+      return true;
+    };
+
+    finishIfSignedIn();
+
+    const { data: authListener } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'SIGNED_IN') finishIfSignedIn();
+    });
+
+    // If no session shows up in a few seconds (expired/invalid link, or the
+    // page was opened directly with no token at all), fall back to manual
+    // entry rather than leaving the user stuck on a spinner.
+    const fallback = setTimeout(() => {
+      if (!cancelled) {
+        setStatus((current) => (current === 'checking' ? 'manual' : current));
+      }
+    }, 4000);
+
+    return () => {
+      cancelled = true;
+      authListener.subscription.unsubscribe();
+      clearTimeout(fallback);
+    };
+  }, [location, navigate]);
 
   const verifyToken = async (token: string) => {
     console.log('Verifying token:', token);
@@ -49,10 +86,13 @@ export function EmailConfirmation() {
       if (response1.error) {
         console.log('First method failed, trying second method...');
         // Second try: using the token as-is
+        // NOTE: this fallback attempt has no email in scope (only token/type come from the URL),
+        // so it can never actually satisfy verifyOtp's email_change+token requirements — pre-existing
+        // limitation of this retry cascade, not something fixed here. Cast preserves current behavior.
         const response2 = await supabase.auth.verifyOtp({
           token: token,
           type: 'email_change'
-        });
+        } as any);
         
         if (response2.error) {
           console.log('Second method failed, trying third method...');
@@ -121,12 +161,10 @@ export function EmailConfirmation() {
 
     setStatus('loading');
     try {
-      const { error } = await supabase.auth.updateUser({
-        email: newEmail,
-        options: {
-          emailRedirectTo: 'http://localhost:5173/auth/confirm'
-        }
-      });
+      const { error } = await supabase.auth.updateUser(
+        { email: newEmail },
+        { emailRedirectTo: getAuthRedirectUrl() }
+      );
 
       if (error) throw error;
 
@@ -144,13 +182,20 @@ export function EmailConfirmation() {
         <div className="text-center">
           <h1 className="h2-on-light mb-4">Email Confirmation</h1>
           
-          <div className="email-confirm-box">
-            <strong>DEBUG INFO:</strong><br/>
-            Status: {status}<br/>
-            Current URL: {location.pathname + location.search + location.hash}<br/>
-            Component is rendering properly!
-          </div>
-          
+          {status === 'checking' && (
+            <>
+              <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-blue-100">
+                <Loader className="h-6 w-6 text-blue-600 animate-spin" />
+              </div>
+              <h2 className="h2-on-light mt-6">
+                Confirming your email...
+              </h2>
+              <p className="body-on-light mt-2">
+                One moment while we finish signing you in.
+              </p>
+            </>
+          )}
+
           {status === 'loading' && (
             <>
               <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-blue-100">

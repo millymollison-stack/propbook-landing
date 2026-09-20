@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { X } from 'lucide-react';
 import { supabase, supabaseAdmin } from '../lib/supabase';
 import { ImageGallery } from '../components/ImageGallery';
 import { PropertyDetails } from '../components/PropertyDetails';
@@ -9,16 +9,16 @@ import ReviewsList from '../components/ReviewsList';
 import ReviewForm from '../components/ReviewForm';
 import { GuestAuthModal } from '../components/GuestAuthModal';
 import { GuestBookingRequest } from '../components/GuestBookingRequest';
-import { duplicateSiteAfterPayment } from '../services/siteDuplicationService';
 import { useAuth } from '../store/auth';
 import { useProperty } from '../store/property';
 import { saveBrandColor } from '../lib/brandColor';
 import { applyFontAccent } from '../lib/fontAccent';
+import { hasAppearanceBeenEdited } from '../lib/appearanceGuard';
 import type { Property, PropertyImage, Booking, BlockedDate } from '../types';
 
 const SURF_HOUSE_BAJA_ID = 'efa8d280-afee-4971-9145-d591740f484d';
 
-export function Home({ isEditing: externalIsEditing, onHasChanges, registerSaveAll, onSiteNameChange, onOpenSidebar, forceOpenOnboarding, onOnboardingClose, onOpenLogin, scrapedProperty: externalScrapedProperty, scrapedImages: externalScrapedImages }: { isEditing?: boolean; onHasChanges?: (hasChanges: boolean) => void; registerSaveAll?: (fn: () => Promise<void>) => void; onSiteNameChange?: (name: string) => void; onOpenSidebar?: () => void; forceOpenOnboarding?: boolean; onOnboardingClose?: () => void; onOpenLogin?: () => void; scrapedProperty?: Partial<Property> | null; scrapedImages?: PropertyImage[] }) {
+export function Home({ isEditing: externalIsEditing, onHasChanges, registerSaveAll, onOpenLogin, scrapedProperty: externalScrapedProperty, scrapedImages: externalScrapedImages }: { isEditing?: boolean; onHasChanges?: (hasChanges: boolean) => void; registerSaveAll?: (fn: () => Promise<void>) => void; onSiteNameChange?: (name: string) => void; onOpenSidebar?: () => void; forceOpenOnboarding?: boolean; onOnboardingClose?: () => void; onOpenLogin?: () => void; scrapedProperty?: Partial<Property> | null; scrapedImages?: PropertyImage[] }) {
   const [property, setProperty] = useState<Property | null>(null);
   const [reviewsRefreshKey, setReviewsRefreshKey] = useState(0);
   const [images, setImages] = useState<PropertyImage[]>([]);
@@ -28,7 +28,7 @@ export function Home({ isEditing: externalIsEditing, onHasChanges, registerSaveA
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
-  const [hasChanges, setHasChanges] = useState(false);
+  const [_hasChanges, setHasChanges] = useState(false);
   const [scrapedImages, setScrapedImages] = useState<PropertyImage[]>([]);
   const [scrapedProperty, setScrapedProperty] = useState<Partial<Property> | null>(null);
 
@@ -43,17 +43,24 @@ export function Home({ isEditing: externalIsEditing, onHasChanges, registerSaveA
     // whatever was last set anywhere else in the app — a different property's color,
     // or nothing — and bleeds into this property's edit view and the app chrome
     // around it until someone happens to repick a color here.
-    const propBrandColor = (current as Property | null)?.brand_color;
-    saveBrandColor(propBrandColor || '#C47756');
-    const propFontAccent = (current as Property | null)?.font_accent;
-    if (propFontAccent) applyFontAccent(propFontAccent);
+    // Skip re-applying the property's saved color/font once the user has
+    // manually picked one this session -- this effect re-runs on nearly
+    // every property-state update (not just an actual property switch),
+    // and without this guard it was silently reverting a fresh pick back
+    // to the last-saved value (David: took 2-3 tries for a change to stick).
+    if (!hasAppearanceBeenEdited()) {
+      const propBrandColor = (current as Property | null)?.brand_color;
+      saveBrandColor(propBrandColor || '#C47756');
+      const propFontAccent = (current as Property | null)?.font_accent;
+      if (propFontAccent) applyFontAccent(propFontAccent);
+    }
   }, [property, scrapedProperty]);
   const [resetKey, setResetKey] = useState(0);
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [showGuestAuth, setShowGuestAuth] = useState(false);
   const [isGuest, setIsGuest] = useState(false);
-  const [defaultProperty, setDefaultProperty] = useState<Property | null>(null);
-  const [defaultImages, setDefaultImages] = useState<PropertyImage[]>([]);
+  const [_defaultProperty, setDefaultProperty] = useState<Property | null>(null);
+  const [_defaultImages, setDefaultImages] = useState<PropertyImage[]>([]);
   const imageGallerySaveRef = useRef<(() => Promise<void>) | null>(null);
   // Accumulate all dirty field changes here; cleared after each Save All
   const dirtyFieldsRef = useRef<Partial<Property>>({});
@@ -74,8 +81,6 @@ export function Home({ isEditing: externalIsEditing, onHasChanges, registerSaveA
     Object.assign(dirtyFieldsRef.current, updates);
     setHasChanges(true);
   }, []);
-  const navigate = useNavigate();
-  const calendarRef = useRef<HTMLDivElement>(null);
 
   // console.log('=== HOME COMPONENT RENDERED ==='); // removed — was causing render-loop noise
 
@@ -199,7 +204,7 @@ export function Home({ isEditing: externalIsEditing, onHasChanges, registerSaveA
       }
     }
 
-    async function fetchLiveData(propertyId: string, bakedProp: Property) {
+    async function fetchLiveData(propertyId: string, _bakedProp: Property) {
       // Fetch latest data from Supabase to overlay dynamic content (bookings, blocked dates)
       try {
         const [{ data: bkgData, error: bkgError }, { data: blkData, error: blkError }] = await Promise.all([
@@ -547,169 +552,6 @@ export function Home({ isEditing: externalIsEditing, onHasChanges, registerSaveA
     }
   };
 
-  // Called when Airbnb import completes — saves to onboarding_data table + 'onboarding' bucket
-
-  const handleImportedImages = async (imported: {
-    hero_image: string;
-    images: string[];
-    title: string;
-    location: string;
-    price: string;
-    description: string;
-    guests?: number;
-    bedrooms?: number;
-    beds?: number;
-    baths?: number;
-    rating?: number;
-    reviews?: number;
-    host_name?: string;
-  }) => {
-    console.log('[Home] Received imported data:', imported.title);
-
-    try {
-      // Upload images to 'onboarding' bucket in Supabase Storage — in parallel for speed
-      const imageList = imported.images || [];
-      const imageUrls: string[] = await Promise.all(
-        imageList.map(async (imgUrl, i) => {
-          try {
-            const response = await fetch(imgUrl);
-            const buffer = await response.arrayBuffer();
-            const filename = `onboarding/${Date.now()}-${i}.jpg`;
-            const { error: uploadError } = await supabase.storage
-              .from('onboarding')
-              .upload(filename, buffer, { contentType: 'image/jpeg' });
-            if (uploadError) return imgUrl; // bucket may not exist — fall back to Airbnb URL
-            const { data: { publicUrl } } = supabase.storage
-              .from('onboarding')
-              .getPublicUrl(filename);
-            return publicUrl;
-          } catch {
-            return imgUrl; // network error — fall back to original URL
-          }
-        })
-      );
-
-      // Fallback: if no images uploaded, use imported.images as-is (for manual/base64)
-      if (imageUrls.length === 0 && imageList.length > 0) {
-        imageUrls.push(...imageList);
-      }
-
-      // Use hero_image from images array if no separate hero_image
-      const primaryImage = imageUrls[0] || imported.hero_image || '';
-
-      // Save to onboarding_data table — use upsert to handle re-onboarding (user already has a row)
-      const { data: onboardingRecord, error: insertError } = await supabase
-        .from('onboarding_data')
-        .upsert({
-          user_id: user.id,
-          property_name: imported.title,
-          description: imported.description,
-          location: imported.location,
-          price: imported.price,
-          hero_image: primaryImage,
-          images: imageUrls,
-          host_name: imported.host_name || null,
-          guests: imported.guests ? String(imported.guests) : null,
-          bedrooms: imported.bedrooms ? String(imported.bedrooms) : null,
-          beds: imported.beds ? String(imported.beds) : null,
-          baths: imported.baths ? String(imported.baths) : null,
-          rating: imported.rating ? String(imported.rating) : null,
-          reviews: imported.reviews ? String(imported.reviews) : null,
-        }, { onConflict: 'user_id' })
-        .select()
-        .single();
-
-      if (insertError) {
-        console.log('[Home] onboarding_data upsert error:', insertError.message);
-      } else {
-        console.log('[Home] Saved to onboarding_data, id:', onboardingRecord?.id);
-      }
-
-      // Build final image list: upload blob/base64 images to Supabase, keep existing URLs as-is
-      const isDataUrl = (s: string) => s.startsWith('data:');
-      const finalUrls: string[] = imageUrls.length > 0
-        ? imageUrls
-        : (imageList || []).map((img: string) => img);
-
-      // Airbnb placeholder skip: only drop first if it's a muscache.com URL (real Airbnb scrape)
-      const isAirbnbPlaceholder = (url: string) => url.includes('muscache.com');
-      const realUrls = finalUrls.length > 0 && isAirbnbPlaceholder(finalUrls[0])
-        ? finalUrls.slice(1)
-        : finalUrls;
-
-      // Only wipe images if we actually have new realUrls; otherwise keep existing scrapedImages
-      if (realUrls.length > 0 || (scrapedImages && scrapedImages.length === 0)) {
-        const newImages: PropertyImage[] = realUrls.map((url: string, idx: number) => ({
-          id: `scraped-${Date.now()}-${idx}`,
-          property_id: 'scrape', // placeholder — will be replaced with real property_id on publish
-          url,
-          position: idx + 1,
-          is_featured: idx === 0,
-          is_main: idx === 0,
-          is_background: false,
-          created_at: new Date().toISOString(),
-        }));
-        setScrapedImages(newImages);
-      }
-      // Map each field to the correct target:
-      // - property_headline  → ImageGallery hero text (first sentence, set in ImageGallery via property?.property_headline)
-      // - property_intro     → ImageGallery description below gallery (first 3 sentences / 24 words, trimmed)
-      // - description        → spare/unused in ImageGallery, set to trimmed full text
-      const descText = imported.description || '';
-      // extractFirstSentence + extractFirst24Words helpers live in GetSite — re-implement here minimally
-      const firstPeriod = descText.indexOf('.');
-      const heroHeadline = firstPeriod > 0 && firstPeriod < 120
-        ? descText.slice(0, firstPeriod + 1).trim()
-        : descText.slice(0, 120).trim();
-      // First 3 sentences, max 24 words
-      const sentences = descText.split(/(?<=[.!?])\s+/).filter(s => s.trim());
-      const words: string[] = [];
-      let wordCount = 0;
-      outer: for (const sentence of sentences) {
-        for (const word of sentence.trim().split(/\s+/)) {
-          if (wordCount >= 24) break outer;
-          words.push(word); wordCount++;
-        }
-      }
-      let intro24 = words.join(' ');
-      if (wordCount >= 24 && !/[.!?]$/.test(intro24)) {
-        const lp = Math.max(intro24.lastIndexOf('.'), intro24.lastIndexOf('!'), intro24.lastIndexOf('?'));
-        if (lp > 0) intro24 = intro24.slice(0, lp + 1);
-      }
-      intro24 = intro24.trim();
-      // property_headline from imported.property_title (if set by GetSite) or infer from title length
-      const isHeadline = (imported.title || '').length > 12;
-      const property_headline = (imported as any).property_title || (isHeadline ? imported.title : property?.property_headline || '');
-      console.log('[Home] setScrapedProperty:', { property_headline, property_intro: intro24, title: imported.title });
-      setScrapedProperty({
-        // NOTE: do NOT set id to property?.id — that points to the old demo property.
-        // A real id will be assigned when the site is published.
-        title: imported.title || property?.title || '',
-        // description = 24-word teaser → ImageGallery hero-image overlay
-        // property_intro = full original text → PropertyDetails below-photos section
-        // (must match the mapping migrate-property/save-site-records use on publish,
-        // and what ImageGallery.tsx / PropertyDetails.tsx read post-publish)
-        description: intro24,
-        property_title: property_headline,
-        property_intro: descText.replace(/\s+/g, ' ').trim(),
-        property_headline: property_headline,  // ImageGallery reads property?.property_headline for hero text
-        location: imported.location || property?.location || '',
-        price_per_night: imported.price || property?.price_per_night || null,
-        max_guests: imported.guests || property?.max_guests || null,
-      });
-
-
-    } catch (err) {
-      console.error('[Home] handleImportedImages error:', err);
-    }
-  };
-
-  const handlePopupClose = () => {
-    // Reset scraped data so popup mounts fresh next time
-    setScrapedProperty(null);
-    setScrapedImages([]);
-    setResetKey(k => k + 1);
-  };
 
   const handleBookingSubmit = async (bookingData: {
     start_date: string;
@@ -867,13 +709,20 @@ export function Home({ isEditing: externalIsEditing, onHasChanges, registerSaveA
 
       {showReviewModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="sb-panel-bg rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="sticky top-0 sb-panel-bg border-b border-gray-200 px-6 py-4 flex items-center justify-between">
-              <h2 className="review-modal-title">Leave a Review</h2>
-            </div>
-            <div className="p-6">
-              <ReviewForm propertyId={property?.id || ''} onSuccess={() => { setShowReviewModal(false); setReviewsRefreshKey(k => k + 1); }} />
-            </div>
+          {/* Round 7: same fix as CustomerSite.tsx's copy of this modal --
+              dropped the separate white sticky header bar, floating close X
+              via the shared .popup-close class, and the shared
+              .modal-panel-light padding (same class the booking modal uses). */}
+          <div className="sb-panel-bg rounded-xl shadow-2xl max-w-[400px] w-full max-h-[90vh] overflow-y-auto modal-panel-light">
+            <button
+              onClick={() => setShowReviewModal(false)}
+              aria-label="Close"
+              className="popup-close"
+            >
+              <X className="h-5 w-5" />
+            </button>
+            <h2 className="hero-title-edit review-modal-title">Leave a Review</h2>
+            <ReviewForm propertyId={property?.id || ''} onSuccess={() => { setShowReviewModal(false); setReviewsRefreshKey(k => k + 1); }} />
           </div>
         </div>
       )}

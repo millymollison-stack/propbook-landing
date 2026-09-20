@@ -16,9 +16,9 @@
  * Hostinger SSH: u805830916@82.29.86.252 port 65002
  */
 
-import { supabase, supabaseAdmin } from '../lib/supabase';
+import { supabase } from '../lib/supabase';
 import { createSlug } from './slugService';
-import { BUNDLE_JS, BUNDLE_CSS, BUNDLE_VERSION } from './bundle-versions';
+import { BUNDLE_VERSION } from './bundle-versions';
 
 export interface ScrapedData {
   title: string;
@@ -39,7 +39,7 @@ export interface ScrapedData {
 export interface NewSiteData {
   email: string;
   userId: string;
-  userStripeAccountId?: string;
+  userStripeAccountId?: string | null;
   bookingsEmail: string;
   websiteName: string;
   websiteDesc: string;
@@ -77,7 +77,7 @@ export async function loadTemplateHtml(): Promise<string> {
 // ─────────────────────────────────────────────
 // STEP 2 — Generate HTML by replacing placeholders
 // ─────────────────────────────────────────────
-export function generateSiteHtml(template: string, data: NewSiteData, jsBundle?: string, cssBundle?: string): string {
+export function generateSiteHtml(template: string, data: NewSiteData, _jsBundle?: string, _cssBundle?: string): string {
   const s = data.scrapedData;
   const price = s?.price ? s.price.replace(/[^0-9.]/g, '') : '150';
   const heroImage = s?.hero_image || '/template/surfhousebaja-main.jpg';
@@ -151,16 +151,6 @@ export function generateTemplateHtml(template: string, data: NewSiteData, supaba
   const amenitiesBgImage = img1; // reuse first image as ambient bg
   const reviewsBgImage = img2 || img1;
   const dropdownsBgImage = img3 || img1;
-
-  // Escape a string for safe use inside a JS string literal
-  const e = (v: string) =>
-    String(v ?? '')
-      .replace(/\\/g, '\\\\')
-      .replace(/'/g, "\\\\'")
-      .replace(/"/g, '\\"')
-      .replace(/\n/g, '\\n')
-      .replace(/\r/g, '\\r')
-      .replace(/\t/g, '\\t');
 
   // Property data for React app — baked into HTML so it loads instantly without Supabase fetch
   const propertyDataJson = JSON.stringify({

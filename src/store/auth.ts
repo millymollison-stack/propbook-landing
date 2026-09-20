@@ -2,6 +2,19 @@ import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
 import type { Profile } from '../types';
 
+// Property sites are served as a static per-property index.html at
+// /props/<slug>/ which sets window.__PROPERTY_DATA__ inline before the app
+// loads (see App.tsx's isPropertySite check). The main app's React Router
+// always uses basename="/app", while a property site uses
+// basename="/props/<slug>" -- so the email-confirmation link has to point
+// at a URL that matches whichever basename will be active when it's opened,
+// or the /auth/confirm route can never render at all.
+export function getAuthRedirectUrl(): string {
+  const propertyData = (window as any).__PROPERTY_DATA__;
+  const base = propertyData?.slug ? `/props/${propertyData.slug}` : '/app';
+  return `${window.location.origin}${base}/auth/confirm`;
+}
+
 interface AuthState {
   user: Profile | null;
   loading: boolean;
@@ -10,7 +23,7 @@ interface AuthState {
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string, fullName: string, phoneNumber: string, isAdmin?: boolean) => Promise<void>;
   signOut: () => Promise<void>;
-  updateProfile: (updates: Partial<Profile>) => Promise<void>;
+  updateProfile: (updates: Partial<Profile>) => Promise<{ emailChangeRequested: boolean } | undefined>;
   refreshUser: () => Promise<void>;
   clearError: () => void;
 }
@@ -90,13 +103,13 @@ export const useAuth = create<AuthState>((set) => ({
     }
   },
 
-  signUp: async (email, password, fullName, phoneNumber, isAdmin = false) => {
+  signUp: async (email, password, fullName, phoneNumber, _isAdmin = false) => {
     try {
       const { data: { user }, error: signUpError } = await supabase.auth.signUp({
         email,
         password,
         options: {
-          emailRedirectTo: 'http://localhost:5173/auth/confirm',
+          emailRedirectTo: getAuthRedirectUrl(),
           data: {
             full_name: fullName,
             phone_number: phoneNumber,
@@ -173,12 +186,10 @@ export const useAuth = create<AuthState>((set) => ({
       // If email is being updated, handle it separately
       if (updates.email && updates.email !== user.email) {
         // Update auth email first
-        const { error: emailError } = await supabase.auth.updateUser({
-          email: updates.email,
-          options: {
-            emailRedirectTo: `${window.location.origin}/auth/confirm`
-          }
-        });
+        const { error: emailError } = await supabase.auth.updateUser(
+          { email: updates.email },
+          { emailRedirectTo: getAuthRedirectUrl() }
+        );
         
         if (emailError) throw emailError;
         

@@ -82,9 +82,9 @@ export default function ReviewForm({ onSuccess, propertyId }: ReviewFormProps) {
       )}
 
       <form onSubmit={handleSubmit} className="space-y-3">
-        <div className="grid md:grid-cols-2 gap-3">
+        <div className="space-y-3">
           <div>
-            <label htmlFor="guest_name" className="label-on-light">
+            <label htmlFor="guest_name" className="review-form-label">
               Your Name
             </label>
             <input
@@ -98,7 +98,7 @@ export default function ReviewForm({ onSuccess, propertyId }: ReviewFormProps) {
           </div>
 
           <div>
-            <label htmlFor="guest_email" className="label-on-light">
+            <label htmlFor="guest_email" className="review-form-label">
               Your Email
             </label>
             <input
@@ -113,7 +113,7 @@ export default function ReviewForm({ onSuccess, propertyId }: ReviewFormProps) {
         </div>
 
         <div>
-          <label htmlFor="stay_date" className="label-on-light">
+          <label htmlFor="stay_date" className="review-form-label">
             When did you stay?
           </label>
           <input
@@ -127,7 +127,7 @@ export default function ReviewForm({ onSuccess, propertyId }: ReviewFormProps) {
         </div>
 
         <div>
-          <label className="label-on-light">Rating</label>
+          <label className="review-form-label">Rating</label>
           <div className="flex gap-2">
             {[1, 2, 3, 4, 5].map((star) => (
               <button
@@ -136,7 +136,7 @@ export default function ReviewForm({ onSuccess, propertyId }: ReviewFormProps) {
                 onClick={() => setFormData({ ...formData, rating: star })}
                 onMouseEnter={() => setHoveredRating(star)}
                 onMouseLeave={() => setHoveredRating(0)}
-                className="transition-transform hover:scale-110"
+                className="transition-transform hover:scale-110 review-form-star-btn"
               >
                 <Star
                   className={`w-8 h-8 ${
@@ -151,7 +151,7 @@ export default function ReviewForm({ onSuccess, propertyId }: ReviewFormProps) {
         </div>
 
         <div>
-          <label htmlFor="review_text" className="label-on-light">
+          <label htmlFor="review_text" className="review-form-label">
             Your Review
           </label>
           <textarea

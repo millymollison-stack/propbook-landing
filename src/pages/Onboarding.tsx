@@ -1,7 +1,7 @@
 // Onboarding Flow Component
 // src/pages/Onboarding.tsx
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { supabase } from '../lib/supabase';
 
 export function Onboarding() {
@@ -51,7 +51,7 @@ export function Onboarding() {
       if (!authData.user) throw new Error('No user created');
       
       // Create property
-      const { data: property, error: propertyError } = await supabase
+      const { error: propertyError } = await supabase
         .from('properties')
         .insert({
           title: formData.propertyName,

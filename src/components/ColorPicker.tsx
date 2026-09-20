@@ -3,7 +3,6 @@ import { useState, useRef, useEffect } from 'react';
 import { Palette, X, Check } from 'lucide-react';
 import { saveBrandColor, loadBrandColor } from '../lib/brandColor';
 import { FONT_OPTIONS, saveFontAccent, loadFontAccent, applyFontAccent } from '../lib/fontAccent';
-import { FontDropdown } from './FontDropdown';
 import { supabase } from '../lib/supabase';
 
 const PRESET_COLORS = [
@@ -213,7 +212,7 @@ export default function ColorPicker({ isEditing, propertyId }: { isEditing?: boo
 
       {/* Floating trigger button */}
       <button
-        onMouseDown={(e) => { triggerRef.current = true; }}
+        onMouseDown={(_e) => { triggerRef.current = true; }}
         onClick={() => { setOpen(o => !o); setTimeout(() => { triggerRef.current = false; }, 0); }}
         className="color-picker-trigger"
         title="Change brand color"

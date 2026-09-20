@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { CheckCircle, XCircle, Clock, Loader, ArrowLeft } from 'lucide-react';
 import { useAuth } from '../store/auth';
@@ -11,7 +11,7 @@ export function GuestAccount() {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [propertyId, setPropertyId] = useState<string | null>(null);
+  const [_propertyId, setPropertyId] = useState<string | null>(null);
 
   useEffect(() => {
     const propId = getPropertyId();

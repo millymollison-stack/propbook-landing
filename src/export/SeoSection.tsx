@@ -19,7 +19,7 @@ export function SeoSection({ fields, onChange, images }: {
   onChange: React.Dispatch<React.SetStateAction<SeoFields>>;
   images?: string[];
 }) {
-  const [saved, setSaved] = useState(false);
+  const [_saved, _setSaved] = useState(false);
   const metaLength = fields.meta_description.length;
   const isOverLimit = metaLength > 160;
 
@@ -35,7 +35,6 @@ export function SeoSection({ fields, onChange, images }: {
           placeholder="Custom SEO title (defaults to property name)"
           className="sb-input-light seo-input-spaced"
         />
-        <p className="seo-field-hint">Shown in browser tab and Google results</p>
       </div>
 
       {/* Meta Description */}
@@ -65,7 +64,7 @@ export function SeoSection({ fields, onChange, images }: {
         <select
           value={fields.og_image_url}
           onChange={e => onChange(f => ({ ...f, og_image_url: e.target.value }))}
-          className="booking-modal-select seo-input-spaced"
+          className="sb-input-light seo-input-spaced"
         >
           <option value="">Auto (first property image)</option>
           {images && images.map((img, i) => (
@@ -82,7 +81,6 @@ export function SeoSection({ fields, onChange, images }: {
             onError={e => { e.currentTarget.style.display = 'none'; }}
           />
         )}
-        <p className="seo-field-hint">Recommended: 1200×630px for Facebook/LinkedIn</p>
       </div>
 
       {/* Google Business Profile */}
@@ -95,9 +93,6 @@ export function SeoSection({ fields, onChange, images }: {
           placeholder="https://business.google.com/..."
           className="sb-input-light seo-input-spaced"
         />
-        <p className="seo-field-hint">
-          Link your Google Business Profile for better local search visibility
-        </p>
       </div>
 
       {/* Google Site Verification */}
@@ -110,16 +105,12 @@ export function SeoSection({ fields, onChange, images }: {
           placeholder="e.g. A4O8H3XK2Z9R7P6"
           className="sb-input-light seo-input-spaced"
         />
-        <p className="seo-field-hint">
-          Add your site to Google Search Console → Settings → Verification → HTML tag → paste the content after <code className="seo-inline-code">content=</code>
-        </p>
       </div>
 
       {/* Robots noindex */}
       <div className="sb-toggle-row seo-section-divider">
         <div className="seo-toggle-flex1">
           <p className="seo-toggle-label">Hide from search engines</p>
-          <p className="seo-toggle-desc">Adds noindex meta tag to published site</p>
         </div>
         <div
           onClick={() => onChange(f => ({ ...f, robots_noindex: !f.robots_noindex }))}
@@ -132,13 +123,11 @@ export function SeoSection({ fields, onChange, images }: {
       {/* AI/SEO Discovery Files — section header */}
       <div className="seo-section-divider">
         <p className="seo-section-title">AI / LLM Discovery Files</p>
-        <p className="seo-section-subtitle">Generated at publish time. Help AI crawlers and search engines discover your listing.</p>
 
         {/* robots.txt toggle */}
         <div className="sb-toggle-row seo-toggle-row-mb">
           <div className="seo-toggle-flex1">
             <p className="seo-toggle-label-sm">robots.txt</p>
-            <p className="seo-toggle-desc-sm">Allows AI bots to crawl your site</p>
           </div>
           <div
             onClick={() => onChange(f => ({ ...f, generate_robots_txt: !f.generate_robots_txt }))}
@@ -152,7 +141,6 @@ export function SeoSection({ fields, onChange, images }: {
         <div className="sb-toggle-row seo-toggle-row-mb">
           <div className="seo-toggle-flex1">
             <p className="seo-toggle-label-sm">sitemap.xml</p>
-            <p className="seo-toggle-desc-sm">Helps search engines index all pages</p>
           </div>
           <div
             onClick={() => onChange(f => ({ ...f, generate_sitemap_xml: !f.generate_sitemap_xml }))}
@@ -166,7 +154,6 @@ export function SeoSection({ fields, onChange, images }: {
         <div className="sb-toggle-row seo-toggle-row-mb">
           <div className="seo-toggle-flex1">
             <p className="seo-toggle-label-sm">llms.txt</p>
-            <p className="seo-toggle-desc-sm">Plain-text site description for LLMs</p>
           </div>
           <div
             onClick={() => onChange(f => ({ ...f, generate_llms_txt: !f.generate_llms_txt }))}
@@ -180,7 +167,6 @@ export function SeoSection({ fields, onChange, images }: {
         <div className="sb-toggle-row">
           <div className="seo-toggle-flex1">
             <p className="seo-toggle-label-sm">faq-ai.txt</p>
-            <p className="seo-toggle-desc-sm">5-8 FAQ Q&A pairs about the property</p>
           </div>
           <div
             onClick={() => onChange(f => ({ ...f, generate_faq_ai_txt: !f.generate_faq_ai_txt }))}

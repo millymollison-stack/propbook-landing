@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import { BarChart, Calendar, Users, DollarSign, ArrowUp, ArrowDown, Filter, Star } from 'lucide-react';

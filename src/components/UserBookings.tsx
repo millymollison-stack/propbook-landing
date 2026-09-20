@@ -1,11 +1,10 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { memo } from 'react';
 import { format, addDays } from 'date-fns';
 import { Check, X, Clock, Mail, Phone, User, MessageSquare, Home, CreditCard, AlertCircle } from 'lucide-react';
 import type { Booking, Property, Profile, PaymentStatus } from '../types';
 import { useAuth } from '../store/auth';
 import { supabase } from '../lib/supabase';
-import { EmailNotificationService } from '../services/emailService';
 
 interface UserBookingsProps {
   bookings: (Booking & { property: Property; user: Profile })[];

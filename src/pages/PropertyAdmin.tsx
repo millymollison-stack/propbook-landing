@@ -5,7 +5,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../store/auth';
 import type { Property, PropertyImage, Booking } from '../types';
-import { Layers, Star, X } from 'lucide-react';
+import { Layers } from 'lucide-react';
 
 export function PropertyAdmin() {
   const { user } = useAuth();
@@ -64,7 +64,7 @@ export function PropertyAdmin() {
       owner_id: user.id
     };
     
-    const { data, error } = await supabase
+    const { data} = await supabase
       .from('properties')
       .insert(newProperty)
       .select()
@@ -79,7 +79,7 @@ export function PropertyAdmin() {
   async function updateProperty(updates: Partial<Property>) {
     if (!selectedProperty) return;
     
-    const { data, error } = await supabase
+    const { data} = await supabase
       .from('properties')
       .update(updates)
       .eq('id', selectedProperty.id)
@@ -98,7 +98,7 @@ export function PropertyAdmin() {
     const fileExt = file.name.split('.').pop();
     const fileName = `${selectedProperty.id}/${Date.now()}.${fileExt}`;
     
-    const { data: uploadData, error: uploadError } = await supabase.storage
+    const { data: uploadData} = await supabase.storage
       .from('property-images')
       .upload(fileName, file);
     
@@ -290,7 +290,7 @@ function PropertyForm({ property, onSave }: { property: Property; onSave: (updat
           <label className="label-on-light">Bathrooms</label>
           <input
             type="number"
-            value={formData.bathrooms}
+            value={formData.bathrooms ?? ''}
             onChange={e => setFormData({ ...formData, bathrooms: parseInt(e.target.value) })}
             className="w-full px-3 py-2 border rounded-lg"
           />
@@ -343,7 +343,7 @@ function BookingsList({ bookings }: { bookings: Booking[] }) {
         <tbody className="divide-y divide-gray-200">
           {bookings.map(booking => (
             <tr key={booking.id}>
-              <td className="px-6 py-4">{booking.guest_name}</td>
+              <td className="px-6 py-4">{(booking as any).guest_name}</td>
               <td className="px-6 py-4">
                 {new Date(booking.start_date).toLocaleDateString()} - {new Date(booking.end_date).toLocaleDateString()}
               </td>
@@ -371,7 +371,7 @@ function BookingsList({ bookings }: { bookings: Booking[] }) {
 }
 
 // Image Manager Component
-function ImageManager({ images, onUpload, onUpdate, propertyId }: { 
+function ImageManager({ images, onUpload, onUpdate}: { 
   images: PropertyImage[]; 
   onUpload: (file: File) => Promise<void>;
   onUpdate?: (imageId: string, updates: Partial<PropertyImage>) => Promise<void>;
@@ -427,7 +427,7 @@ function ImageManager({ images, onUpload, onUpdate, propertyId }: {
 }
 
 // Settings Component  
-function PropertySettings({ property, onSave }: { property: Property; onSave: (updates: Partial<Property>) => Promise<void> }) {
+function PropertySettings({ property: _property, onSave: _onSave }: { property: Property; onSave: (updates: Partial<Property>) => Promise<void> }) {
   return (
     <div className="sb-panel-bg rounded-lg shadow p-6 space-y-6">
       <h3 className="h4-on-light">Property Settings</h3>

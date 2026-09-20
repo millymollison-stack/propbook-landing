@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { CreditCard as Edit2, Save, X, Upload, Trash2 } from 'lucide-react';
+import { CreditCard as Edit2, X, Upload, Trash2 } from 'lucide-react';
 import { useAuth } from '../store/auth';
 import type { Property, PropertyImage } from '../types';
 
@@ -27,14 +27,6 @@ export function AdminProfile({ property, images, onSave, onImageUpload, onImageD
     }));
   };
 
-  const handleAmenitiesChange = (amenity: string) => {
-    setFormData(prev => ({
-      ...prev,
-      amenities: prev.amenities.includes(amenity)
-        ? prev.amenities.filter(a => a !== amenity)
-        : [...prev.amenities, amenity]
-    }));
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -152,7 +144,7 @@ export function AdminProfile({ property, images, onSave, onImageUpload, onImageD
                 <input
                   type="number"
                   name="bathrooms"
-                  value={formData.bathrooms}
+                  value={formData.bathrooms ?? ''}
                   onChange={handleInputChange}
                   disabled={!isEditing}
                   className="sb-input-light"

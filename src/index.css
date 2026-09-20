@@ -4,6 +4,16 @@
 
 body { background: #0f0f0f; }
 
+/* Lock the viewport so mobile Safari/Chrome can't pinch-zoom the layout
+   and get stuck in a larger viewport that then slides around. Paired
+   with the maximum-scale=1.0, user-scalable=no viewport meta tag in
+   index.html -- this is the CSS-side backup for browsers that still
+   allow gesture zoom despite the meta tag (notably iOS Safari). */
+html, body {
+  touch-action: pan-x pan-y;
+  -ms-touch-action: pan-x pan-y;
+}
+
 /* ============================================
    LEAFLET MAP
    ============================================ */
@@ -15,26 +25,49 @@ body { background: #0f0f0f; }
 
 /* ============================================
    HERO & TITLE STYLES
+   Round 6 follow-up: David -- "increase the size of the title fonts by
+   10%". This clamp(1.5rem, 2.8vw, 1.875rem) scale is reused verbatim by
+   every title-style heading in the app (.hero-title, .hero-title-edit,
+   .hero-title-price, .reviews-section-heading, .auth-modal h1,
+   .popup-modal h1 incl. the GetSite.tsx step titles, .location-map-modal
+   h1) -- bumped all of them together so the scale stays one consistent
+   size everywhere: 1.5rem->1.65rem, 2.8vw->3.08vw, 1.875rem->2.0625rem.
    ============================================ */
 
 .hero-title {
   font-family: var(--font-accent, 'Playfair Display'), serif !important;
-  font-size: clamp(1.5rem, 2.8vw, 1.875rem) !important;
+  font-size: calc(var(--title-font-size-base, clamp(1.49rem, 3.78vw, 2.16rem)) * var(--title-size-multiplier, 1)) !important;
+  line-height: var(--title-line-height, 1.35) !important;
   font-weight: 400 !important;
-  text-transform: uppercase !important;
+  /* David: property headline is a full sentence he typed himself --
+     force-capitalizing every word mangled his own casing. Other
+     .hero-title uses are short, already-correct-case section labels
+     (Amenities, Activities, ...) so removing this is safe everywhere
+     else the class is used too. */
   margin-bottom: 10px !important;
   color: rgba(255, 255, 255, 0.9) !important;
   padding: 0px 0px 0px 0px !important;
+  /* David: "20% taller character height" -- same device the landing
+     page's titles already use (.pb-title below carries this value too). */
+  transform: scaleY(1.2) !important;
+  transform-origin: bottom !important;
 }
 
 .hero-title-edit {
   /* color !important kept (was the value actually winning live between two
      duplicate rules — this one and Editmode.css's); font-size/weight/
-     text-transform merged in from that Editmode.css copy, Round 4. */
+     text-transform merged in from that Editmode.css copy, Round 4.
+     font-family added so standalone .hero-title-edit uses give the same
+     changeable (--font-accent) font as every other title in the app —
+     David: "Confirm Your Booking" modal title should match. */
   color: #111 !important;
-  font-size: clamp(1.5rem, 2.8vw, 1.875rem);
+  font-family: var(--font-accent, 'Playfair Display'), serif;
+  font-size: calc(var(--title-font-size-base, clamp(1.49rem, 3.78vw, 2.16rem)) * var(--title-size-multiplier, 1));
+  line-height: var(--title-line-height, 1.35);
   font-weight: 400;
-  text-transform: uppercase;
+  text-transform: capitalize;
+  transform: scaleY(1.2);
+  transform-origin: bottom;
 }
 
 /* ============================================
@@ -82,6 +115,15 @@ body { background: #0f0f0f; }
   font-weight: 500;
   color: #374151;
   margin-bottom: 0.25rem;
+  /* Round 6: a bare `label { padding: 10px 0 20px; line-height: 1.8; }` rule
+     elsewhere (written for the dark-background popup forms) has no equivalent
+     specificity fight to lose here -- .label-on-light never reset those two
+     properties, so every review-form label was quietly carrying 30px of
+     padding + an oversized line-height on top of its own 4px margin. Across
+     5 stacked fields that's ~150px of dead air -- this is the actual cause
+     of David's "way too much space between text areas" in the review modal. */
+  padding: 0;
+  line-height: 1.4;
 }
 .caption-on-light {
   /* Repeated small-caption-above-value pattern (e.g. GuestAccount.tsx's
@@ -106,12 +148,69 @@ body { background: #0f0f0f; }
   letter-spacing: 0.05em;
 }
 
+/* ============================================
+   MOBILE (<=480px): BODY COPY +25%
+   David, after checking the site on his phone: "All body copy needs to be
+   25% larger at a mobile viewport." Scoped to the semantic body-text
+   classes (.body-on-light/.body-on-dark) plus the Tailwind text-xs/sm/base
+   utilities that most paragraph/description text in the app still uses
+   directly -- NOT headings, titles, buttons, prices, or the small-caps
+   label/eyebrow/caption classes above, which are sized and tuned
+   separately from body copy.
+   ============================================ */
+@media (max-width: 480px) {
+  .body-on-light, .body-on-dark {
+    font-size: 1.1875rem !important; /* 0.95rem * 1.25 */
+  }
+  .text-xs {
+    font-size: 0.9375rem !important; /* 0.75rem * 1.25 */
+  }
+  .text-sm {
+    font-size: 1.09375rem !important; /* 0.875rem * 1.25 */
+  }
+  .text-base {
+    font-size: 1.25rem !important; /* 1rem * 1.25 */
+  }
+}
+
 .hero-title-price {
   font-family: var(--font-accent, 'Playfair Display'), serif !important;
-  font-size: clamp(1.5rem, 2.8vw, 1.875rem) !important;
+  font-size: calc(var(--title-font-size-base, clamp(1.49rem, 3.78vw, 2.16rem)) * var(--title-size-multiplier, 1)) !important;
+  line-height: var(--title-line-height, 1.35) !important;
   font-weight: 400 !important;
-  text-transform: uppercase !important;
+  text-transform: capitalize !important;
   color: rgba(255, 255, 255, 0.9) !important;
+  /* Real root cause of the price/USD-per-night gap David kept flagging:
+     the generic h1{} rule's margin-bottom:30px was never overridden here,
+     so it always applied underneath .hero-price-suffix's own tight
+     line-height, pushing it down regardless. */
+  margin: 0 !important;
+  transform: scaleY(1.2) !important;
+  transform-origin: bottom !important;
+}
+
+/* Small "$" ahead of the headline-size price number, and the "USD /night"
+   line underneath it -- both kept the same small size as each other so
+   the price reads as one big number with two small labels bracketing it,
+   per David's ask (Round 8). */
+.hero-price-currency {
+  font-family: var(--font-accent, 'Playfair Display'), serif;
+  font-size: clamp(1rem, 1.4vw, 1.125rem);
+  font-weight: 400;
+  color: rgba(255, 255, 255, 0.9);
+  margin-right: 3px;
+}
+
+.hero-price-suffix {
+  display: block;
+  font-family: 'Inter', sans-serif;
+  font-size: clamp(1rem, 1.4vw, 1.125rem);
+  font-weight: 400;
+  color: rgba(255, 255, 255, 0.8);
+  margin-top: 2px;
+  /* David: "much smaller line-height so it's really tucked up under the
+     number." */
+  line-height: 1;
 }
 
 .hero-subtitle {
@@ -238,7 +337,10 @@ body { background: #0f0f0f; }
   left: 0;
   right: 0;
   z-index: 10;
-  padding: 1.25rem;
+  /* David: "too much space above the headline -- make it 10px above the
+     headline text." Split out of the flat 1.25rem shorthand so only the
+     top edge (the space above the title) changes. */
+  padding: 10px 1.25rem 1.25rem;
 }
 
 /* ============================================
@@ -286,6 +388,17 @@ body { background: #0f0f0f; }
   .amenities-content { padding-left: 3rem; padding-right: 3rem; }
 }
 
+/* David: "Amenities section needs to be on a wider grid with 20px less
+   padding or margin to accommodate the larger text size" -- body copy
+   (amenity names, the .body-on-dark counter line) is 25% bigger at this
+   breakpoint (see the MOBILE BODY COPY +25% block above), so the grid
+   gets the same 20px back by trimming the section's own side padding
+   instead of the grid itself, widening every cell without touching the
+   2/3/4-column breakpoints in .grid-2-cols. */
+@media (max-width: 480px) {
+  .amenities-content { padding-left: 6px; padding-right: 6px; }
+}
+
 /* ============================================
    GLASS CARDS
    ============================================ */
@@ -329,7 +442,7 @@ body { background: #0f0f0f; }
 @media (max-width: 410px) {
   .lozenge { font-size: 0.85rem; padding: 0.15rem 0.5rem; margin: 0 0 10px 0; }
   .gallery-content-overlay { padding: 0.25rem; }
-    .hero-subtitle { font-size: 1.25rem !important; padding: 20px 0px 0px 0px !important; }
+    .hero-subtitle { font-size: 1.25rem !important; padding: 0px !important; }
   .hero-subtitle h1 { font-size: 1.8rem !important; }
     p { font-size: 1.1rem !important; }
 }
@@ -579,20 +692,25 @@ body { background: #0f0f0f; }
 
 .reviews-section-heading {
   font-family: var(--font-accent, 'Playfair Display'), serif;
-  font-size: clamp(1.5rem, 2.8vw, 1.875rem);
+  font-size: calc(var(--title-font-size-base, clamp(1.49rem, 3.78vw, 2.16rem)) * var(--title-size-multiplier, 1));
+  line-height: var(--title-line-height, 1.35);
   font-weight: 400;
-  text-transform: uppercase;
+  text-transform: capitalize;
   color: #000 !important;
   text-align: center;
   padding-top: 14px;
   padding-bottom: 10px;
+  transform: scaleY(1.2);
+  transform-origin: bottom;
 }
 
 .review-btn {
   display: block;
   width: max-content;
   margin: 0 auto;
-  padding: 0.625rem 1.5rem;
+  /* David: uniform height with the Get Data button -- 12px vertical
+     (was 0.625rem / 10px). */
+  padding: 12px 1.5rem;
   background: var(--brand);
   color: #fff;
   border-radius: 6px;
@@ -600,19 +718,47 @@ body { background: #0f0f0f; }
   font-weight: 500;
   border: none;
   cursor: pointer;
-  transition: background 0.15s;
+  transition: opacity 0.15s;
 }
+.review-btn:hover { opacity: 0.9; }
+.review-btn:active { opacity: 0.7; }
 
 /* Leave-a-review modal (ReviewForm.tsx) — reuses .review-btn + .sb-input-light for consistency */
 .review-form-textarea {
   resize: none !important;
   min-height: 90px;
+  /* David: "10px of padding below the multi line text box so there's
+     more space between it and the button." Margin, not padding -- this
+     is space *outside* the field, between it and the submit button
+     below, which is what padding-bottom on the textarea itself can't do. */
+  margin-bottom: 10px;
+}
+
+/* David: field labels in this modal should read like the admin sidebar's
+   edit-mode descriptor text (.sb-h4-grey) instead of the darker default
+   .label-on-light -- scoped to just this form so the sidebar's own
+   .label-on-light usages elsewhere aren't affected. */
+.review-form-label {
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 300;
+  color: grey;
+  margin-bottom: 0.25rem;
+  padding: 0;
+  line-height: 1.4;
 }
 
 .review-form-submit {
+  /* Round 6: was width:100% of the whole modal (max-w-2xl / 672px), while
+     every input above it is capped at .sb-input-light's max-width:400px --
+     David: "make the Submit review button the same width as the input
+     fields." Matching that cap here instead of stretching full-width. */
   width: 100% !important;
+  max-width: 400px !important;
   margin: 4px 0 0 0 !important;
-  padding: 0.7rem 1.5rem;
+  /* +4px top padding per David's "extra 4px padding above all buttons"
+     in this modal (was 0.7rem/~11px all round -> ~15px top only). */
+  padding: 1.02rem 1.5rem 0.7rem;
 }
 .review-form-submit:hover { background: var(--brand); filter: brightness(0.92); }
 
@@ -693,17 +839,22 @@ body { background: #0f0f0f; }
   justify-content: center;
   gap: 8px;
   margin: 12px auto 0;
-  padding: 10px 20px;
+  /* David: uniform height with the Get Data button -- 12px vertical. */
+  padding: 12px 20px;
   background: var(--brand);
   color: #fff;
   border: none;
   border-radius: 6px;
   font-size: 1rem;
   cursor: pointer;
-  transition: background-color 0.15s;
+  transition: opacity 0.15s;
 }
 
-.view-location-btn:hover { background: rgba(255,255,255,0.4); }
+/* Was `background: rgba(255,255,255,0.4)` -- turned the button almost
+   white on hover instead of dimming it. Matched to .btn's opacity-based
+   hover/active so it's uniform regardless of a button's own background. */
+.view-location-btn:hover { opacity: 0.9; }
+.view-location-btn:active { opacity: 0.7; }
 .view-location-btn svg { width: 18px; height: 18px; flex-shrink: 0; }
 
 /* ============================================
@@ -783,7 +934,11 @@ body { background: #0f0f0f; }
 .book-now-rating span:first-child { color: #fff; font-weight: 500; }
 
 .book-now-btn {
-  padding: 0.5rem 1.5rem;
+  /* David: "Book Now button is smaller than the Get data button. Make all
+     the buttons as tall as the Get data button" -- same vertical padding
+     as .btn (12px), matching the precedent already used for .publish-btn
+     below. Horizontal padding/font-size left as this button's own. */
+  padding: 12px 1.5rem;
   background: var(--brand);
   color: #fff;
   border-radius: 6px;
@@ -800,26 +955,39 @@ body { background: #0f0f0f; }
    BOOKING MODAL
    ============================================ */
 
-/* Outer modal card */
-.booking-modal {
-  padding: 0.5rem 0.75rem;
+/* Shared light-panel modal container -- used by BOTH the booking modal
+   and the "Leave a Review" modal (CustomerSite.tsx + Home.tsx) so the two
+   don't each carry their own copy of this rule. Dropped the old, unused
+   .booking-modal (no "-body") duplicate that nothing in JSX referenced. */
+.modal-panel-light {
+  padding: 40px; /* matches .auth-modal's container padding, per David's ask */
   background: #fff;
   border-radius: 8px;
   box-shadow: 0 1px 6px rgba(0,0,0,0.1);
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
+  position: relative; /* anchors the shared .popup-close floating X */
 }
 
-/* Modal body */
-.booking-modal-body {
-  padding: 0.5rem 0.75rem;
-  background: #fff;
-  border-radius: 8px;
-  box-shadow: 0 1px 6px rgba(0,0,0,0.1);
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
+/* Same floating-X system as .auth-modal / .popup-modal (see .popup-close
+   below), just recolored for these light-background modals instead of a
+   brand-new close-button class. */
+.modal-panel-light .popup-close {
+  color: rgba(0,0,0,0.35);
+}
+.modal-panel-light .popup-close:hover {
+  color: rgba(0,0,0,0.7);
+}
+
+/* Round 6 follow-up: David -- "add a booking title to the booking modal
+   as well." Reuses .hero-title-edit (same uppercase style as the
+   "Select your dates" heading right above this modal) but resets the
+   default <h2> margin so it just uses the modal body's own 0.5rem gap
+   instead of adding extra space on top of it. */
+.booking-modal-title {
+  margin: 0;
+  padding: 0;
 }
 
 /* Date grid */
@@ -857,9 +1025,7 @@ body { background: #0f0f0f; }
   display: grid;
   grid-template-columns: 1fr;
 }
-@media (min-width: 768px) {
-  .booking-modal-grid { grid-template-columns: 1fr 1fr; gap: 1rem; }
-}
+
 
 .booking-modal-col-left,
 .booking-modal-col-right {
@@ -919,15 +1085,40 @@ body { background: #0f0f0f; }
   display: block;
   color: #111;
   font-size: 0.875rem;
-  font-weight: 600;
+  font-weight: 500;
   padding: 0 !important;
   margin-bottom: 0.25rem;
+}
+
+/* Liability waiver checkbox -- David: add a checkbox releasing the owner
+   from liability before a guest can book (Round 8). */
+.booking-liability-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  cursor: pointer;
+  margin-top: 0.5rem;
+}
+
+.booking-liability-checkbox {
+  margin-top: 3px;
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  accent-color: var(--brand);
+  cursor: pointer;
+}
+
+.booking-liability-text {
+  font-size: 0.8rem;
+  line-height: 1.4;
+  color: #6b7280;
 }
 
 /* Submit button */
 .booking-modal-submit-btn {
   width: 100%;
-  max-width: 100%;
+  max-width: 400px;
   display: flex;
   justify-content: center;
   align-items: center;
@@ -935,11 +1126,11 @@ body { background: #0f0f0f; }
   /* David: wanted some breathing room above the button -- the column's
      shared 0.5rem gap (.booking-modal-col-right) was too tight. */
   margin-top: 0.75rem;
-  padding: 0.625rem 1rem;
+  padding: 12px 24px;
   background: var(--brand);
   color: #fff;
   border-radius: 6px;
-  font-size: 0.875rem;
+  font-size: 1.2rem;
   font-weight: 500;
   border: none;
   cursor: pointer;
@@ -947,6 +1138,11 @@ body { background: #0f0f0f; }
 }
 
 .booking-modal-submit-btn:hover { background: var(--brand-hover); }
+.booking-modal-submit-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.booking-modal-submit-btn:disabled:hover { background: var(--brand); }
 
 .booking-modal-block-btn { background: #6b7280; }
 .booking-modal-block-btn:hover { background: #4b5563; }
@@ -991,11 +1187,14 @@ body { background: #0f0f0f; }
 
 .auth-modal h1 {
   color: #fff;
-  font-size: clamp(1.5rem, 2.8vw, 1.875rem);
+  font-size: calc(var(--title-font-size-base, clamp(1.49rem, 3.78vw, 2.16rem)) * var(--title-size-multiplier, 1));
+  line-height: var(--title-line-height, 1.35);
   font-weight: 400;
-  text-transform: uppercase;
+  text-transform: capitalize;
   margin-bottom: 20px;
   font-family: var(--font-accent), serif;
+  transform: scaleY(1.2);
+  transform-origin: bottom;
 }
 
 .auth-modal {
@@ -1146,7 +1345,10 @@ p {
   margin: 20px auto 0 !important;
   background: var(--brand) !important;
   color: white !important;
-  padding: 14px 28px;
+  /* David: "Create draft site ... have slightly different height and
+     hover states ... go off of the Get Data button" -- vertical padding
+     matched to .btn's 12px (horizontal kept as-is). */
+  padding: 12px 28px;
   border: none !important;
   border-radius: 6px;
   font-size: 1rem;
@@ -1157,6 +1359,8 @@ p {
   text-align: center;
 }
 
+.publish-btn:hover { opacity: 0.9; }
+.publish-btn:active { opacity: 0.7; }
 .publish-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
 /* ============================================
@@ -1190,6 +1394,71 @@ input[type="tel"]:focus {
   box-shadow: 0 0 0 2px rgba(196,119,86,0.25);
 }
 
+/* ────────────────────────────────────────────────────────────────────────
+   .field-dark — THE single place that controls every text input/textarea
+   sitting on a black/dark background (sign-in/sign-up modals, GetSite popup).
+   Tweak the values below and every one of those fields updates at once.
+
+   - background: matches the exact value David found on the live production
+     Email field (#ffffff1a = white at ~10% opacity) and asked to standardize
+     on -- written as the literal hex so it's easy to eyeball/tweak directly,
+     rather than the equivalent rgba(255,255,255,0.1).
+   - padding / font-size / border-radius: intentionally identical to
+     .sb-input / .sb-input-light (the light-panel equivalent, see "INPUT —
+     white/light background variant" below) so a dark-panel field and a
+     light-panel field are the exact same size everywhere in the app --
+     David: "should be the same size everywhere ... unless there's an
+     explicit reason." Only color/background differ between the two.
+   ──────────────────────────────────────────────────────────────────────── */
+/* Selector written as .field-dark.field-dark (repeated class) rather than
+   plain .field-dark -- David reported the phone-number field looked right
+   but every other field in the app still looked like the old grey style.
+   Root cause: several older rules target inputs by attribute selector
+   (e.g. input[type="email"]) with !important, and an attribute selector
+   plus element type outranks a single class in specificity even though
+   both are !important -- so those older rules kept winning over a plain
+   .field-dark no matter where it sat in the file. Doubling the class
+   pushes .field-dark's specificity above any of those, so this really is
+   now "the single place" that controls it, regardless of source order. */
+.field-dark.field-dark {
+  width: 100%;
+  max-width: 400px;
+  padding: 10px 14px;
+  margin: 2px 0 6px 0; /* +4px bottom per David's request for a bit more room below each input */
+  border: 1px solid rgba(255,255,255,0.3);
+  border-radius: 6px;
+  background: #ffffff1a !important;
+  color: white;
+  font-size: clamp(0.9rem, 2vw, 1.1rem);
+  font-weight: 400;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  box-sizing: border-box;
+  outline: none;
+}
+.field-dark.field-dark:focus {
+  border-color: var(--brand);
+  box-shadow: 0 0 0 2px rgba(196,119,86,0.25);
+}
+.field-dark.field-dark::placeholder { color: rgba(255,255,255,0.5); }
+
+/* Round 6 follow-up: David -- "Add 10px margin to the calendar container.
+   ... At a screen width above of 768px make the calender panels width
+   comparable to the width of the reviews inner panel." Reviews inner
+   panel measured ~800px at 1024px viewport, so 50rem (=800px) is used
+   as a fixed, "comparable" approximation. */
+.booking-calendar-outer {
+  margin: 10px;
+}
+@media (min-width: 768px) {
+  .booking-calendar-outer {
+    max-width: 50rem;
+    margin-left: auto;
+    margin-right: auto;
+  }
+}
+
 textarea {
   display: block;
   max-width: 400px !important;
@@ -1213,8 +1482,11 @@ textarea:focus {
   box-shadow: 0 0 0 2px rgba(196,119,86,0.25);
 }
 
+/* Round 6 (cont'd): these GetSite popup fields now get their look from the
+   shared .field-dark class (added to each element in GetSite.tsx) instead of
+   a background override here -- see ".field-dark" in FORM ELEMENTS above. */
 textarea.popup-textarea {
-  background: rgba(255,255,255,0.3);
+  background: rgba(255,255,255,0.1);
 }
 
 textarea.popup-textarea.editmode {
@@ -1693,6 +1965,7 @@ hr {
    DEBUG OVERLAY
    ============================================ */
 
+/* ============================================
    ANIMATIONS
    ============================================ */
 
@@ -1715,7 +1988,7 @@ hr {
         top: 50px;
   }
    .preview-container { height: 400px; }
-  .popup-modal h1 { font-size: clamp(1.5rem, 2.8vw, 1.875rem) !important; text-transform: uppercase; color: #fff; padding: 20px 0 10px; }
+  .popup-modal h1 { font-size: calc(var(--title-font-size-base, clamp(1.49rem, 3.78vw, 2.16rem)) * var(--title-size-multiplier, 1)) !important; line-height: var(--title-line-height, 1.35); text-transform: capitalize; color: #fff; padding: 24px 0 10px; margin-bottom: 22px; transform: scaleY(1.2); transform-origin: bottom; }
   .popup-modal h3 { font-size: 1rem !important; }
   .popup-modal p  { font-size: 1.1rem !important; }
   .popup-modal label { font-size: 1.1rem; }
@@ -1723,9 +1996,38 @@ hr {
 
 /* David: GetSite popup titles (plain <h1>s, no dedicated class) had way too
    much padding from the global bare h1 rule above (0 top / 25px bottom).
-   Scoped to .popup-modal so it doesn't touch h1 elsewhere in the app. */
+   Scoped to .popup-modal so it doesn't touch h1 elsewhere in the app.
+   Round 6 follow-up: still "a ton of space" above the title -- reduced
+   top padding again, 20px -> 5px, per David's ask. Bottom kept at 10px
+   since that wasn't the complaint. */
 .popup-modal h1 {
-  padding: 20px 0 10px;
+  /* Was padding-only, relying on the generic h1{} rule (Inter, uppercase,
+     smaller clamp) for everything else -- brought in line with every
+     other title in the app (Playfair, capitalize, the shared clamp/scale)
+     so GetSite's popup titles actually match at desktop widths, not just
+     inside the <410px override below. */
+  font-family: var(--font-accent, 'Playfair Display'), serif;
+  font-size: calc(var(--title-font-size-base, clamp(1.49rem, 3.78vw, 2.16rem)) * var(--title-size-multiplier, 1));
+  line-height: var(--title-line-height, 1.35);
+  font-weight: 400;
+  text-transform: capitalize;
+  color: #fff;
+  /* +4px top (room for the <hr> above), -8px bottom via margin (was 30px
+     inherited from the generic h1{} rule and never overridden). */
+  padding: 9px 0 0;
+  margin-bottom: 22px;
+  transform: scaleY(1.2);
+  transform-origin: bottom;
+}
+
+/* Round 6 follow-up: the "massive" gap above the title was never the h1's own
+   padding -- it's the <hr /> right above each title picking up TWO separate
+   global `hr {}` rules elsewhere in this file (30px padding-bottom + 30px
+   margin-bottom = 60px combined). Scoped here so only GetSite's popup hrs
+   change; UserMenu.tsx's .sidebar-divider hrs are untouched. */
+.popup-modal hr {
+  padding: 0;
+  margin: 0 0 8px 0;
 }
 
 /* ============================================
@@ -1736,7 +2038,17 @@ hr {
   margin: 6px auto;
   display: block;
   box-sizing: border-box;
-  background: rgba(255,255,255,0.1) !important;
+  /* background now comes from the shared .field-dark class (added to every
+     Login.tsx / Signup.tsx input) -- see ".field-dark" in FORM ELEMENTS. */
+}
+/* .field-dark.field-dark's own margin (2px 0 6px 0, see FORM ELEMENTS)
+   outranks the plain .auth-modal input rule above by specificity, so it's
+   what actually renders -- that made consecutive fields end up 8px apart
+   (6px bottom + 2px top) instead of the flat 6px David asked for. Scoped
+   override here (3 classes worth of specificity) fixes just the auth-modal
+   fields without touching .field-dark's other uses (e.g. GetSite popup). */
+.auth-modal .field-dark.field-dark {
+  margin: 0 0 6px 0;
 }
 .auth-modal form {
   width: 100%;
@@ -1745,12 +2057,9 @@ hr {
   align-items: center;
 }
 /* Round 6: dropped the .auth-modal input[type="tel"] override (was
-   rgba(255,255,255,0.3), more opaque/whiter than every other field's
-   0.1) -- David preferred the Email field's look; phone now falls back
-   to the same .auth-modal input rule as everything else. */
-.auth-modal input:not([type]) {
-  background: rgba(255,255,255,0.1) !important;
-}
+   rgba(255,255,255,0.3), more opaque/whiter than every other field). All
+   auth-modal inputs now carry the shared .field-dark class directly, so no
+   type-specific override is needed here at all. */
 .auth-modal h1 {
   text-align: center;
   width: 100%;
@@ -1865,7 +2174,7 @@ hr {
 /* Align navigation arrows to sit next to month text */
 .rdp-caption {
   display: flex !important;
-  justify-content: flex-start !important;
+  justify-content: space-between !important;
   align-items: center !important;
   gap: 10px !important;
 }
@@ -1959,13 +2268,13 @@ hr {
   color: white;
 }
 
+/* Round 7: David -- "use the exact same classes to control that title as
+   the other titles" -- font-size/family/weight/case/color now come from
+   .hero-title-edit (added alongside this class in JSX), the same class the
+   booking modal's title uses, instead of this one-off smaller clamp. Only
+   the layout-specific bottom margin stays here. */
 .review-modal-title {
-  color: #000;
-  font-family: var(--font-accent, "Playfair Display"), serif;
-  font-weight: 400;
-  text-transform: uppercase;
-  font-size: clamp(1.2rem, 2vw, 1.5rem);
-  margin: 0;
+  margin: 0 0 12px 0;
 }
 
 /* ============================================
@@ -1975,14 +2284,43 @@ hr {
 
 .titleandpricebox {
   display: flex;
+  /* David: "the price number should be on the same baseline as the
+     property headline." Back to baseline (was flex-end, Round 7) -- safe
+     now because the thing Round 7 was actually compensating for (the
+     price h1's own bottom padding) is already pinned to 0 by the rule
+     right below this one. */
   align-items: baseline;
   justify-content: space-between;
   width: 100%;
   padding: 0px;
 }
 
+/* Round 7: this 10px bottom padding (only ever visible on the price h1 --
+   .hero-title overrides its own padding to 0 !important) combined with
+   align-items:baseline above to add ~40px of invisible height under the
+   title/price row, pushing hero-subtitle way further down than the
+   title's own 10px margin-bottom alone. Dropped to 0 now that flex-end
+   handles the row's vertical alignment instead. */
 .titleandpricebox h1 {
-  padding: 0px 0px 10px 0px;
+  padding: 0px;
+}
+
+/* Round 7: at <768px the price sat ~20px short of the slider's right nav
+   arrow (David marked this with red lines) because this row inherits two
+   stacked paddings (.gallery-content-overlay + the max-w-7xl px-4 wrapper)
+   that the arrow, positioned independently, doesn't. Pulling just the
+   price side out compensates without touching the title's own left edge. */
+@media (max-width: 767px) {
+  .titleandpricebox > div:last-child {
+    margin-right: -20px;
+  }
+}
+@media (max-width: 410px) {
+  /* .gallery-content-overlay's own padding shrinks to 0.25rem below 410px,
+     so the excess to cancel out is smaller here than the -20px above. */
+  .titleandpricebox > div:last-child {
+    margin-right: -4px;
+  }
 }
 
 .manage-images-heading {
@@ -2014,8 +2352,14 @@ hr {
 .location-map-modal h1 {
   color: #000000;
   font-family: var(--font-accent);
-  font-size: clamp(1.5rem, 2.8vw, 1.875rem);
+  font-size: calc(var(--title-font-size-base, clamp(1.49rem, 3.78vw, 2.16rem)) * var(--title-size-multiplier, 1));
+  line-height: var(--title-line-height, 1.35);
   font-weight: 400;
+  text-transform: none; /* was inheriting UPPERCASE from the generic h1{} rule */
+  margin: 0;
+  padding: 0;
+  transform: scaleY(1.2);
+  transform-origin: bottom;
 }
 
 .location-edit-label {
@@ -2212,7 +2556,18 @@ hr {
   margin: 0 0 12px;
 }
 .seo-toggle-row-mb {
-  margin-bottom: 8px;
+  margin-bottom: 0;
+}
+/* David: "reduce the spacing between selectors so it's the same
+   spacing/layout as the services section" -- match .sb-service-row's tight
+   2px padding instead of .sb-toggle-row's normal 10px, scoped to just the
+   AI/LLM discovery toggles so the section-level Hide-from-search-engines
+   toggle above (also a .sb-toggle-row) is unaffected. */
+.seo-section-divider .sb-toggle-row {
+  padding: 2px 0;
+}
+.seo-section-divider .sb-toggle-row + .sb-toggle-row {
+  border-top: none;
 }
 .seo-toggle-track {
   width: 40px;
@@ -2766,10 +3121,11 @@ hr {
   justify-content: center;
   margin: 0 auto 16px;
 }
+/* Font-size/color/family now come from .hero-title (added alongside this
+   class in JSX), the same changeable-font class every other title in the
+   app uses -- only the layout-specific bottom margin stays here. */
 .cs-share-title {
   margin: 0 0 6px;
-  font-size: 1.3rem;
-  color: #fff;
 }
 .cs-share-subtitle {
   margin: 0 0 20px;
@@ -2786,46 +3142,30 @@ hr {
   border: 6px solid #fff;
   display: block;
 }
+/* Round 7: buttons removed ("it's obvious what to do") -- this is now the
+   only interactive control, so it looks and behaves clickable. */
 .cs-share-url-box {
   background: rgba(255, 255, 255, 0.08);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 10px;
   padding: 10px 14px;
-  margin-bottom: 20px;
+  margin-bottom: 8px;
   font-size: 0.82rem;
   color: #fff;
   word-break: break-all;
   font-family: monospace;
-}
-.cs-share-actions {
-  display: flex;
-  gap: 10px;
-  justify-content: center;
-  flex-wrap: wrap;
-}
-.cs-share-btn {
-  flex: 1;
-  min-width: 100px;
-  border-radius: 10px;
-  padding: 10px 16px;
-  font-size: 0.9rem;
-  font-weight: 600;
   cursor: pointer;
+  transition: background-color 0.15s, border-color 0.15s;
 }
-.cs-share-btn-primary {
-  background: var(--brand, #C47756);
-  color: #fff;
-  border: none;
+.cs-share-url-box:hover {
+  background: rgba(255, 255, 255, 0.14);
+  border-color: rgba(255, 255, 255, 0.2);
 }
-.cs-share-btn-outline {
-  background: #fff;
+.cs-share-copied {
+  margin: 0;
   color: var(--brand, #C47756);
-  border: 2px solid var(--brand, #C47756);
-}
-.cs-share-btn-neutral {
-  background: transparent;
-  color: rgba(255, 255, 255, 0.7);
-  border: 1px solid rgba(255, 255, 255, 0.25);
+  font-size: 0.8rem;
+  font-weight: 500;
 }
 
 /* Shared bg-layer / review-modal-title rules now live in index.css
@@ -3626,7 +3966,9 @@ Border-radius: 4px;
 }
 
 .preview-book-btn {
-  padding: 8px 20px;
+  /* Matched to .btn's 12px vertical padding -- see .book-now-btn/.publish-btn
+     comments for the same "as tall as Get data" fix. */
+  padding: 12px 20px;
   background: #ff5a5f;
   color: white;
   font-size: 0.75rem;
@@ -3680,12 +4022,21 @@ Border-radius: 4px;
    ============================================ */
 
 /* ---- Global input base ---- */
+/* Round 6 follow-up: David found the phone-number field looked right but
+   "every other field in the app looks bad" -- root cause was THIS rule:
+   it sits later in the cascade than .field-dark (see that class's comment
+   above, ~line 1231) and was re-forcing the old rgba(255,255,255,0.3)
+   background with !important onto the same elements, silently winning
+   over .field-dark's #ffffff1a every time. Background removed here so
+   .field-dark is genuinely "the single place" that controls it, per its
+   own comment. Any input matching this selector WITHOUT .field-dark still
+   gets its background from the identical rule at ~line 1189 above, so
+   nothing else changes. */
 input[type="text"],
 input[type="email"],
 input[type="password"] {
   border: 1px solid rgba(255, 255, 255, 0.3);
   border-radius: 6px;
-  background: rgba(255, 255, 255, 0.3) !important;
   color: white;
   font-size: 0.9rem;
   width: 100% !important;
@@ -3764,9 +4115,16 @@ input[type="password"] {
   border: 1px solid rgba(255, 255, 255, 0.3) !important;
   border-radius: 6px !important;
   color: white !important;
-  font-family: 'Inter', sans-serif !important;
+  /* Was hardcoded to Inter with !important -- blocked --font-accent from
+     ever reaching this input, which is why the price didn't follow the
+     selected heading font here even though .hero-title-price (display
+     mode) already did. */
+  font-family: var(--font-accent, 'Playfair Display'), serif !important;
   box-sizing: border-box !important;
   padding: 8px 8px !important;
+  /* Was 50px -- shrunk so USD/night (.hero-price-suffix) sits tucked
+     under the box instead of floating below extra empty height. */
+  height: 40px !important;
 }
 
 .edit-price-input:focus,
@@ -3778,8 +4136,11 @@ input[type="password"] {
 
 /* ---- .edit-intro-textarea ---- */
 .edit-intro-textarea {
-  width: 100% !important;
-  max-width: 100% !important;
+  /* Narrowed from 100% to match .edit-title-input's 60% so the
+     description box's right edge lines up with the price-per-night
+     box above it instead of running underneath it. */
+  width: 60% !important;
+  max-width: 60% !important;
   color: #ffffff;
   height: 110px;
 }
@@ -4015,7 +4376,33 @@ button.rdp-day.rdp-button[disabled]:not(.rdp-day_selected).rdp-day_selected,
      value via .sb-panel-bg. Change this one number (currently 0.92 —
      David found 0.86 too transparent on the sidebar specifically)
      and every one of them updates together. */
-  --sb-panel-bg: rgba(255, 255, 255, 0.92);
+  --sb-panel-bg: rgba(255, 255, 255, 0.87);
+  /* Title font-size/line-height for every .hero-title/.popup-modal h1/etc
+     below -- overridden per-selected-font by applyFontAccent() in
+     lib/fontAccent.ts (the 6 late-added condensed/light fonts get +25%). */
+  /* David: "the landing page title font is the correct size... make
+     that the same fonts and font sizes for the app and new property
+     sites, they should share a common class." --title-font-size-base is
+     matched verbatim to the landing page's .hero__title clamp + its
+     ≤540px phone override below, so titles are pixel-identical at both
+     desktop and phone width -- not just approximately similar via the
+     fluid clamp alone. --title-size-multiplier is separate (1 standard /
+     1.25 for the LARGE_TITLE_FONTS in fontAccent.ts) so a per-font size
+     boost multiplies whichever base is currently active instead of
+     replacing it wholesale -- the old approach set a whole new clamp
+     string via JS, which silently defeated this same media query since
+     an inline style always wins over it regardless of viewport. */
+  --title-font-size-base: clamp(1.49rem, 3.78vw, 2.16rem);
+  --title-size-multiplier: 1;
+  --title-line-height: 1.35;
+}
+
+/* Matches the landing page's .hero__title mobile override
+   (`.hero__title { font-size: 1.89rem; }` inside its own `<=540px` block)
+   so phone-width titles are the same fixed size on both sides, not just
+   the same fluid clamp. */
+@media (max-width: 540px) {
+  :root { --title-font-size-base: 1.89rem; }
 }
 
 .sb-panel-bg { background: var(--sb-panel-bg) !important; }
@@ -4067,7 +4454,10 @@ button.rdp-day.rdp-button[disabled]:not(.rdp-day_selected).rdp-day_selected,
   height: 100dvh;
   width: calc(100% - 72px);
   max-width: 380px;
-  background: var(--sb-panel-bg);
+  /* David: "the white background be 92% opacity, just in the sidebar
+     nowhere else" -- literal value here instead of --sb-panel-bg (0.87),
+     which every other panel/dropdown sharing that variable keeps. */
+  background: rgba(255, 255, 255, 0.92);
   box-shadow: -20px 0 40px rgba(0,0,0,0.15);
   z-index: 99999;
   overflow-y: auto;
@@ -4648,10 +5038,86 @@ input.sb-input[type="tel"] {
    identically to its neighboring inputs when not focused. */
 textarea.sb-input {
   resize: none;
+  /* David: "Hero teaser input in the sidebar has a different background
+     color" -- same root cause already fixed on .booking-modal-select
+     (see its own color-scheme comment below): browsers auto-theme a bare
+     <textarea>'s native canvas under a semi-transparent OS dark-mode
+     background more aggressively than a plain <input>, which is why this
+     one field looked different from its sibling text inputs even though
+     they all share .sb-input's background. Forcing light mode here stops
+     that canvas from showing through .sb-input's rgba(0,0,0,0.10) tint. */
+  color-scheme: light !important;
 }
 .sb-input:focus {
   border: 2px solid var(--brand) !important;
   box-shadow: 0 0 0 3px rgba(var(--brand-rgb, 0,0,0), 0.08) !important;
+}
+
+/* Compact stat pills (Photos/Bedrooms/Beds/Baths/Guests) -- light-theme
+   version of the dark-glass ".lozenge"/"edit-stat-input" pills used over
+   the image slider, so the sidebar stops burning a full field-row per
+   stat. Grid instead of the old stacked rows so they sit side by side
+   whenever there's room, per David's ask (Round 8). */
+.sb-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
+  gap: 8px;
+  width: 100%;
+}
+
+.sb-stat-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 10px;
+  background: rgba(0,0,0,0.04);
+  border: 1px solid rgba(0,0,0,0.12);
+  border-radius: 999px;
+  color: #374151;
+  font-size: 0.75rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.sb-stat-pill svg {
+  flex-shrink: 0;
+  opacity: 0.6;
+}
+
+.sb-stat-pill-value {
+  font-weight: 600;
+  color: #000;
+}
+
+.sb-stat-pill-label {
+  color: #6b7280;
+  font-weight: 400;
+}
+
+.sb-stat-pill-input {
+  width: 25px;
+  max-width: 25px;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid rgba(0,0,0,0.25);
+  color: #000;
+  font-weight: 600;
+  font-size: 0.75rem;
+  text-align: center;
+  padding: 0;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+}
+.sb-stat-pill-input:focus {
+  outline: none;
+  border-bottom: 1px solid var(--brand);
+}
+/* Hide the native number spinner so it doesn't blow past the 25px cap. */
+.sb-stat-pill-input::-webkit-outer-spin-button,
+.sb-stat-pill-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
 }
 .sb-input::placeholder { color: #9ca3af; }
 
@@ -5193,14 +5659,27 @@ textarea.sb-input {
    ──────────────────────────────────────────── */
 .booking-modal-select {
   width: 100% !important;
-  max-width: 300px !important;
-  font-size: 0.9rem !important;
+  max-width: 400px !important;
+  font-size: clamp(0.9rem, 2vw, 1.1rem) !important;
   font-weight: 400 !important;
   color: #000 !important;
-  background: rgba(0, 0, 0, 0.00) !important;
+  /* Round 6 follow-up #2: closed box was already forced white above, but the
+     OPEN dropdown's option list still rendered dark -- that's the browser's
+     native OS-theme popup (macOS dark mode), which background/color on the
+     <select> itself can't reach. color-scheme forces the browser to render
+     that native popup in light mode regardless of OS theme. */
+  color-scheme: light !important;
+  /* Round 6 follow-up: David -- "guest selector drop down in gray not
+     white." A transparent background on a <select> relies on the
+     browser to paint white behind it, but several browsers (notably
+     Safari on macOS) keep their own gray native control surface under
+     a transparent/appearance:none select instead of showing what's
+     behind it. Set to an explicit opaque white so it's actually white
+     everywhere, matching the white .modal-panel-light panel it sits on. */
+  background: #ffffff !important;
   border: 1px solid rgba(0, 0, 0, 0.20) !important;
   border-radius: 6px !important;
-  padding: 8px 12px !important;
+  padding: 10px 14px !important;
   box-shadow: 0 1px 3px rgba(0,0,0,0.08) !important;
   transition: border-color 0.15s, box-shadow 0.15s !important;
   outline: none !important;
@@ -5248,8 +5727,26 @@ textarea.sb-input {
 }
 .sb-input-light::placeholder { color: #9ca3af; }
 
-/* specialRequests textarea override — needs 600px max-width */
-textarea#specialRequests.sb-input-light { max-width: 300px !important; }
+/* Native <input type="date"> renders with a shorter intrinsic height than
+   text inputs in some browsers (Safari especially) even with identical
+   padding -- David: "the date input is currently a thin input which is
+   an error". Forcing an explicit height/line-height so it matches its
+   text-input siblings exactly, and color-scheme so the calendar icon
+   isn't dark-on-dark. Chrome/Edge already show "mm/dd/yyyy" as the
+   empty-state prompt inside the field natively; this just keeps it from
+   looking cramped when there's no value yet. */
+.sb-input-light[type="date"] {
+  min-height: 44px;
+  line-height: 1.5;
+  color-scheme: light;
+}
+
+/* Round 6 follow-up: David -- "input fields and buttons ... should be
+   the same size everywhere ... unless there is an explicit reason."
+   This textarea used to be pinned to 300px (with a stale comment
+   claiming 600px) -- no explicit reason applies here, so it now just
+   inherits .sb-input-light's 400px cap like every other field. */
+textarea#specialRequests.sb-input-light { max-width: 400px !important; }
 
 /* Inline flex row for icon+text buttons — prevents wrapping, removes text if no room */
 .inline-flex-row {
@@ -5415,7 +5912,9 @@ textarea#specialRequests.sb-input-light { max-width: 300px !important; }
   justify-content: center;
   gap: 8px;
   width: 100%;
-  padding: 10px 16px;
+  /* David: uniform height with the Get Data button -- 12px vertical
+     (was 10px), plus matching hover/active below (had neither before). */
+  padding: 12px 16px;
   background-color: var(--brand, #C47756);
   color: white;
   border-radius: 8px;
@@ -5424,4 +5923,48 @@ textarea#specialRequests.sb-input-light { max-width: 300px !important; }
   text-decoration: none;
   cursor: pointer;
   border: none;
+  transition: opacity 0.15s;
+}
+.gs-own-site-btn:hover { opacity: 0.9; }
+.gs-own-site-btn:active { opacity: 0.7; }
+
+
+/* ============================================
+   GUEST BOOKING REQUEST — David: "why does the guests input have a color
+   in there. Make it the same as the others." All three fields here
+   (check-in/check-out/guests) were built with generic Tailwind
+   indigo-500 focus utilities instead of the shared brand color every
+   other input in the app focuses with -- overriding just the focus
+   state so the fields themselves are untouched.
+   ============================================ */
+.guest-booking-form input:focus,
+.guest-booking-form select:focus {
+  /* Overriding the ring's box-shadow directly rather than just the
+     --tw-ring-color custom property -- guaranteed to win regardless of
+     which Tailwind ring implementation is compiled in, no need to match
+     its internal variable scheme exactly. */
+  border-color: var(--brand) !important;
+  box-shadow: 0 0 0 3px rgba(var(--brand-rgb, 196, 119, 86), 0.4) !important;
+}
+
+
+/* Leave-a-review modal star-rating buttons -- +4px top padding, see
+   .review-form-submit above for the matching change on the submit button. */
+.review-form-star-btn { padding-top: 4px; }
+
+
+/* ============================================
+   .pb-title -- shared title treatment (Initial Caps, 20% taller)
+   David: "It would be great if all the titles across the landing page
+   and the app and the property sites could share the same css class."
+   Property sites load this same stylesheet (/dev/assets/index.css), so
+   they get this for free; the landing page is a separate static
+   document and defines this identical class+values itself.
+   ============================================ */
+.pb-title {
+  font-family: var(--font-accent, 'Playfair Display'), serif;
+  font-weight: 400;
+  text-transform: capitalize;
+  transform: scaleY(1.2);
+  transform-origin: bottom;
 }

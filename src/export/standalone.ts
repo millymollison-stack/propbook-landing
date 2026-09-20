@@ -3,7 +3,7 @@ import { createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import App from '../App';
 
-window.renderPropbookApp = (containerId: string) => {
+(window as any).renderPropbookApp = (containerId: string) => {
   const container = document.getElementById(containerId);
   if (!container) {
     console.error('[PropBook] #root element not found');

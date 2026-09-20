@@ -58,10 +58,10 @@ export function Signup({ onSuccess, onClose, onSwitchToLogin }: SignupProps = {}
         <p>Already have an account? <button type="button" className="popup-link" onClick={onSwitchToLogin}>Sign in</button></p>
         <form onSubmit={handleSubmit}>
           {localError && <p className="popup-error">{localError}</p>}
-          <input id="fullName" type="text" required value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="Full name" />
-          <input id="phoneNumber" type="tel" required value={phoneNumber} onChange={(e) => setPhoneNumber(e.target.value)} placeholder="Phone number" />
-          <input id="email" type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email address" />
-          <input id="password" type="password" autoComplete="new-password" required value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Password" />
+          <input id="fullName" type="text" required value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="Full name" className="field-dark" />
+          <input id="phoneNumber" type="tel" required value={phoneNumber} onChange={(e) => setPhoneNumber(e.target.value)} placeholder="Phone number" className="field-dark" />
+          <input id="email" type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email address" className="field-dark" />
+          <input id="password" type="password" autoComplete="new-password" required value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Password" className="field-dark" />
           <button type="submit" disabled={loading} className="btn">
             {loading ? 'Creating account...' : 'Create account'}
           </button>

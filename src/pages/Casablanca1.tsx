@@ -4,7 +4,7 @@
  * Mirrors what the user sees after scraping + publishing flow
  */
 
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { BookingCalendar } from '../components/BookingCalendar';
 import type { Property, PropertyImage, Booking, BlockedDate } from '../types';
@@ -50,7 +50,6 @@ export function Casablanca1() {
   useEffect(() => {
     async function loadData() {
       let propData = null;
-      let propError = null;
 
       try {
         // Use limit(1)+order to avoid 406 on multiple rows
@@ -89,17 +88,37 @@ export function Casablanca1() {
           // No DB property — build synthetic from activeData (sessionStorage or DEMO_DATA)
           const synthetic: Property = {
             id: 'casablanca1-test',
-            slug: 'casablanca1',
+            title: activeData.title || 'Casablanca1',
             name: activeData.title,
+            slug: 'casablanca1',
             description: activeData.description,
-            location: activeData.location,
+            hero_image: activeData.hero_image || '',
+            images: activeData.images || [],
+            address: activeData.location,
             price_per_night: parseFloat((activeData.price || '150').replace(/[^0-9.]/g, '')) || 150,
             max_guests: activeData.guests,
             bedrooms: activeData.bedrooms,
             beds: activeData.beds,
             baths: activeData.baths,
             amenities: '',
-            user_id: '',
+            brand_color: null,
+            font_accent: null,
+            property_details: null,
+            activities: null,
+            local_area: null,
+            getting_there: null,
+            latitude: null,
+            longitude: null,
+            location_type: null,
+            property_title: null,
+            property_headline: null,
+            property_intro: null,
+            custom_domain: null,
+            status: null,
+            site_url: null,
+            server_ip: null,
+            folder_path: null,
+            owner_id: null,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
           };
@@ -113,7 +132,9 @@ export function Casablanca1() {
               url,
               position: i,
               is_featured: i === 0,
+              is_main: i === 0,
               is_background: false,
+              created_at: new Date().toISOString(),
             })));
           } else if (activeData.hero_image) {
             setImages([{
@@ -122,7 +143,9 @@ export function Casablanca1() {
               url: activeData.hero_image,
               position: 0,
               is_featured: true,
+              is_main: true,
               is_background: false,
+              created_at: new Date().toISOString(),
             }]);
           }
         }
@@ -164,8 +187,8 @@ export function Casablanca1() {
           <h1 className="cs-title" style={{ fontFamily: 'var(--font-accent, Playfair Display)' }}>
             {property.name}
           </h1>
-          {property.location && (
-            <p className="cs-location">{property.location}</p>
+          {property.address && (
+            <p className="cs-location">{property.address}</p>
           )}
         </div>
       </div>

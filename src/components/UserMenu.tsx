@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { X, User, LogOut, CreditCard as Edit2, Save, AlertCircle, Info, Building, ChevronDown, ChevronUp } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { X, User, LogOut, AlertCircle, Building, ChevronDown, ChevronUp } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../store/auth';
 import { supabase } from '../lib/supabase';
@@ -32,7 +32,6 @@ export function UserMenu() {
   const isAdmin = user?.role === 'admin';
   const isGuest = !isSaaSAdmin && !isAdmin;
   const isOnPropertySite = !!(window as any).__PROPERTY_DATA__?.id;
-  const guestPropertyId = isGuest ? (window as any).__PROPERTY_DATA__?.id : null;
 
   // Close menu on Escape key
   useEffect(() => {
@@ -83,9 +82,9 @@ export function UserMenu() {
           .select(`*, property:properties!inner(*), user:profiles!inner(*)`);
 
         if (isSaaSAdmin) {
-          query = query.order('status', { ascending: true, nullsLast: true }).order('created_at', { ascending: false });
+          query = query.order('status', { ascending: true, nullsFirst: false }).order('created_at', { ascending: false });
         } else if (isAdmin) {
-          query = query.order('status', { ascending: true, nullsLast: true }).order('created_at', { ascending: false });
+          query = query.order('status', { ascending: true, nullsFirst: false }).order('created_at', { ascending: false });
         } else {
           query = query.eq('user_id', user.id).order('created_at', { ascending: false });
         }
@@ -137,9 +136,9 @@ export function UserMenu() {
         `);
 
       if (isSaaSAdmin) {
-        query = query.order('status', { ascending: true, nullsLast: true }).order('created_at', { ascending: false });
+        query = query.order('status', { ascending: true, nullsFirst: false }).order('created_at', { ascending: false });
       } else if (isAdmin) {
-        query = query.order('status', { ascending: true, nullsLast: true }).order('created_at', { ascending: false });
+        query = query.order('status', { ascending: true, nullsFirst: false }).order('created_at', { ascending: false });
       } else {
         query = query.eq('user_id', user.id).order('created_at', { ascending: false });
       }
@@ -177,7 +176,7 @@ export function UserMenu() {
       if (booking) {
         try {
           if (status === 'approved') {
-            await EmailNotificationService.sendBookingConfirmationEmail({
+            const confirmedBookingEmailData = {
               booking: {
                 start_date: booking.start_date,
                 end_date: booking.end_date,
@@ -187,6 +186,11 @@ export function UserMenu() {
               },
               user: booking.user,
               property: booking.property
+            };
+            await EmailNotificationService.sendBookingConfirmationEmail(confirmedBookingEmailData);
+            // David (item 9): follow-up ID-on-file request after confirmation.
+            EmailNotificationService.sendIdRequestEmail(confirmedBookingEmailData).catch((emailError) => {
+              console.error('Failed to send ID request email:', emailError);
             });
           } else if (status === 'denied') {
             await EmailNotificationService.sendBookingDenialEmail({
@@ -289,10 +293,10 @@ export function UserMenu() {
       }
 
       if (updates.email && updates.email !== currentUser.email) {
-        const { error: emailError } = await supabase.auth.updateUser({
-          email: updates.email,
-          options: { emailRedirectTo: `${window.location.origin}/auth/confirm` }
-        });
+        const { error: emailError } = await supabase.auth.updateUser(
+          { email: updates.email },
+          { emailRedirectTo: `${window.location.origin}/auth/confirm` }
+        );
         if (emailError) throw emailError;
         setProfileSuccess('Profile updated! Please check your new email for a confirmation link.');
       } else {

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { User } from 'lucide-react';
 import { useAuth } from '../store/auth';
 import { AdminSidebar } from '../components/AdminSidebar';

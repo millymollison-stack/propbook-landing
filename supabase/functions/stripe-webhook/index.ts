@@ -206,6 +206,23 @@ export default Deno.serve({ verifyJwt: false }, async (req: Request) => {
       break;
     }
 
+    // Keeps properties.stripe_account_status (and profiles.stripe_account_status) in sync
+    // with the connected account's real Stripe status. Without this, stripe_account_status
+    // is set to "pending" once at account creation (see stripe-connect/index.ts) and never
+    // updated again — which means create-payment-intent's Connect-routing check
+    // (`stripe_account_status !== "pending"`) never becomes true, so application_fee_amount /
+    // transfer_data.destination never get applied even after a host finishes onboarding.
+    // NOTE: this event must also be added to the webhook's selected events in the Stripe
+    // Dashboard (Developers -> Webhooks) — this code change alone does not do that.
+    case "account.updated": {
+      const account = event.data.object as Stripe.Account;
+      const status = (account.charges_enabled && account.payouts_enabled) ? "active" : "pending";
+      await supabase.from("properties").update({ stripe_account_status: status }).eq("stripe_account_id", account.id);
+      await supabase.from("profiles").update({ stripe_account_status: status }).eq("stripe_account_id", account.id);
+      console.log(`[stripe-webhook] account.updated ${account.id}: charges_enabled=${account.charges_enabled}, payouts_enabled=${account.payouts_enabled}, status=${status}`);
+      break;
+    }
+
     default:
       console.log(`[stripe-webhook] Unhandled: ${event.type}`);
   }

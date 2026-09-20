@@ -12,7 +12,7 @@
  */
 
 import { execSync } from 'child_process';
-import { writeFileSync, existsSync, createReadStream } from 'fs';
+import { existsSync } from 'fs';
 import { mkdtempSync, rmSync } from 'fs';
 import { join as pathJoin, dirname } from 'path';
 import { tmpdir } from 'os';
@@ -25,21 +25,6 @@ const PROJECT_ROOT = pathJoin(dirname(fileURLToPath(import.meta.url)), '..', '..
 
 const DEPLOY_TOKEN = process.env.DEPLOY_SECRET || '';
 const UPLOAD_URL = 'https://www.propbook.pro/scripts/deploy-react-upload.php';
-const HOSTINGER_CREDS = {
-  host: process.env.SSH_HOST || '',
-  port: process.env.SSH_PORT || '',
-  user: process.env.SSH_USER || '',
-  pass: process.env.SSH_PASS || '',
-};
-
-function sshExec(cmd: string): string {
-  const { execSync: exec } = require('child_process');
-  return exec(
-    `sshpass -p '${HOSTINGER_CREDS.pass}' ssh -o StrictHostKeyChecking=no -p ${HOSTINGER_CREDS.port} ${HOSTINGER_CREDS.user}@${HOSTINGER_CREDS.host} '${cmd.replace(/'/g, "'\\''")}'`,
-    { encoding: 'utf8', maxBuffer: 10 * 1024 * 1024 }
-  );
-}
-
 export interface DeployReactOptions {
   slug: string;
   propertyId: string;

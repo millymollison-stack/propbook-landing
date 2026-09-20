@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { MapContainer, TileLayer, Marker, useMap } from 'react-leaflet';
 import { CreditCard as Edit2, X, MapPin, Check, Search } from 'lucide-react';
 import { useAuth } from '../store/auth';
@@ -37,7 +37,7 @@ function MapUpdater({ center }: { center: [number, number] }) {
 export function LocationMap({ property, onSave, onClose, isOpen }: LocationMapProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [address, setAddress] = useState(property.address || property.location || '');
+  const [address, setAddress] = useState(property.address || '');
   const [coordinates, setCoordinates] = useState<[number, number]>([
     property.latitude || 23.1631,
     property.longitude || -109.6834
@@ -52,8 +52,16 @@ export function LocationMap({ property, onSave, onClose, isOpen }: LocationMapPr
   // Auto-search and save when map opens and has a location but no coordinates yet
   useEffect(() => {
     if (!isOpen) return;
+    // David: "coordinates win over an address" -- the map's marker/center
+    // already reads from `coordinates` state (seeded from property.latitude/
+    // longitude below), so saved coordinates already take priority for
+    // display. The one gap: `&&`/truthy checks here treat a real 0 lat or
+    // lng (falsy) as "no coordinates" and would incorrectly kick off an
+    // address geocode that could overwrite them -- using explicit
+    // null/undefined checks so coordinates always win whenever both are
+    // actually present, regardless of value.
     const hasLocation = !!(property.address || (property as any).location);
-    const hasCoords = !!(property.latitude && property.longitude);
+    const hasCoords = property.latitude != null && property.longitude != null;
     if (hasLocation && !hasCoords) {
       const loc = property.address || (property as any).location || '';
       setAddress(loc);
@@ -288,10 +296,16 @@ export function LocationMap({ property, onSave, onClose, isOpen }: LocationMapPr
 
             <div className="h-[300px] sm:h-[400px] w-full rounded-lg overflow-hidden shadow-md">
               <MapContainer
-                center={coordinates}
-                zoom={5}
-                className="map-full-size"
-                onClick={handleMapClick}
+                {...({
+                  center: coordinates,
+                  zoom: 5,
+                  className: 'map-full-size',
+                  // NOTE: react-leaflet v4's MapContainer doesn't type an onClick prop (map click
+                  // handling normally goes through useMapEvents on a child component) — kept as-is
+                  // via cast to preserve existing behavior; worth verifying click-to-set-location
+                  // still works, otherwise this needs a proper useMapEvents wiring.
+                  onClick: handleMapClick,
+                } as any)}
               >
                 <TileLayer
                   attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'

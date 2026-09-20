@@ -1,12 +1,10 @@
-import React, { useEffect } from 'react';
-import { Link } from 'react-router-dom';
-import { Home, LogIn, Share, User } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { Share, User } from 'lucide-react';
 import { useAuth } from '../store/auth';
 import { useProperty } from '../store/property';
 import ColorPicker from './ColorPicker';
-import { applyFontAccent, loadFontAccent } from '../lib/fontAccent';
 
-export function Layout({ children, isEditing, onToggleEdit, hasChanges, onSaveChanges, siteName, onSiteNameChange, onOpenSidebar, onOpenLogin, onOpenGuestSidebar }: { 
+export function Layout({ children, isEditing, onToggleEdit, hasChanges, onSaveChanges, siteName, onOpenSidebar, onOpenLogin}: { 
   children: React.ReactNode; 
   isEditing?: boolean;
   siteName?: string;
@@ -33,12 +31,60 @@ export function Layout({ children, isEditing, onToggleEdit, hasChanges, onSaveCh
     document.head.appendChild(script);
   }, []);
 
+  // ── Share / QR popup ─────────────────────────────────────────────────────────
+  // Lives here (not in CustomerSite.tsx) so the same black, centered-QR popup
+  // shows no matter which page mounts Layout — it used to only work on the
+  // published CustomerSite view because CustomerSite was the only thing
+  // listening for the button's event; on Home.tsx (the default /app view,
+  // where activeProperty is ALSO set) nothing was listening, so the button
+  // was a true no-op. Round 6 follow-up: David flagged the button "doesn't
+  // do anything" — this was the actual cause, not the popup's styling
+  // (which was already correct).
+  const [showSharePopup, setShowSharePopup] = useState(false);
+  const [sharePopupClosing, setSharePopupClosing] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
+  const siteUrl = activeProperty?.site_url || (activeProperty?.slug ? `https://www.propbook.pro/props/${activeProperty.slug}` : window.location.href);
+  // Display-only: David -- "Remove the https://www. from the url" -- the
+  // full siteUrl (with protocol) is still what's copied and QR-encoded.
+  const displaySiteUrl = siteUrl.replace(/^https?:\/\/(www\.)?/, '');
+  const qrCodeUrl = siteUrl ? `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(siteUrl)}` : '';
+  const handleCopySiteUrl = () => {
+    // try/catch: some embedded/sandboxed browser contexts throw
+    // synchronously on clipboard access instead of rejecting the promise --
+    // guard so the "Link copied!" message always shows either way.
+    try {
+      navigator.clipboard?.writeText(siteUrl).catch(() => {});
+    } catch {}
+    setLinkCopied(true);
+    setTimeout(() => setLinkCopied(false), 2000);
+  };
+
+  // Animate the popup back into the nav's Share icon, then dismiss it.
+  const closeSharePopup = () => {
+    setSharePopupClosing(true);
+    setTimeout(() => {
+      setShowSharePopup(false);
+      setSharePopupClosing(false);
+    }, 320);
+  };
+
+  // Detect first visit after publishing — GetSite/sidebar redirects with ?published=1
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('published') === '1') {
+      window.history.replaceState({}, '', window.location.pathname);
+      setShowSharePopup(true);
+      const timer = setTimeout(() => closeSharePopup(), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, []);
+
   const handleShare = async () => {
-    // On a published property site, the Share button opens the in-page share/QR
-    // popup (CustomerSite.tsx) instead of the OS share sheet — same button, same nav,
-    // just a different action depending on what page we're on.
+    // On a property (activeProperty set — true on both the published
+    // CustomerSite view and Home.tsx's own-site preview/editing view), Share
+    // opens the in-page black/QR popup instead of the OS share sheet.
     if (activeProperty) {
-      window.dispatchEvent(new CustomEvent('propbook:open-share-popup'));
+      setShowSharePopup(true);
       return;
     }
     try {
@@ -54,7 +100,7 @@ export function Layout({ children, isEditing, onToggleEdit, hasChanges, onSaveCh
       try {
         await navigator.clipboard.writeText(window.location.href);
         // Silent copy — no native alert() anymore, the styled share/QR popup
-        // (CustomerSite.tsx) is the primary share UX now.
+        // above is the primary share UX now.
       } catch (clipboardError) {
         console.error('Failed to copy to clipboard:', clipboardError);
         alert('Unable to share. Please copy the URL manually.');
@@ -143,6 +189,57 @@ export function Layout({ children, isEditing, onToggleEdit, hasChanges, onSaveCh
           </p>
         </div>
       </footer>
+
+      {/* ── Share popup ─────────────────────────────────────────────────────────── */}
+      {showSharePopup && (
+        <div
+          className={`cs-share-overlay${sharePopupClosing ? ' closing' : ''}`}
+          onClick={(e) => { if (e.target === e.currentTarget) closeSharePopup(); }}
+        >
+          {/* Centered normally; when closing, shrinks and slides up toward the Share icon
+              in the top-right of the nav so the popup reads as "collapsing back into it". */}
+          <div className={`cs-share-modal${sharePopupClosing ? ' closing' : ''}`}>
+            {/* Same floating-X close system as every other dark modal
+                (auth-modal, popup-modal) -- David: "remember consistency
+                on everything". */}
+            <button className="popup-close" onClick={closeSharePopup} aria-label="Close">&times;</button>
+
+            {/* Top share icon */}
+            <div className="cs-share-icon-circle">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
+                <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+              </svg>
+            </div>
+            {/* Same changeable accent-font title class every other title in
+                the app uses. */}
+            <h2 className="hero-title cs-share-title">Share this link with your audience</h2>
+            <p className="cs-share-subtitle">Scan the QR code or share the link.</p>
+
+            {/* QR Code -- already per-property (built from siteUrl, which is
+                activeProperty.site_url / slug) */}
+            {qrCodeUrl && (
+              <div className="cs-share-qr-wrap">
+                <img src={qrCodeUrl} alt="QR Code" width={160} height={160} className="cs-share-qr-img" />
+              </div>
+            )}
+
+            {/* URL -- click to copy (buttons removed: "it's obvious what to
+                do"). Displayed without the https://www. prefix; the full
+                URL is still what actually gets copied and QR-encoded. */}
+            <div
+              className="cs-share-url-box"
+              onClick={handleCopySiteUrl}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleCopySiteUrl(); }}
+            >
+              {displaySiteUrl}
+            </div>
+            {linkCopied && <p className="cs-share-copied">Link copied!</p>}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

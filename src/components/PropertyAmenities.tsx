@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Wifi, Car, Coffee, Tv, Waves, Scale, Fish, Truck, ChevronDown, ChevronUp, MapPin, Utensils, Wind, Flame, Shirt, Timer, UtensilsCrossed, Flower2, Sun, Mountain, Sunset, Anchor, Footprints, Dumbbell, Bike, Gamepad2, BookOpen, Monitor, Printer, Shield, KeyRound, Siren, Heart, Zap, BedDouble, Sparkles, Scissors, DoorOpen, PawPrint, Accessibility, Palmtree } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Wifi, Car, Coffee, Tv, Waves, Scale, Fish, Truck, ChevronDown, ChevronUp, Utensils, Wind, Flame, Shirt, Timer, UtensilsCrossed, Flower2, Sun, Mountain, Sunset, Anchor, Footprints, Dumbbell, Bike, Gamepad2, BookOpen, Monitor, Printer, Shield, KeyRound, Siren, Heart, Zap, BedDouble, Sparkles, DoorOpen, PawPrint, Accessibility, Palmtree } from 'lucide-react';
 import type { Property } from '../types';
 import { useAuth } from '../store/auth';
 import { LocationMap } from './LocationMap';
@@ -80,7 +80,7 @@ interface CollapsibleSectionProps {
   fieldName?: keyof Property;
 }
 
-function CollapsibleSection({ title, content, isEditing, isAdmin, isOpen, onToggle, onHasChanges, onUpdate, trackDirty, fieldName }: CollapsibleSectionProps) {
+function CollapsibleSection({ title, content, isEditing, isOpen, onToggle, onHasChanges, trackDirty, fieldName }: CollapsibleSectionProps) {
   const [editedContent, setEditedContent] = useState(content || '');
 
   // Keep editedContent in sync when content prop updates (after save completes)
@@ -88,15 +88,6 @@ function CollapsibleSection({ title, content, isEditing, isAdmin, isOpen, onTogg
     setEditedContent(content || '');
   }, [content]);
 
-  const handleSave = async () => {
-    if (trackDirty && fieldName) {
-      trackDirty({ [fieldName]: editedContent });
-      onHasChanges?.(false);
-    } else if (onUpdate && fieldName) {
-      await onUpdate({ [fieldName]: editedContent });
-      onHasChanges?.(false);
-    }
-  };
 
   return (
     <div className="dropdown-section">
@@ -152,7 +143,7 @@ export function PropertyAmenities({ property, isEditing, onHasChanges, onUpdate,
   
   // Use property amenities or defaults
   const [selectedAmenities, setSelectedAmenities] = useState<string[]>(
-    property.amenities?.length ? property.amenities : defaultAmenities
+    Array.isArray(property.amenities) && property.amenities.length ? property.amenities : defaultAmenities
   );
 
   // In edit mode: show selector directly, no display below
@@ -174,12 +165,6 @@ export function PropertyAmenities({ property, isEditing, onHasChanges, onUpdate,
   };
 
   // Save to database when called (from Save Now button)
-  const handleSaveAmenities = async () => {
-    if (onUpdate) {
-      await onUpdate({ amenities: selectedAmenities });
-      onHasChanges?.(false);
-    }
-  };
 
   return (
     <>
@@ -286,7 +271,7 @@ export function PropertyAmenities({ property, isEditing, onHasChanges, onUpdate,
 
       <LocationMap
         property={property}
-        onSave={() => {}}
+        onSave={async (updates) => { if (onUpdate) await onUpdate(updates); }}
         isOpen={isMapOpen}
         onClose={() => setIsMapOpen(false)}
       />

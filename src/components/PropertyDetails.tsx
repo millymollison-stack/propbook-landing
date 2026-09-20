@@ -1,7 +1,6 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { Bed, Bath, Users, Wifi, Car, Coffee, Tv, Check, X, MapPin, ChevronDown, ChevronUp, CreditCard as Edit2, Waves, Scale, Fish, Truck } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { MapPin } from 'lucide-react';
 import type { Property } from '../types';
-import { useAuth } from '../store/auth';
 import { LocationMap } from './LocationMap';
 
 interface PropertyDetailsProps {
@@ -14,95 +13,10 @@ interface PropertyDetailsProps {
   trackDirty?: (updates: Partial<Property>) => void;
 }
 
-interface CollapsibleSectionProps {
-  title: string;
-  content: string | null;
-  isEditing: boolean;
-  onEdit?: (content: string) => void;
-  isAdmin: boolean;
-  isOpen: boolean;
-  onToggle: () => void;
-}
-
-function CollapsibleSection({ title, content, isEditing, onEdit, isAdmin, isOpen, onToggle }: CollapsibleSectionProps) {
-  const [editedContent, setEditedContent] = useState(content || '');
-  const [isEditingSection, setIsEditingSection] = useState(false);
-
-  const handleSave = () => {
-    onEdit?.(editedContent);
-    setIsEditingSection(false);
-  };
-
-  return (
-    <div className="property-drop-down">
-      <button
-        onClick={onToggle}
-        className="property-drop-down-btn"
-      >
-        <h1 className="hero-title">{title}</h1>
-        {isOpen ? <ChevronUp className="h-5 w-5 text-white" /> : <ChevronDown className="h-5 w-5 text-white" />}
-      </button>
-      
-      {isOpen && (
-        <div className="property-drop-down-content">
-          {isAdmin && !isEditingSection ? (
-            <div className="flex justify-end mb-2">
-              <button
-                onClick={() => setIsEditingSection(true)}
-                className="flex items-center space-x-2 text-sm text-[var(--brand)] hover:text-[var(--brand-hover)]"
-              >
-                <Edit2 className="h-4 w-4" />
-                <span>Edit Section</span>
-              </button>
-            </div>
-          ) : null}
-
-          {isEditingSection ? (
-            <div className="space-y-4">
-              <textarea
-                value={editedContent}
-                onChange={(e) => setEditedContent(e.target.value)}
-                className="edit-section-textarea"
-                rows={6}
-                placeholder={`Enter ${title.toLowerCase()} information...`}
-              />
-              <div className="flex justify-end space-x-2">
-                <button
-                  onClick={() => setIsEditingSection(false)}
-                  className="px-3 py-1 text-sm text-gray-600 hover:text-gray-900"
-                >
-                  Done
-                </button>
-                <button
-                  onClick={handleSave}
-                  className="px-3 py-1 text-sm bg-[var(--brand)] text-white rounded hover:bg-[var(--brand-hover)]"
-                >
-                  Save Changes
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div className="prose max-w-none w-full">
-              {content ? (
-                <p className="whitespace-pre-line hero-subtitle">{content}</p>
-              ) : (
-                <p className="body-on-dark" style={{ fontStyle: "italic" }}>No information available</p>
-              )}
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
-export function PropertyDetails({ property, isEditing, onEditingChange, onSave, onBeforeSave, onHasChanges, trackDirty }: PropertyDetailsProps) {
+export function PropertyDetails({ property, isEditing, onSave, onHasChanges, trackDirty }: PropertyDetailsProps) {
   const [formData, setFormData] = useState(property);
-  const [loading, setLoading] = useState(false);
   const [isMapOpen, setIsMapOpen] = useState(false);
-  const [openSection, setOpenSection] = useState<string | null>(null);
-  const { user } = useAuth();
-  const isAdmin = user?.role === 'admin';
+  const [_openSection, _setOpenSection] = useState<string | null>(null);
 
   // Keep formData in sync when property prop updates (e.g., after save)
   useEffect(() => {
@@ -126,44 +40,8 @@ export function PropertyDetails({ property, isEditing, onEditingChange, onSave, 
     onHasChanges?.(true);
   };
 
-  const handleAmenityToggle = (amenity: string) => {
-    setFormData(prev => ({
-      ...prev,
-      amenities: prev.amenities.includes(amenity)
-        ? prev.amenities.filter(a => a !== amenity)
-        : [...prev.amenities, amenity]
-    }));
-  };
 
-  const handleSave = async () => {
-    console.log('[PropertyDetails handleSave] formData keys:', Object.keys(formData));
-    if (!onSave) { console.log('[PropertyDetails handleSave] NO onSave — returning'); return; }
-    setLoading(true);
-    try {
-      // Save ImageGallery text first if handler is registered
-      if (onBeforeSave) {
-        await onBeforeSave();
-      }
-      // Then save the property details
-      await onSave(formData);
-      onHasChanges?.(false);
-      onEditingChange(false);
-    } catch (err) {
-      console.error('[PropertyDetails handleSave] FAILED:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
 
-  const handleSectionEdit = (section: keyof Property) => async (content: string) => {
-    if (!onSave) return;
-    try {
-      await onSave({ [section]: content });
-      setFormData(prev => ({ ...prev, [section]: content }));
-    } catch (error) {
-      console.error(`Failed to update ${section}:`, error);
-    }
-  };
 
   // Consistent edit input style - apply to all editable fields
   const editInputClass = "w-full px-4 py-3 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-[var(--brand)]";
@@ -173,7 +51,7 @@ export function PropertyDetails({ property, isEditing, onEditingChange, onSave, 
     value: string | number,
     type: 'text' | 'textarea' | 'number' = 'text',
     className = '',
-    hideIcons = false
+    _hideIcons = false
   ) => {
     if (!isEditing) {
       return <span className={className}>{value}</span>;

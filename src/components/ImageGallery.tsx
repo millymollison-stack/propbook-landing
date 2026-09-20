@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ChevronLeft, ChevronRight, CreditCard as Edit2, Upload, Trash2, Star, Image, X, Check, Bed, Bath, Users, Layers } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Upload, Trash2, Star, Image, Bed, Bath, Users, Layers, X } from 'lucide-react';
 import { applyFontAccent } from '../lib/fontAccent';
 import type { PropertyImage, Property } from '../types';
 import { useAuth } from '../store/auth';
@@ -12,7 +12,7 @@ interface ImageGalleryProps {
   onImageUpload?: (file: File) => Promise<void>;
   onImageDelete?: (imageId: string) => Promise<void>;
   onImageUpdate?: (imageId: string, updates: Partial<PropertyImage>) => Promise<void>;
-  onPropertyUpdate?: (updates: { property_title?: string; description?: string }) => Promise<void>;
+  onPropertyUpdate?: (updates: Partial<Property>) => Promise<void>;
   registerSaveHandler?: (handler: () => Promise<void>) => boolean;
 }
 
@@ -155,6 +155,41 @@ export function ImageGallery({
     setCurrentIndex((prev) => (prev - 1 + sortedImages.length) % sortedImages.length);
   };
 
+  // David: "Create a large white modal containing a swipeable photo
+  // gallery when you click the image in phone viewport." -- gated to
+  // phone-width taps only (matches Tailwind's md breakpoint); desktop
+  // clicking the hero image is unchanged.
+  const [showGalleryModal, setShowGalleryModal] = useState(false);
+  const [galleryIndex, setGalleryIndex] = useState(0);
+  const touchStartXRef = useRef<number | null>(null);
+
+  const openGalleryModal = (index: number) => {
+    if (typeof window !== 'undefined' && window.innerWidth >= 768) return;
+    setGalleryIndex(index);
+    setShowGalleryModal(true);
+  };
+
+  const galleryNext = () => {
+    setGalleryIndex((prev) => (prev + 1) % sortedImages.length);
+  };
+
+  const galleryPrevious = () => {
+    setGalleryIndex((prev) => (prev - 1 + sortedImages.length) % sortedImages.length);
+  };
+
+  const handleGalleryTouchStart = (e: React.TouchEvent) => {
+    touchStartXRef.current = e.touches[0].clientX;
+  };
+
+  const handleGalleryTouchEnd = (e: React.TouchEvent) => {
+    if (touchStartXRef.current === null) return;
+    const deltaX = e.changedTouches[0].clientX - touchStartXRef.current;
+    const SWIPE_THRESHOLD = 40;
+    if (deltaX > SWIPE_THRESHOLD) galleryPrevious();
+    else if (deltaX < -SWIPE_THRESHOLD) galleryNext();
+    touchStartXRef.current = null;
+  };
+
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!onImageUpload) return;
     
@@ -277,6 +312,7 @@ export function ImageGallery({
   }
 
   return (
+    <>
     <div className="relative bg-black">
       {/* Main large image */}
       <div className="relative h-[500px] md:h-[600px] overflow-hidden gallery-shadow gallery-bg-image">
@@ -284,8 +320,9 @@ export function ImageGallery({
           <img
             src={sortedImages[currentIndex]?.url || ''}
             alt={`Property view ${currentIndex + 1}`}
-            className="h-full w-full object-cover"
+            className="h-full w-full object-cover cursor-pointer md:cursor-default"
             onError={(e) => { e.currentTarget.src = sortedImages[0]?.url || ''; }}
+            onClick={() => openGalleryModal(currentIndex)}
           />
         </div>
         {/* Gradient overlay on top of image */}
@@ -304,30 +341,33 @@ export function ImageGallery({
                   onBlur={handlePropertyTextSave}
                   className="text-2xl md:text-3xl font-normal uppercase text-white focus:outline-none focus:ring-2 focus:ring-[var(--brand)] px-2 py-1 edit-title-input"
                 />
-                <div className="flex items-baseline justify-end">
-                  <span className="text-2xl md:text-3xl font-bold text-white">$</span>
-                  <input
-                    type="number"
-                    value={editPrice}
-                    onChange={(e) => setEditPrice(parseFloat(e.target.value) || 0)}
-                    onBlur={handlePropertyStatsSave}
-                    className="w-24 text-2xl md:text-3xl font-bold text-white focus:outline-none edit-price-input"
-                    onFocus={(e) => {
-                      e.target.style.border = '1px solid var(--brand)';
-                    }}
-                    min="0"
-                  />
-                  <span className="text-white/80 text-base font-normal ml-1">USD /night</span>
+                <div className="flex flex-col items-end">
+                  <div className="flex items-baseline">
+                    <span className="hero-price-currency">$</span>
+                    <input
+                      type="number"
+                      value={editPrice}
+                      onChange={(e) => setEditPrice(parseFloat(e.target.value) || 0)}
+                      onBlur={handlePropertyStatsSave}
+                      className="w-24 text-2xl md:text-3xl font-bold text-white focus:outline-none edit-price-input"
+                      onFocus={(e) => {
+                        e.target.style.border = '1px solid var(--brand)';
+                      }}
+                      min="0"
+                    />
+                  </div>
+                  <span className="hero-price-suffix">USD /night</span>
                 </div>
               </div>
             ) : (
               <div className="titleandpricebox">
                 <h1 className="hero-title">{propertyTitle}</h1>
-                <div className="flex items-baseline">
-                  <h1 className="hero-title-price">
-                    ${editPrice}
-                  </h1>
-                  <span className="text-white/80 text-base font-normal">USD /night</span>
+                <div className="flex flex-col items-start">
+                  <div className="flex items-baseline">
+                    <span className="hero-price-currency">$</span>
+                    <h1 className="hero-title-price">{editPrice}</h1>
+                  </div>
+                  <span className="hero-price-suffix">USD /night</span>
                 </div>
               </div>
             )}
@@ -572,5 +612,55 @@ export function ImageGallery({
         </div>
       )}
     </div>
+
+    {/* Full-screen swipeable gallery -- phone viewport only (see
+        openGalleryModal above). Plain white modal per David's spec, not
+        the usual dark popup treatment used elsewhere in the app. */}
+    {showGalleryModal && (
+      <div className="fixed inset-0 z-[100] bg-white flex flex-col">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
+          <span className="text-sm font-medium text-gray-500">
+            {galleryIndex + 1} / {sortedImages.length}
+          </span>
+          <button
+            type="button"
+            onClick={() => setShowGalleryModal(false)}
+            aria-label="Close gallery"
+            className="p-2 -mr-2 text-gray-700"
+          >
+            <X className="h-6 w-6" />
+          </button>
+        </div>
+        <div
+          className="relative flex-1 overflow-hidden"
+          onTouchStart={handleGalleryTouchStart}
+          onTouchEnd={handleGalleryTouchEnd}
+        >
+          <img
+            src={sortedImages[galleryIndex]?.url || ''}
+            alt={`Property view ${galleryIndex + 1}`}
+            className="h-full w-full object-contain select-none"
+            draggable={false}
+          />
+          <button
+            type="button"
+            onClick={galleryPrevious}
+            aria-label="Previous photo"
+            className="absolute left-2 top-1/2 -translate-y-1/2 bg-white/90 rounded-full p-2 shadow-md text-gray-800"
+          >
+            <ChevronLeft className="h-6 w-6" />
+          </button>
+          <button
+            type="button"
+            onClick={galleryNext}
+            aria-label="Next photo"
+            className="absolute right-2 top-1/2 -translate-y-1/2 bg-white/90 rounded-full p-2 shadow-md text-gray-800"
+          >
+            <ChevronRight className="h-6 w-6" />
+          </button>
+        </div>
+      </div>
+    )}
+    </>
   );
 }

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Star, Trash2, ArrowUp, ArrowDown, Check, X, Calendar } from 'lucide-react';
+import { Star, ArrowUp, ArrowDown, Calendar } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { Review } from '../types';
 import { format } from 'date-fns';

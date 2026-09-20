@@ -1,4 +1,3 @@
-import React from 'react';
 
 interface TemplatePreviewProps {
   title: string;
@@ -29,7 +28,6 @@ export function TemplatePreview({
   title,
   location,
   price,
-  description,
   hero_image,
   guests,
   bedrooms,
@@ -45,7 +43,6 @@ export function TemplatePreview({
   const ratingNum = typeof rating === 'number' ? rating : parseFloat(String(rating)) || 0;
   const displayRating = ratingNum ? Math.round(ratingNum * 2) / 2 : 0;
   const fullStars = Math.floor(displayRating);
-  const hasHalfStar = displayRating % 1 !== 0;
 
   return (
     <div className="preview-container">

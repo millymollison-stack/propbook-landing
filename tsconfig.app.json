@@ -21,5 +21,8 @@
     "noFallthroughCasesInSwitch": true
   },
   "include": ["src"],
-  "exclude": ["node_modules"]
+  // deployReact.ts is a Node.js-only script (uses fs/child_process/process) that is never
+  // imported by any app code — it's not part of the browser bundle, so it's excluded here
+  // rather than pulling in @types/node for the whole app tsconfig.
+  "exclude": ["node_modules", "src/services/deployReact.ts"]
 }

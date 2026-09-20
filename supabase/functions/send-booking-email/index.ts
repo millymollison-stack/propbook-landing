@@ -3,7 +3,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
 
 interface BookingEmailRequest {
-  type: 'booking_request' | 'booking_pending' | 'booking_approved' | 'booking_confirmed' | 'booking_denied';
+  type: 'booking_request' | 'booking_pending' | 'booking_approved' | 'booking_confirmed' | 'booking_denied' | 'booking_id_request';
   booking: {
     id?: string;
     start_date: string;
@@ -170,6 +170,38 @@ function getEmailContent(data: BookingEmailRequest): { subject: string; html: st
     };
   }
   
+  // ID request -- sent to GUEST shortly after their booking is confirmed,
+  // asking them to send the host a copy of their ID to keep on file.
+  // David (item 9): "Guests should be sent an extra email after the
+  // booking has been confirmed asking them to provide the owner with an
+  // ID to keep on file."
+  if (type === 'booking_id_request') {
+    return {
+      subject: `One More Thing - ID on File for ${property.title}`,
+      html: `
+        <h1>Just One More Step</h1>
+        <p>Hi ${guestName},</p>
+        <p>Thanks again for booking <strong>${property.title}</strong> -- we're looking forward to hosting you!</p>
+
+        <p>As part of our standard check-in process, we ask every guest to provide a copy of a
+        valid photo ID (driver's license, passport, or similar) for us to keep on file. This is
+        just for our records and helps us keep the property safe for all guests.</p>
+
+        <p>You can reply directly to this email with a photo of your ID, or bring it with you
+        to show at check-in.</p>
+
+        <h2>Your Booking Details</h2>
+        <ul>
+          <li><strong>Check-in:</strong> ${booking.start_date}</li>
+          <li><strong>Check-out:</strong> ${booking.end_date}</li>
+        </ul>
+
+        <p>If you have any questions, just reply to this email.</p>
+        <p>- The ${property.title} Team</p>
+      `,
+    };
+  }
+
   // Booking denied
   if (type === 'booking_denied') {
     return {
@@ -218,7 +250,7 @@ serve(async (req) => {
       subject = content.subject;
       html = content.html;
     } else {
-      // booking_pending, booking_approved, booking_confirmed, booking_denied all go to guest
+      // booking_pending, booking_approved, booking_confirmed, booking_denied, booking_id_request all go to guest
       to = data.user.email;
       const content = getEmailContent(data);
       subject = content.subject;
