@@ -30,12 +30,20 @@ export function ImageGallery({
   const [currentIndex, setCurrentIndex] = useState(0);
   const [loading, setLoading] = useState(false);
   // Resolve the display title for the H1:
-  // Priority: property_headline (full scraped headline, no 12-char limit)
-  //          → property_title (scraped title)
+  // Priority: property_headline (the ONE canonical headline field, set at
+  //           onboarding and editable from both this hero box and the
+  //           sidebar's "Property headline" field)
   //          → property.name if it starts with '@' (user's chosen website handle)
   //          → default
+  // David 2026-09-22: property_title used to be a second fallback here, but
+  // it was also where handlePropertyTextSave below (wrongly) saved edits to
+  // -- so a headline typed in this box would save to property_title while
+  // this line kept reading property_headline first, making edits look like
+  // they silently failed. Dropped property_title from this read entirely;
+  // a one-time DB backfill (property_headline = property_title where null)
+  // covers any older property that never had property_headline set.
   const resolveTitle = (p: typeof property) =>
-    p?.property_headline || p?.property_title || (p?.name?.startsWith('@') ? p.name : '@surfhousebaja');
+    p?.property_headline || (p?.name?.startsWith('@') ? p.name : '@surfhousebaja');
 
   const [propertyTitle, setPropertyTitle] = useState(() => resolveTitle(property));
   const [propertyIntro, setPropertyIntro] = useState(property?.description || '');
@@ -61,11 +69,10 @@ export function ImageGallery({
   useEffect(() => {
     // (no-op — just syncing state from prop)
     if (property?.property_headline) setPropertyTitle(property.property_headline);
-    else if (property?.property_title) setPropertyTitle(property.property_title);
     else if (property?.name?.startsWith('@')) setPropertyTitle(property.name);
     if (property?.description) setPropertyIntro(property.description);
     if (property?.price_per_night) setEditPrice(property.price_per_night);
-  }, [property?.name, property?.property_title, property?.description, property?.price_per_night, property?.id]);
+  }, [property?.name, property?.property_headline, property?.description, property?.price_per_night, property?.id]);
 
   useEffect(() => {
     if (registerSaveHandler) {
@@ -111,7 +118,15 @@ export function ImageGallery({
     const introToSave = propertyIntro;
 
     // Guard: only write to DB if value actually changed
-    const currentTitle = property?.property_title ?? '';
+    // David 2026-09-22: was comparing against property_title while writing
+    // to property_title too -- but resolveTitle() above reads
+    // property_headline first, so the value on screen (and the value the
+    // user just edited) is actually property_headline. Comparing/writing
+    // against property_title meant edits here never touched the field the
+    // page actually displays. property_headline is now the single field
+    // both this hero box and the sidebar's "Property headline" input read
+    // and write.
+    const currentTitle = property?.property_headline ?? '';
     const currentIntro = property?.description ?? '';
     if (titleToSave === currentTitle && introToSave === currentIntro) {
       saveInProgressRef.current = false;
@@ -122,7 +137,7 @@ export function ImageGallery({
     try {
 
       await onPropertyUpdate({
-        property_title: titleToSave,
+        property_headline: titleToSave,
         description: introToSave
       });
 

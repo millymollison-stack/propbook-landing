@@ -464,7 +464,7 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
  if (onImported) {
  const latestHeadline = sessionStorage.getItem('popup_property_headline') || propertyHeadline || 'surfhousebaja';
  const latestDesc = sessionStorage.getItem('popup_website_desc') || websiteDesc;
- onImported({ title: limited, property_title: latestHeadline, description: latestDesc });
+ onImported({ title: limited, property_headline: latestHeadline, description: latestDesc });
  }
  }, 500);
  };
@@ -480,7 +480,7 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
  const latestHeadline = sessionStorage.getItem('popup_property_headline') || cleaned || 'surfhousebaja';
  const latestDesc = sessionStorage.getItem('popup_website_desc') || '';
  const latestName = sessionStorage.getItem('popup_website_name') || websiteName;
- onImported({ title: latestName, property_title: latestHeadline, description: latestDesc });
+ onImported({ title: latestName, property_headline: latestHeadline, description: latestDesc });
  }
  }, 500);
  };
@@ -500,7 +500,7 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
  const latestName = sessionStorage.getItem('popup_website_name') || websiteName;
  // Read from popup_property_intro (full text) not popup_website_desc (24-word truncated)
  const latestDesc = sessionStorage.getItem('popup_property_intro') || sessionStorage.getItem('popup_website_desc') || val;
- onImported({ title: latestName, property_title: latestHeadline, description: latestDesc });
+ onImported({ title: latestName, property_headline: latestHeadline, description: latestDesc });
  }
  }, 1000);
  };
@@ -509,7 +509,7 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
  const latestHeadline = sessionStorage.getItem('popup_property_headline') || propertyHeadline || 'surfhousebaja';
  const latestName = sessionStorage.getItem('popup_website_name') || websiteName;
  const latestDesc = sessionStorage.getItem('popup_website_desc') || websiteDesc;
- onImported({ title: latestName, property_title: latestHeadline, description: latestDesc });
+ onImported({ title: latestName, property_headline: latestHeadline, description: latestDesc });
  }
  };
 
@@ -709,7 +709,7 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
  const previewData = {
  ...data,
  title: websiteName16,
- property_title: extractFirst5Words(data.description || scrapedTitle),
+ property_headline: extractFirst5Words(data.description || scrapedTitle),
  // Pass the 24-word version so preview matches what the user edits in the textarea
  description: desc24,
  hero_image: data.images?.[1] || data.hero_image,
@@ -937,7 +937,7 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
          ...(od || {}),
          name: ssWebsiteName.startsWith('@') ? ssWebsiteName : `@${ssWebsiteName}`,
          title: ssWebsiteName,
-         property_title: ssHeadline,
+         property_headline: ssHeadline,
          description: (ssDesc || fullOriginalDesc).replace(/\s+/g, ' ').trim(),
          property_intro: fullOriginalDesc,
          address: resolvedScrapedData?.location || od?.scraped_location || od?.location || '',
@@ -997,7 +997,7 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
      // NOT the original `data` object which was built before migration happened.
      const { data: freshProp } = await supabase
        .from('properties')
-       .select('title, property_title, property_intro, description, address, hero_image, images, bedrooms, beds, bathrooms, max_guests, price_per_night, rating, reviews')
+       .select('title, property_title, property_headline, property_intro, description, address, hero_image, images, bedrooms, beds, bathrooms, max_guests, price_per_night, rating, reviews')
        .eq('id', result.propertyId)
        .single();
      console.log('[handleSaveSiteInPopup] Fresh DB property:', freshProp?.title, '| prop_intro:', (freshProp?.property_intro || '').slice(0, 60));
@@ -1021,7 +1021,10 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
        slug: result.slug,
        websiteName: freshProp?.title || data.websiteName,
        websiteDesc: freshProp?.property_intro || freshProp?.description || data.websiteDesc,
-       propertyHeadline: freshProp?.property_title || data.propertyHeadline,
+       // David 2026-09-22: was reading property_title for the headline template
+       // token too -- property_headline is the field that's actually kept up to
+       // date now (see ImageGallery.tsx/App.tsx), property_title can lag behind.
+       propertyHeadline: freshProp?.property_headline || freshProp?.property_title || data.propertyHeadline,
        propertyTitle: freshProp?.property_title || data.propertyTitle,
        scrapedData: data.scrapedData,
      };

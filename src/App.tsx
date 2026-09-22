@@ -295,12 +295,16 @@ function AppContent() {
   };
 
   // Handles imported data from GetSite popup → pushes to Home page behind the popup
-  // NOTE: imported.property_title and imported.description are the user's edited values
+  // NOTE: imported.property_headline and imported.description are the user's edited values
   // from the input fields — use them directly, do NOT re-slice/replace.
+  // David 2026-09-22: this used to be named property_title (matching a same-named bug in
+  // GetSite.tsx/ImageGallery.tsx) even though it's the headline preview value -- renamed
+  // to property_headline so the same field name carries the headline end-to-end: GetSite's
+  // popup input -> this live preview -> the DB column -> the sidebar field -> the hero box.
   const handleGetSiteImported = (imported: {
     title: string;
     description?: string;
-    property_title?: string;
+    property_headline?: string;
     hero_image?: string;
     images?: string[];
     location?: string;
@@ -343,8 +347,8 @@ function AppContent() {
     const propertyIntro24 = words.length > 24 ? words.slice(0, 24).join(' ') : fullDesc;
     setScrapedProperty(prev => ({
       title: imported.title,
-      // property_title: user's edited Property Headline input — respect it
-      property_title: imported.property_title || imported.title,
+      // property_headline: user's edited Property Headline input — respect it
+      property_headline: imported.property_headline || imported.title,
       property_intro: fullDesc,
       description: propertyIntro24,
       location: resolvedLocation || (prev as any)?.location || '',
