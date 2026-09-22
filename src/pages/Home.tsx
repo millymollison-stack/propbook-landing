@@ -188,7 +188,21 @@ export function Home({ isEditing: externalIsEditing, onHasChanges, registerSaveA
           }));
           setImages(bakedImgs);
           setDefaultImages(bakedImgs);
-          setBackgroundImages(bakedImgs.slice(0, 2));
+          // David 2026-09-22: this used to guess backgrounds as "whichever 2
+          // images happen to be first in the array" -- the baked/cached
+          // property payload is just plain image URLs with no is_background
+          // flag on it at all, so a real background pick made via the
+          // gallery's "Use as background" icon was never reflected here.
+          // Same root cause and same fix already applied to CustomerSite.tsx's
+          // fast path: clear it, then fetch the real flagged rows from
+          // property_images in the background and apply them once they land.
+          setBackgroundImages([]);
+          supabase.from('property_images').select('*').eq('property_id', targetPropertyId).order('position')
+            .then(({ data: imgRows, error: imgErr }) => {
+              if (imgErr || !imgRows) return;
+              const bg = imgRows.filter((img: PropertyImage) => (img as any).is_background).slice(0, 2);
+              if (bg.length > 0) setBackgroundImages(bg);
+            }).catch(() => {});
           // Still fetch live data (bookings, blocked dates) from Supabase in background
           fetchLiveData(targetPropertyId, bakedProp);
           return;
@@ -538,7 +552,16 @@ export function Home({ isEditing: externalIsEditing, onHasChanges, registerSaveA
             setProperty((prev: any) => prev ? { ...prev, hero_image: imageUrl } : prev);
           }
           // Update local images state (featured has no DB column for Airbnb URLs)
-          setImages(images.map(img => img.id === imageId ? { ...img, ...updates } : img));
+          const updatedImages = images.map(img => img.id === imageId ? { ...img, ...updates } : img);
+          setImages(updatedImages);
+          // David 2026-09-22: toggling "Use as background" in the gallery updated the
+          // DB/local images list but never touched `backgroundImages` -- the array the
+          // calendar/amenities sections actually render from -- so the new background
+          // never showed up without a full page reload (and even then, only via the
+          // slow path; see the fast-path fix above this function).
+          if ('is_background' in updates) {
+            setBackgroundImages(updatedImages.filter(img => (img as any).is_background).slice(0, 2));
+          }
         }
       } else {
         // Real uploaded image — update in property_images table, routed through the
@@ -556,7 +579,11 @@ export function Home({ isEditing: externalIsEditing, onHasChanges, registerSaveA
         });
         const resJson = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(resJson?.error || 'Failed to update image');
-        setImages(images.map(img => img.id === imageId ? { ...img, ...updates } : img));
+        const updatedImages = images.map(img => img.id === imageId ? { ...img, ...updates } : img);
+        setImages(updatedImages);
+        if ('is_background' in updates) {
+          setBackgroundImages(updatedImages.filter(img => (img as any).is_background).slice(0, 2));
+        }
       }
     } catch (err) {
       console.error('Failed to update image:', err);
