@@ -248,8 +248,16 @@ function AppContent() {
       // Persist so GetSite can read it even after URL params are cleared
       sessionStorage.setItem('stripe_session_id', sessionId);
       sessionStorage.setItem('stripe_paid_returning', '1');
-      // Set role to admin so they see the admin sidebar immediately — wait for it to complete
-      // before opening GetSite so the sidebar shows the correct state on first render
+      // Set role to admin so they see the admin sidebar immediately.
+      // David 2026-09-22: this used to also open GetSite here when !pendingSidebarPublish,
+      // for a "checkout initiated outside the sidebar" case -- but GetSite.tsx's own
+      // internal handler that would have processed that state (verify session, run
+      // handleSaveSiteInPopup) was itself confirmed dead and removed (see
+      // claude/stability-plan-2026-09-22.md, item 1): the only live way to reach this
+      // effect with paid=true&sessionId is the sidebar's handlePublishFromSidebar, which
+      // always sets pending_publish_property_id first. Opening GetSite here would have
+      // shown the normal onboarding UI with nothing left to act on the pending payment,
+      // not actually completed anything -- so removed rather than left as a silent no-op.
       if (user.role !== 'admin') {
         (async () => {
           try {
@@ -257,14 +265,8 @@ function AppContent() {
             await refreshUser();
           } catch (e: any) {
             console.error('[App ?paid handler] role update failed:', e?.message || e);
-            // Don't strand the user without GetSite just because the admin-role
-            // promotion failed — still open it so the save/migration can run.
-          } finally {
-            if (!pendingSidebarPublish) setShowGetSite(true);
           }
         })();
-      } else {
-        if (!pendingSidebarPublish) setShowGetSite(true);
       }
     }
   }, [user]);
