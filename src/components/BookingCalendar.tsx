@@ -80,6 +80,13 @@ export function BookingCalendar({
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
   const [adminProfile, setAdminProfile] = useState<any>(null);
+  // David 2026-09-22: fix for "calendar doesn't show yellow/red after booking" —
+  // the `bookings` array is a prop fetched once by the parent page; this component's
+  // own insert (needed so we have the booking id before payment) never told the parent
+  // to refetch, so the calendar kept rendering the stale pre-booking `bookings` prop
+  // until a full page reload. We now merge newly-created bookings in locally so the
+  // calendar updates immediately, regardless of whether/when the parent refetches.
+  const [localBookings, setLocalBookings] = useState<Booking[]>([]);
 
   useEffect(() => {
     loadAdminProfile();
@@ -120,14 +127,18 @@ export function BookingCalendar({
     return () => { if (authTimerRef.current) clearTimeout(authTimerRef.current); };
   }, [selected, user]);
 
-  const approvedBookings = bookings
+  const allBookings = localBookings.length
+    ? [...bookings, ...localBookings.filter(lb => !bookings.some(b => b.id === lb.id))]
+    : bookings;
+
+  const approvedBookings = allBookings
     .filter(booking => booking.status === 'approved')
     .map(booking => ({
       from: parseISO(booking.start_date),
       to: parseISO(booking.end_date)
     }));
 
-  const pendingBookings = bookings
+  const pendingBookings = allBookings
     .filter(booking => booking.status === 'pending')
     .map(booking => ({
       from: parseISO(booking.start_date),
@@ -233,6 +244,7 @@ export function BookingCalendar({
 
       console.log('[BookingCalendar] Booking created successfully:', newBooking.id);
 
+      setLocalBookings(prev => [...prev, newBooking]);
       setCreatedBookingId(newBooking.id);
       setBookingAmount(totalPrice);
       setBookingDates({ from: selected.from, to: selected.to });
