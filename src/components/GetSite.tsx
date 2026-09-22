@@ -1,7 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { X } from 'lucide-react';
-import { loadStripe } from '@stripe/stripe-js';
-import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
 import { TemplatePreview } from './TemplatePreview';
 import { FontDropdown } from './FontDropdown';
 import { FONT_OPTIONS, applyFontAccent, saveFontAccent } from '../lib/fontAccent';
@@ -75,72 +73,11 @@ const POPUP_CLOSED_KEY = 'onboarding_popup_closed';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-// ── Stripe CheckoutForm (must be inside <Elements> context) ─────────────────
-function CheckoutForm({ onSuccess, onError, monthlyTotal }: {
-  clientSecret: string;
-  onSuccess: () => void;
-  onError: (msg: string) => void;
-  monthlyTotal: number;
-}) {
-  const stripe = useStripe();
-  const elements = useElements();
-  const [processing, setProcessing] = useState(false);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!stripe || !elements) return;
-    setProcessing(true);
-
-    // Must call submit() before confirmPayment() per Stripe.js v3 migration
-    await elements.submit();
-
-    const { error } = await stripe.confirmPayment({
-      elements,
-      confirmParams: { return_url: (window.location.origin.replace(/\/$/, '')) + '/app/?paid=true&session_id={CHECKOUT_SESSION_ID}' },
-      redirect: 'always',
-    });
-
-    setProcessing(false);
-    if (error) {
-      console.error('[Stripe confirmPayment error]', error.code, error.type, error.message);
-
-      // Handle PaymentIntent in unexpected state (e.g. already confirmed, failed, etc.)
-      // On retry with the same clientSecret, Stripe returns 400 because the PI is no longer
-      // in a confirmable state. Request a fresh PaymentIntent from the edge function.
-      if (error.type === 'card_error' &&
-          (error.code === 'payment_intent_unexpect_state' || error.code === 'payment_intent_invalid_state')) {
-        // Call the parent to create a new checkout session and get a fresh clientSecret
-        onError('RETRY_NEEDED');
-        return;
-      }
-
-      onError(error.message || 'Payment failed.');
-    } else {
-      onSuccess();
-      window.dispatchEvent(new CustomEvent('subscription-updated'));
-    }
-  };
-
-  return (
-    <form onSubmit={handleSubmit} className="stripe-checkout-form">
-      <div className="stripe-card-label">
-        <div className="stripe-card-title">Card details</div>
-        <p className="stripe-consent-note">By clicking Pay, you allow propbook.pro to charge your card for the amount shown, according to the terms of your subscription.</p>
-        <div className="stripe-card-field">
-          <PaymentElement options={{ layout: 'tabs' }} />
-        </div>
-      </div>
-      <button
-        type="submit"
-        disabled={!stripe || processing}
-        className="btn"
-        style={{ width: '100%', fontSize: '1rem' }}
-      >
-        {processing ? 'Processing subscription...' : `Pay ${monthlyTotal === 0 ? 'Free today' : `$${monthlyTotal}`}`}
-      </button>
-    </form>
-  );
-}
+// David 2026-09-22: REMOVED (was here) — the embedded Stripe Elements <CheckoutForm>
+// component. Confirmed dead: nothing anywhere calls setShowStripeModal(true) (the only
+// gate that rendered it), so this could never mount. All current checkout uses Stripe's
+// redirect-based Checkout Session from the sidebar, not embedded Elements. See
+// claude/stability-plan-2026-09-22.md, item 1.
 
 export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scrapedImages, onSiteNameChange, onSiteCreated }: OnboardingPopupProps) {
  const { user, refreshUser } = useAuth();
@@ -193,10 +130,6 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
  const [stripeError, setStripeError] = useState('');
 
  const [showFinishPopup, setShowFinishPopup] = useState(false);
- const [showStripeModal, setShowStripeModal] = useState(false);
- const [stripeClientSecret, setStripeClientSecret] = useState('');
- const [stripePayMethod, setStripePayMethod] = useState<'card' | 'paypal' | 'venmo'>('card');
- const [_stripeSubscriptionId, setStripeSubscriptionId] = useState('');
  const [showCongrats, setShowCongrats] = useState(false);
  const [showWelcomeModal, setShowWelcomeModal] = useState(false);
  const [congratsUrl, setCongratsUrl] = useState('');
@@ -226,7 +159,6 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
    window.addEventListener('stripe-connect-updated', handler);
    return () => window.removeEventListener('stripe-connect-updated', handler);
  }, []);
- const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || '');
 
  // Payment calculator
  const pricing = {
@@ -355,10 +287,11 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
  return;
  }
 
-        // Skip restoring old pre-Stripe scraped data if we just completed a payment —
-        // the migration block below (or in the IIFE) will set fresh migrated scrapedData.
+        // David 2026-09-22: the `stripe_payment_returning` guard this used to have is gone —
+        // it was set only by the legacy ?paid handler removed above, so the check could never
+        // be true and was dead weight. See claude/stability-plan-2026-09-22.md, item 1.
         const savedScraped = sessionStorage.getItem('popup_scraped_data');
-        if (savedScraped && !sessionStorage.getItem('stripe_payment_returning')) {
+        if (savedScraped) {
           try {
             const parsed = JSON.parse(savedScraped);
             setScrapedData(parsed);
@@ -375,51 +308,12 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
           } catch { /* ignore corrupt JSON */ }
         }
 
-        // ── After restoring all form fields, handle post-Stripe success ──────────
-        if (sessionStorage.getItem('stripe_payment_done')) {
-          sessionStorage.removeItem('stripe_payment_done');
-          if (!isOpen) setIsOpen(true);
-          setShowCongrats(true);
-          const restoredName = sessionStorage.getItem('popup_website_name') || 'surfhousebaja';
-          if (onImported) {
-            onImported({ title: restoredName, description: sessionStorage.getItem('popup_property_intro') || sessionStorage.getItem('popup_website_desc') || '' });
-          }
-
-          // ── Load fresh migrated data from properties table (not stale onboarding_data) ────
-          // After migration, the properties table has the user's edited headline + description.
-          // Load from there instead of onboarding_data which has pre-migration stale values.
-          const migratedPropertyId = sessionStorage.getItem('popup_property_id');
-          if (migratedPropertyId && user?.id) {
-            const { data: prop } = await supabase
-              .from('properties')
-              .select('title, property_title, property_intro, description, hero_image, images, location, max_guests, bedrooms, beds, bathrooms')
-              .eq('id', migratedPropertyId)
-              .maybeSingle();
-            if (prop) {
-              const headlineText = prop.property_title || prop.title || '';
-              const descText = prop.property_intro || prop.description || '';
-              const desc24 = extractFirst24Words(descText);
-              // Update sessionStorage so other parts of the app see the migrated values
-              sessionStorage.setItem('popup_property_headline', headlineText);
-              // Upper box (property-description) is the 24-word-limited field — must stay truncated,
-              // same as every other code path in this file. Full text belongs only in the 2nd text box.
-              sessionStorage.setItem('popup_website_desc', desc24);
-              // Store full property_intro for the 2nd text box (lower, unedited full description)
-              sessionStorage.setItem('popup_property_intro', prop.property_intro || prop.description || '');
-              setPropertyHeadline(headlineText);
-              setWebsiteDesc(desc24);
-              setPropertyIntroFull(prop.property_intro || prop.description || '');
-              setScrapedData((prev: any) => ({
-                ...prev,
-                title: (prop.title || '').slice(0, 16),
-                description: stripWhitespace(descText),
-                hero_image: prop.hero_image || prev.hero_image,
-                images: prop.images?.length ? prop.images : prev.images,
-                location: prop.location || prev.location,
-              }));
-            }
-          }
-        }
+        // David 2026-09-22: REMOVED (was here) — a "handle post-Stripe success" block gated on
+        // sessionStorage's stripe_payment_done. Confirmed dead: nothing anywhere in the app
+        // (grepped src/**/*.ts, src/**/*.tsx) ever sets that key -- its setter was already
+        // gone before tonight, presumably removed in an earlier cleanup pass that missed this
+        // consumer. Unreachable code, zero behavior change removing it. See
+        // claude/stability-plan-2026-09-22.md, item 1.
 
 
  // Restore form field selections from sessionStorage (from before Stripe redirect)
@@ -672,167 +566,17 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
    }
  }, [showBuilding, buildingCountdown, user]);
 
- // ── Handle Stripe return redirect ( ?paid=true&session_id= ) ────────────────
- // ALSO fires automatically when webhook has already set stripe_subscription_status=active.
- useEffect(() => {
-  // CAPTURE URL PARAMS FIRST (before any async work or early returns).
-  // When Supabase Auth completes, it may strip URL params from the address bar.
-  // main.tsx saves the original URL before React mounts — read from there as fallback.
-  const earliestUrl = sessionStorage.getItem('__earliest_url') || '';
-  const earliestParams = new URLSearchParams(earliestUrl.split('?')[1] || '');
-
-  const params = new URLSearchParams(window.location.search);
-  const sessionIdFromUrl = params.get('session_id') || earliestParams.get('session_id');
-  const paidFromUrl = params.get('paid') || earliestParams.get('paid');
-  const sessionIdFromStorage = sessionStorage.getItem('stripe_session_id');
-  const sessionId = sessionIdFromUrl || sessionIdFromStorage;
-
-  // Persist sessionId to sessionStorage immediately so it's available after auth clears the URL
-  if (sessionIdFromUrl) sessionStorage.setItem('stripe_session_id', sessionIdFromUrl);
-  // Persist paid flag so this effect re-triggers reliably after auth loads the user
-  if (paidFromUrl) sessionStorage.setItem('stripe_paid_returning', '1');
-
-  // Read back flags from storage (covers the case where user logs in AFTER we saved these)
-  const paidFlag = paidFromUrl || sessionStorage.getItem('stripe_paid_returning');
-  const sessionIdFinal = sessionIdFromUrl || sessionIdFromStorage;
-
-  // David 2026-09-22: this whole handler is the ORIGINAL "Create Draft Site" flow's
-  // post-Stripe verification -- it predates moving checkout to the Publish button in
-  // the sidebar (AdminSidebarBundle.tsx -> handlePublishFromSidebar / the
-  // auto-publish-after-subscribe effect there). That effect already fully owns
-  // verifying the session, promoting role:'admin', and re-publishing for checkouts
-  // started from the sidebar -- marked by pending_publish_property_id, set right
-  // before redirecting to Stripe. Without this guard, BOTH handlers fired on the
-  // same ?paid=true/session_id return: this one called handleSaveSiteInPopup(true)
-  // a second time, ~60-90s after the real save, using whatever was left in
-  // sessionStorage/React state by then (often stale or empty), which silently
-  // overwrote the just-published title/headline/description with generic
-  // fallback copy. Bail out here and let the sidebar's own effect handle it.
-  if (sessionStorage.getItem('pending_publish_property_id')) {
-    console.log('[DEBUG ?paid handler] pending_publish_property_id set — new sidebar-publish flow owns this, skipping legacy handler');
-    return;
-  }
-
-  // If no paid=true and no sessionId anywhere, nothing to do
-  if (!paidFlag && !sessionIdFinal) return;
-
-  // Already handled?
-  if (sessionStorage.getItem('stripe_payment_returning')) { console.log('[DEBUG ?paid handler] Already handled — skipping'); return; }
-
-  // No user yet? Save what we have and wait for auth to load.
-  // The effect will re-fire once useAuth initializes and sets the user.
-  if (!user) { console.log('[DEBUG ?paid handler] No user yet — saving flags and waiting. sessionId:', sessionIdFinal); return; }
-
-  console.log('[DEBUG ?paid handler] EFFECT FIRED — URL:', window.location.href, '| sessionId:', sessionId, '| user:', !!user, '| paid:', paidFromUrl);
-
-  (async () => {
-    // Fresh profile read — gets latest stripe_subscription_status from webhook
-    const { data: profileData } = await supabase
-      .from('profiles').select('*').eq('id', user.id).maybeSingle();
-    const subStatus = profileData?.stripe_subscription_status || user?.stripe_subscription_status;
-    const plan = profileData?.stripe_subscription_plan || planChoice || 'starter';
-
-    console.log('[DEBUG ?paid handler] subStatus:', subStatus, '| sessionId:', sessionId, '| plan:', plan);
-
-    // ── STEP 1: Verify Stripe session FIRST before doing anything else ─────────
-    // This is the critical subscription verification — don't skip or skip ahead
-    if (sessionId) {
-      try {
-        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-        const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-        const { data: { session } } = await supabase.auth.getSession();
-        const slug = sessionStorage.getItem('popup_website_name') || websiteName || 'surfhousebaja';
-        console.log('[DEBUG ?paid handler] 🔍 Verifying Stripe session:', sessionId);
-        const sessionRes = await fetch(`${supabaseUrl}/functions/v1/stripe-subscription`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session?.access_token}`, 'Apikey': supabaseAnonKey },
-          body: JSON.stringify({ action: 'get_session', session_id: sessionId, userId: user.id, slug }),
-        });
-        const sessionData = await sessionRes.json();
-        console.log('[DEBUG ?paid handler] Stripe session result:', JSON.stringify(sessionData));
-
-        if (sessionData.status !== 'complete') {
-          console.error('[DEBUG ?paid handler] ❌ Payment NOT complete, status:', sessionData.status);
-          setStripeError('Payment not confirmed. Status: ' + sessionData.status + '. Please contact support.');
-          setStripeProcessing(false);
-          // Clear URL params even on error
-          window.history.replaceState({}, '', window.location.pathname);
-          return;
-        }
-
-        console.log('[DEBUG ?paid handler] ✅ Payment verified! Updating profile...');
-        // Update profile with verified subscription data AND set admin role
-        await supabase.from('profiles').update({
-          stripe_subscription_status: sessionData.sub_status || 'active',
-          stripe_subscription_plan: plan,
-          stripe_subscription_id: sessionData.subscription_id || profileData?.stripe_subscription_id,
-          stripe_customer_id: sessionData.customer_id,
-          role: 'admin',
-        }).eq('id', user.id);
-        await supabase.auth.refreshSession();
-        await refreshUser();
-        console.log('[DEBUG ?paid handler] ✅ Profile updated with subscription');
-      } catch (err) {
-        console.error('[DEBUG ?paid handler] ❌ Stripe verify error:', err);
-        setStripeError('Could not verify payment. Please contact support.');
-        setStripeProcessing(false);
-        window.history.replaceState({}, '', window.location.pathname);
-        return;
-      }
-    } else {
-      // No sessionId — check if they already have an active sub
-      const hasActiveSub = subStatus === 'active' || subStatus === 'trialing';
-      if (!hasActiveSub) {
-        console.log('[DEBUG ?paid handler] Nothing to do — no sessionId and no active sub');
-        return;
-      }
-      console.log('[DEBUG ?paid handler] No new sessionId but active sub found, continuing...');
-    }
-
-    // ── STEP 2: Clear URL params only AFTER verification passed ───────────────
-    sessionStorage.setItem('stripe_payment_returning', '1');
-    // Strip any double-slashes that may have been introduced by the return_url construction
-    const cleanPath = window.location.pathname.replace(/\/\/+/g, '/');
-    window.history.replaceState({}, '', cleanPath);
-    sessionStorage.removeItem('stripe_session_id');
-
-    setStripeProcessing(true);
-    setIsOpen(false);
-
-    // ── STEP 3: Show overlay immediately, then save in background ───────────────
-    setShowSaveOverlay(true);
-    setSavingSite(true);
-
-    // Run the heavy work (create records + migrate + deploy) without blocking the UI
-    (async () => {
-      try {
-        const siteResult = await handleSaveSiteInPopup(true);
-        console.log('[DEBUG ?paid handler] ✅ Site saved, siteUrl:', siteResult?.siteUrl, 'propertyId:', siteResult?.propertyId, 'slug:', siteResult?.slug);
-        setShowSaveOverlay(false);
-        // Redirect to the newly created site using the slug from sessionStorage
-        const newSlug = siteResult?.slug || sessionStorage.getItem('popup_website_name') || sessionStorage.getItem('popup_user_website_name') || '';
-        if (newSlug) {
-          // Store slug so sidebar can redirect after user clicks through finish popup
-          sessionStorage.setItem('popup_published_slug', newSlug);
-          console.log('[DEBUG ?paid handler] Site saved, slug:', newSlug, '— showing finish popup');
-          // Show finish popup instead of immediately redirecting
-          // User reads the popup, then publishes from the sidebar
-          setShowFinishPopup(true);
-        } else if (siteResult?.propertyId) {
-          sessionStorage.setItem('home_loaded_property_id', siteResult.propertyId);
-          if (onSiteCreated) onSiteCreated(siteResult.propertyId, siteResult.siteUrl);
-        }
-      } catch (err) {
-        console.error('[DEBUG ?paid handler] ⚠️ handleSaveSiteInPopup error:', err);
-        setStripeError('Site saved but deploy may have failed. Check your sidebar.');
-      } finally {
-        setSavingSite(false);
-      }
-    })();
-
-    console.log('[DEBUG ?paid handler] ✅ Overlay shown, save running in background');
-  })();
- }, [user]);
+ // David 2026-09-22: REMOVED (was here) — the legacy ?paid=true&session_id= handler for the
+ // original "Create Draft Site" flow. Confirmed dead: the only two places that ever
+ // constructed that same return_url (the embedded <CheckoutForm> and its RETRY_NEEDED
+ // create_checkout call, both further down this file) were themselves unreachable --
+ // nothing anywhere calls setShowStripeModal(true), so that whole embedded-checkout
+ // subtree could never render or fire. All current checkout is initiated from the
+ // sidebar (AdminSidebarBundle.tsx's handlePublishFromSidebar / auto-publish-after-subscribe
+ // effect), which already owns verifying the session, promoting role:'admin', and
+ // publishing. This handler used to guard itself against double-firing alongside that
+ // effect (pending_publish_property_id check) rather than actually being needed --
+ // see claude/stability-plan-2026-09-22.md, item 1.
 
  // Save or update onboarding data in Supabase
  const saveToSupabase = async (overrides: any = {}) => {
@@ -1839,119 +1583,10 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
 
  {/* Fixed bottom total banner */}
 
- {/* Stripe Payment Modal */}
- {showStripeModal && (
- <div className="stripe-modal-backdrop" onClick={() => { setShowStripeModal(false); setStripeError(''); }}>
- <div className="stripe-modal-box" onClick={e => e.stopPropagation()}>
- <div className="stripe-modal-header">
- <h1 style={{ margin: 0, fontSize: '1.1rem' }}>Secure Payment</h1>
- <button onClick={() => { setShowStripeModal(false); setStripeError(''); }} className="stripe-modal-close">×</button>
- </div>
-
- {/* Payment method icons */}
- <div className="stripe-pay-icons">
- {(['card', 'paypal', 'venmo'] as const).map(method => (
- <button
- key={method}
- className={"stripe-pay-btn" + (stripePayMethod === method ? ' active' : '')}
- onClick={() => setStripePayMethod(method)}
- >
- {method === 'card' && (
- <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
- <rect x="2" y="5" width="20" height="14" rx="2"/>
- <path d="M2 10h20"/>
- </svg>
- )}
- {method === 'paypal' && (
- <svg viewBox="0 0 24 24" fill="currentColor">
- <path d="M7.4 4.5C9 4.5 10.3 5.2 10.7 7h1.5c-.5-2.4-2.7-4-5.2-4-3.4 0-5.6 2.2-5.6 5.4 0 3.2 2.5 4.3 5.9 5.2 2.8.7 4.3 1.4 4.3 3.3 0 2.1-1.9 3.1-4.6 3.1-3.1 0-5.2-1.5-5.3-4.5H1.8c.1 3.7 2.6 6.2 5.9 6.2 3.6 0 5.9-2.3 5.9-5.7 0-3-1.9-4.3-5.9-5.2-2.6-.6-4.1-1.3-4.1-3.1 0-1.2 1.2-2.2 3.4-2.2z"/>
- </svg>
- )}
- {method === 'venmo' && (
- <svg viewBox="0 0 24 24" fill="currentColor">
- <path d="M17.18 6.54c-.7-1.27-2.02-1.91-3.6-1.91-2.2 0-3.8 1.37-4.08 3.2-.32 1.96.82 3.68 2.5 4.78l1.26.82c1.24.81 1.96 1.84 1.96 3.16 0 2.1-1.7 3.67-4.18 3.67-1.74 0-3.14-.67-3.88-1.82l-1.18 1.36c1.04 1.42 2.48 2.18 4.5 2.18 2.84 0 4.98-1.86 5.14-4.48.1-1.3-.46-2.5-1.54-3.4l-1.28-.84c-.98-.64-1.7-1.44-1.7-2.58 0-.92.66-1.58 1.58-1.58.72 0 1.24.32 1.24.92 0 .48-.34.86-.92.86-.24 0-.44-.12-.44-.42 0-.34.26-.66.74-1.16.7-.7 1.34-1.7 1.7-2.84.38.76.58 1.6.58 2.5 0 .8-.2 1.58-.6 2.3.06.26.1.54.1.84 0 .82-.26 1.62-.74 2.34.26.14.56.22.88.22.92 0 1.64-.7 1.64-1.58 0-.44-.18-.84-.46-1.12z"/>
- </svg>
- )}
- <span>{method === 'card' ? 'Card' : method.charAt(0).toUpperCase() + method.slice(1)} {method !== 'card' ? '(coming soon)' : ''}</span>
- </button>
- ))}
- </div>
-
- {/* Show pricing below Stripe elements */}
- <div className="stripe-total-compact" style={{ marginTop: 16 }}>
- <span>Total due today</span>
- <span>{displayedTotal === 0 ? 'Free today' : `$${displayedTotal}`}</span>
- </div>
-
- {stripeClientSecret ? (
- <Elements stripe={stripePromise} options={{ clientSecret: stripeClientSecret, appearance: { theme: 'night', variables: { colorPrimary: '#c47756' } } }}>
- <CheckoutForm
- clientSecret={stripeClientSecret}
- onSuccess={async () => {
- setShowStripeModal(false);
- setStripeClientSecret('');
- await saveToSupabase();
- await refreshUser();
- if (onComplete) {
- onComplete({ bookingsEmail, bankChoice, designChoice, websiteName, websiteDesc, hostingChoice, planChoice, extras, scrapedData });
- }
- handleClose();
- }}
- onError={async (msg) => {
- if (msg === 'RETRY_NEEDED') {
- if (!user) { setStripeError('Please sign in again.'); return; }
- setStripeError('Updating payment details...');
- try {
- const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
- const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
- const activeExtras: string[] = [];
- if (extras.seo) activeExtras.push('seo');
- if (extras.ads) activeExtras.push('ads');
- if (extras.analytics) activeExtras.push('analytics');
- if (extras.social) activeExtras.push('social');
- const res = await fetch(`${supabaseUrl}/functions/v1/stripe-subscription`, {
- method: 'POST',
- headers: {
- 'Content-Type': 'application/json',
- 'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
- 'Apikey': supabaseAnonKey,
- },
- body: JSON.stringify({
- action: 'create_checkout',
- plan: planChoice,
- hosting_choice: hostingChoice,
- extras: activeExtras,
- include_scrape: designChoice === 'airbnb',
- email: user.email,
- user_id: user.id,
- return_url: (window.location.origin.replace(/\/$/, '')) + '/app/?paid=true&session_id={CHECKOUT_SESSION_ID}',
- }),
- });
- const data = await res.json();
- if (data.client_secret) {
- setStripeError('');
- setStripeClientSecret(data.client_secret);
- if (data.subscription_id) setStripeSubscriptionId(data.subscription_id);
- } else {
- setStripeError(data.error || data.message || 'Could not refresh payment. Please try again.');
- }
- } catch {
- setStripeError('Could not connect to payment server.');
- }
- return;
- }
- setStripeError(msg);
- }}
- monthlyTotal={monthlyTotal}
- />
- </Elements>
- ) : (
- <div className="stripe-loading"><div className="spinner-ring" /></div>
- )}
- {stripeError && <div className="stripe-error">{stripeError}</div>}
- </div>
- </div>
- )}
+ {/* David 2026-09-22: REMOVED (was here) — the embedded Stripe Payment Modal
+     (showStripeModal / stripeClientSecret / stripePayMethod / <CheckoutForm>).
+     Confirmed dead: nothing ever calls setShowStripeModal(true). See
+     claude/stability-plan-2026-09-22.md, item 1. */}
 
  {/* Building countdown modal - shown while site is being created + deployed */}
  {showBuilding && (
