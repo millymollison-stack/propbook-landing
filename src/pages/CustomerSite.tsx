@@ -5,7 +5,7 @@
  * No onboarding popup — this is the public-facing published site
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { X } from 'lucide-react';
 import { useParams } from 'react-router-dom';
 import { Login } from './Login';
@@ -301,7 +301,25 @@ export function CustomerSite({ onSiteNameChange, isEditing: externalIsEditing, r
           useProperty.getState().setActiveProperty(cached as Property);
           const imgList: PropertyImage[] = (cached.images || []).map((url: string, i: number) => ({ id: `img-${i}`, url, position: i }));
           setImages(imgList);
+          // David: background images labeled via the gallery's "Use as
+          // background" icon never showed up behind the calendar/amenities
+          // sections. Root cause: this fast path (the common case -- real
+          // property pages boot from the server-injected
+          // window.__PROPERTY_DATA__ cache for instant paint) hardcoded
+          // backgroundImages to [] and never looked at property_images at
+          // all, so no matter what was labeled in the DB, the background
+          // layers had nothing to show. `cached.images` is just plain URL
+          // strings with no is_background flag to read here. Fetch the
+          // real flagged rows in the background (same pattern as the
+          // bookings/blocked_dates/owner_id fetches below) and apply them
+          // once they arrive.
           setBackgroundImages([]);
+          supabase.from('property_images').select('*').eq('property_id', cached.id).order('position')
+            .then(({ data: imgRows, error: imgErr }) => {
+              if (imgErr || !imgRows) return;
+              const bg = imgRows.filter((img: PropertyImage) => (img as any).is_background).slice(0, 2);
+              if (bg.length > 0) setBackgroundImages(bg);
+            }).catch(() => {});
           document.title = cached.name || cached.property_headline || cached.property_title || '@' + slug;
           onSiteNameChange?.(document.title);
           if (cached.brand_color) applyBrandColorFromServer(cached.brand_color);
@@ -523,11 +541,73 @@ export function CustomerSite({ onSiteNameChange, isEditing: externalIsEditing, r
 
   const handleImageUpdate = async (imageId: string, updates: Partial<PropertyImage>) => {
     if (!property) return;
+    // David (console): PATCH .../property_images?id=eq.img-5 was 400ing, and
+    // labels like "Use as background" never actually saved. Root cause: this
+    // property (surfhousebaja) has zero rows in property_images -- confirmed
+    // via direct DB query -- so its gallery is built from the synthetic
+    // `img-${index}` ids over the plain properties.images URL array (see the
+    // loader above). Those ids aren't real property_images rows, so PATCHing
+    // one by "id=eq.img-5" fails (not a valid uuid). handleImageDelete already
+    // branches on this; handleImageUpdate didn't.
+    //
+    // Fix: promote the WHOLE array into real property_images rows in one
+    // insert (not just the image being edited) -- the loader only falls back
+    // to properties.images when property_images has zero rows for this
+    // property, so promoting a single image would make every other image
+    // vanish on the next load. Apply the requested update to the one being
+    // edited as part of the same insert, then switch this property over to
+    // the table (the source of truth) from here on.
+    if (imageId.startsWith('img-')) {
+      const idx = parseInt(imageId.replace('img-', ''), 10);
+      const currentImages: string[] = property.images || [];
+      if (idx < 0 || idx >= currentImages.length) return;
+      const rows = currentImages.map((url, i) => ({
+        property_id: property.id,
+        url,
+        position: i,
+        is_featured: i === 0,
+        is_main: i === 0,
+        is_background: false,
+        ...(i === idx ? updates : {}),
+      }));
+      const { data: inserted, error } = await supabase
+        .from('property_images')
+        .insert(rows)
+        .select();
+      if (error) {
+        console.error('Failed to promote scraped images to property_images:', error);
+        return;
+      }
+      setImages(inserted as PropertyImage[]);
+      setBackgroundImages((inserted as PropertyImage[]).filter(img => (img as any).is_background).slice(0, 2));
+      return;
+    }
     await supabase.from('property_images').update(updates).eq('id', imageId);
-    setImages(prev => prev.map(img => img.id === imageId ? { ...img, ...updates } : img));
+    setImages(prev => {
+      const next = prev.map(img => img.id === imageId ? { ...img, ...updates } : img);
+      // Keep the rendered background layers in sync with the label the
+      // admin just toggled -- previously only `images` (the gallery list)
+      // was updated here, so "Use as background" saved to the DB and
+      // updated the gallery badge, but the actual amenities/calendar
+      // background layer (driven by `backgroundImages`) never refreshed.
+      setBackgroundImages(next.filter(img => (img as any).is_background).slice(0, 2));
+      return next;
+    });
   };
 
-  const imageGallerySaveRef = { current: null as (() => Promise<void>) | null };
+  // David (2026-09-22): this was a plain object literal, not useRef() -- CustomerSite
+  // re-renders constantly (any image/property state change), and a plain object gets
+  // re-created fresh on every render. The "Layout Save button flushes image gallery
+  // changes" effect below only runs once (deps: [registerSaveAll]) and captures
+  // whichever imageGallerySaveRef object existed at THAT render in its closure --
+  // permanently. Meanwhile ImageGallery keeps calling registerSaveHandler against
+  // whatever NEW object exists on each later render, so the save function it registers
+  // is never the one the Save button's closure actually points at: .current there
+  // stays stuck at null (or a stale, outdated closure), and Save silently no-ops.
+  // This is the actual reason photo labels and text edits weren't sticking -- useRef()
+  // is the same object across every render, so both sides agree on which one to write
+  // to and read from.
+  const imageGallerySaveRef = useRef<(() => Promise<void>) | null>(null);
   const handleRegisterSaveHandler = (fn: () => Promise<void>) => { imageGallerySaveRef.current = fn; return true; };
 
   // Register saveAll so Layout Save button flushes image gallery changes
@@ -669,7 +749,7 @@ export function CustomerSite({ onSiteNameChange, isEditing: externalIsEditing, r
       </div>
 
       {showReviewModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={(e) => { if (e.target === e.currentTarget) setShowReviewModal(false); }}>
           {/* Round 7: dropped the separate white sticky header bar -- the
               close X now floats over the panel via the shared .popup-close
               class (same system as the auth modal / booking modal) instead

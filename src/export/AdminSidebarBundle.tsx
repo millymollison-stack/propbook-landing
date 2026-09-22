@@ -95,9 +95,13 @@ interface UserBookingsProps {
   bookings: (Booking & { property: Property; user: Profile })[];
   onUpdateStatus?: (bookingId: string, status: 'approved' | 'denied', reason?: string) => Promise<void>;
   onRefund?: (bookingId: string) => Promise<void>;
+  // True for platform staff OR the account that owns this property — lets a non-admin
+  // owner see guest details and approve/deny/refund bookings on their own property,
+  // instead of being shown the "my own bookings as a guest" view.
+  canManageProperty?: boolean;
 }
 
-const UserBookings = memo(function UserBookings({ bookings, onUpdateStatus, onRefund }: UserBookingsProps) {
+const UserBookings = memo(function UserBookings({ bookings, onUpdateStatus, onRefund, canManageProperty: canManagePropertyProp }: UserBookingsProps) {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [denialReason, setDenialReason] = useState('');
   const [_isAccessDenied, _setIsAccessDenied] = useState(false);
@@ -108,6 +112,8 @@ const UserBookings = memo(function UserBookings({ bookings, onUpdateStatus, onRe
   const [isRefunding, setIsRefunding] = useState<string | null>(null);
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
+  // Staff admin OR the property's owner — both should see guest details and manage bookings.
+  const canManage = isAdmin || !!canManagePropertyProp;
 
   useEffect(() => { if (!isAdmin) loadAdminProfile(); }, [isAdmin]);
 
@@ -168,7 +174,7 @@ const UserBookings = memo(function UserBookings({ bookings, onUpdateStatus, onRe
   return (
     <div className="space-y-6">
       <div className="flex justify-center pt-6">
-        <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="w-48 text-base border-gray-300 rounded-md shadow-sm">
+        <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="w-48 text-base border-gray-300 rounded-md shadow-sm bookings-filter-select">
           <option value="all">All Statuses</option>
           <option value="pending">Pending</option>
           <option value="approved">Approved</option>
@@ -183,15 +189,15 @@ const UserBookings = memo(function UserBookings({ bookings, onUpdateStatus, onRe
               {statusBadge(booking.status)}
               {paymentBadge(booking.payment_status)}
             </div>
-            {isAdmin ? (
+            {canManage ? (
               <div className="space-y-2">
-                <div className="flex items-center"><User className="h-5 w-5 text-gray-400 mr-2" /><span className="font-medium">{booking.user?.full_name || 'Unknown User'}</span></div>
+                <div className="flex items-center"><User className="h-4 w-4 text-gray-400 mr-2" /><span className="font-medium">{booking.user?.full_name || 'Unknown User'}</span></div>
                 <div className="flex items-center body-on-light"><Mail className="h-4 w-4 text-gray-400 mr-2" />{booking.user?.email || 'No email'}</div>
                 <div className="flex items-center body-on-light"><Phone className="h-4 w-4 text-gray-400 mr-2" />{booking.user?.phone_number || 'No phone'}</div>
               </div>
             ) : (
               <div className="space-y-2">
-                <div className="flex items-center"><User className="h-5 w-5 text-gray-400 mr-2" /><span className="font-medium">{user?.full_name || user?.email || 'My Account'}</span></div>
+                <div className="flex items-center"><User className="h-4 w-4 text-gray-400 mr-2" /><span className="font-medium">{user?.full_name || user?.email || 'My Account'}</span></div>
                 <div className="flex items-center body-on-light"><Mail className="h-4 w-4 text-gray-400 mr-2" />{user?.email || ''}</div>
                 <div className="flex items-center body-on-light"><Phone className="h-4 w-4 text-gray-400 mr-2" />{guestProfile?.phone_number || user?.phone_number || ''}</div>
                 {booking.property && <div className="flex items-center body-on-light"><Home className="h-4 w-4 text-gray-400 mr-2" />{booking.property?.title || 'Property'}</div>}
@@ -206,13 +212,13 @@ const UserBookings = memo(function UserBookings({ bookings, onUpdateStatus, onRe
             {booking.special_requests && (
               <div className="mt-4"><dt className="text-sm font-medium text-gray-500 flex items-center"><MessageSquare className="h-4 w-4 mr-1" />Special Requests</dt><dd className="mt-1 text-sm text-gray-900">{booking.special_requests}</dd></div>
             )}
-            {isAdmin && booking.status === 'pending' && (
+            {canManage && booking.status === 'pending' && (
               <div className="mt-4 flex justify-center space-x-3">
                 <button onClick={() => handleStatusUpdate(booking.id, 'approved')} disabled={isUpdating} className="inline-flex items-center px-4 py-2 rounded-md text-sm font-medium text-white bg-green-600 hover:bg-green-700 disabled:opacity-50"><Check className="h-4 w-4 mr-1" />{isUpdating ? 'Updating...' : 'Approve'}</button>
                 <button onClick={() => setShowDenialModal(booking.id)} disabled={isUpdating} className="inline-flex items-center px-4 py-2 rounded-md text-sm font-medium text-white bg-red-600 hover:bg-red-700 disabled:opacity-50"><X className="h-4 w-4 mr-1" />Deny</button>
               </div>
             )}
-            {isAdmin && booking.status === 'denied' && booking.payment_status === 'paid' && (
+            {canManage && booking.status === 'denied' && booking.payment_status === 'paid' && (
               <div className="mt-4 flex justify-center">
                 <button onClick={() => handleRefund(booking.id)} disabled={isRefunding === booking.id} className="inline-flex items-center px-4 py-2 rounded-md text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50"><CreditCard className="h-4 w-4 mr-1" />{isRefunding === booking.id ? 'Processing...' : 'Process Refund'}</button>
               </div>
@@ -560,7 +566,7 @@ function ContactSection({ user, isEditing, fields, onChange, userProperties, act
     <div>
       <div className="py-3">
         <h4 className="sb-h4-grey">Role</h4>
-        <p className="text-base text-gray-900"><span className="font-bold">{user.role === 'admin' ? 'Super Host' : user.role === 'saas_admin' ? 'SaaS Admin' : 'Guest'}</span>{user.role === 'admin' && <span className="font-normal text-gray-500"> (New Site Admin)</span>}</p>
+        <p className="sb-field-value"><span className="font-bold">{user.role === 'admin' ? 'Super Host' : user.role === 'saas_admin' ? 'SaaS Admin' : 'Guest'}</span>{user.role === 'admin' && <span className="font-normal text-gray-500"> (New Site Admin)</span>}</p>
       </div>
       <div className="sb-field-row">
         <h4 className="sb-h4-grey">Name</h4>
@@ -691,8 +697,13 @@ function BankingSection({ connectData, connectLoading, connectOnboarding, payout
   onOnboard: () => void; onRequestPayout: () => void;
 }) {
   const fmt = (cents: number) => `$${(cents / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-  const platformFee = connectData ? Math.round(connectData.available_balance * 0.02) : 0;
-  const payoutAmount = connectData ? connectData.available_balance - platformFee : 0;
+  // The 2% platform fee is already collected at booking time (application_fee_amount on
+  // the destination charge), so a connected account's available_balance here is already
+  // net of it. This used to deduct a SECOND 2% for display (matching a now-fixed backend
+  // bug in stripe-connect's payout action that tried to skim an extra 2% via a broken
+  // `destination: "self"` transfer) -- hosts were shown, and actually paid, less than their
+  // real balance. Payout is the full available balance now, no further deduction.
+  const payoutAmount = connectData ? connectData.available_balance : 0;
   return (
     <div>
       <div className="py-3 border-b border-gray-100">
@@ -717,6 +728,16 @@ function BankingSection({ connectData, connectLoading, connectOnboarding, payout
                     <span className={`font-semibold px-2 py-0.5 rounded-full ${connectData.payouts_enabled ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>Payouts: {connectData.payouts_enabled ? 'Enabled' : 'Pending'}</span>
                   </div>
                 </div>
+                {/* David: bank account can be attached (details_submitted=true) while
+                    Stripe still has an outstanding requirement (e.g. identity document)
+                    blocking charges_enabled -- this state used to look "done" with no
+                    way to act on it. Surface a way back into onboarding whenever
+                    charges are still disabled. */}
+                {!connectData.charges_enabled && (
+                  <div className="pl-7 pt-1">
+                    <button onClick={onOnboard} disabled={connectOnboarding} className="text-xs font-semibold text-red-700 underline disabled:opacity-50">{connectOnboarding ? 'Redirecting...' : 'Finish Verification'}</button>
+                  </div>
+                )}
               </div>
             ) : connectData.account_id && !connectData.details_submitted ? (
               /* ⚠️ Setup in progress */
@@ -740,7 +761,6 @@ function BankingSection({ connectData, connectLoading, connectOnboarding, payout
                 {connectData.available_balance > 0 && connectData.payouts_enabled && (
                   <div className="bg-white border border-gray-200 rounded-lg p-3 space-y-2">
                     <div className="flex justify-between text-sm"><span className="text-gray-600">Available balance</span><span className="font-semibold text-gray-900">{fmt(connectData.available_balance)}</span></div>
-                    <div className="flex justify-between text-sm"><span className="text-gray-500">Platform fee (2%)</span><span className="text-gray-500">− {fmt(platformFee)}</span></div>
                     <div className="border-t border-gray-100 pt-2 flex justify-between text-sm"><span className="font-bold text-gray-900">You receive</span><span className="font-bold text-green-700">{fmt(payoutAmount)}</span></div>
                     {payoutSuccess
                       ? <div className="flex items-center justify-center gap-2 bg-green-50 rounded-lg py-2"><CheckCircle className="h-4 w-4 text-green-600" /><span className="text-sm font-semibold text-green-700">Payout initiated!</span></div>
@@ -798,10 +818,19 @@ function ServicesSection({ services, onToggle }: { services: Record<ServiceKey, 
   );
 }
 
+// David: only Starter ($10/mo) is real, published pricing on propbook.pro right
+// now -- Growth/Pro were placeholder tiers with made-up prices that don't match
+// any actual Stripe price (and would have silently billed the Starter $10 price
+// under a "Growth $79" label). Down to the one plan that's actually for sale,
+// with the exact copy from the pricing page (2026-09-22).
 const PLANS = [
-  { key: 'starter' as const, name: 'Starter', price: 29, features: ['1 property listing', 'Direct booking calendar', 'Guest messaging', 'Basic analytics'] },
-  { key: 'growth' as const, name: 'Growth', price: 79, features: ['Up to 3 properties', 'Everything in Starter', 'AI SEO tools', 'Marketing toolkit'], popular: true },
-  { key: 'pro' as const, name: 'Pro', price: 149, features: ['Unlimited properties', 'Everything in Growth', 'Influencer network', 'Priority support'] },
+  {
+    key: 'starter' as const,
+    name: 'Starter',
+    price: 10,
+    description: 'Get your property online with its own hosted, SEO-ready site.',
+    features: ['x1 property website', 'Hosting server', 'Software subscription', 'Basic AI optimized SEO'],
+  },
 ];
 
 function SubscriptionSection({ subscription, loading, checkoutLoading, onSubscribe }: {
@@ -859,6 +888,7 @@ function SubscriptionSection({ subscription, loading, checkoutLoading, onSubscri
               <div><p className="sb-plan-name">{plan.name}</p><p className="sb-plan-price">${plan.price}<span className="text-xs">/month</span></p></div>
               <button onClick={() => onSubscribe(plan.key)} disabled={checkoutLoading === plan.key} className={`text-sm font-semibold px-4 py-1.5 rounded-lg transition-colors disabled:opacity-50 ${plan.popular ? 'bg-gray-900 hover:bg-gray-800 text-white' : 'border border-gray-300 hover:bg-gray-50 text-gray-700'}`}>{checkoutLoading === plan.key ? 'Loading...' : 'Subscribe'}</button>
             </div>
+            {plan.description && <p className="sb-sub-desc" style={{ margin: '4px 0 10px' }}>{plan.description}</p>}
             <ul className="sb-plan-features">{plan.features.map(f => <li key={f}><Check className="h-3 w-3" />{f}</li>)}</ul>
           </div>
         ))}
@@ -915,9 +945,14 @@ export function AdminSidebar({ isOpen, onClose, mockMode = false, onPropertyLoad
   // ── Handle property switch ─────────────────────────────────────────────────────
   const handleSwitchProperty = (prop: Property) => {
     setShowPropertySwitcher(false);
-    // Set the new property as active BEFORE navigating so loadData sees the right context
-    useProperty.getState().setActiveProperty(prop);
-    navigate(`/props/${prop.slug}`);
+    // David: switching properties via react-router's navigate() left the old
+    // property's data (router basename, window.__PROPERTY_DATA__, this
+    // sidebar's own loaded state) sitting in memory alongside the new one --
+    // each /props/<slug> bundle's basename is pinned to whichever property
+    // was in its ORIGINAL static index.html, so a client-side nav to a
+    // different slug never resets it. A real navigation (full page load)
+    // is the only thing that boots the destination property cleanly.
+    window.location.href = `/props/${prop.slug}`;
   };
 
   // ── Determine if current URL slug belongs to this user ─────────────────────────
@@ -926,12 +961,26 @@ export function AdminSidebar({ isOpen, onClose, mockMode = false, onPropertyLoad
     ? userProperties.some(p => p.slug === currentSlug)
     : true;
 
+  // David: "no admin sidebar" turned out to mean the sidebar mounted fine but
+  // showed almost nothing -- navItems, the Credentials card and the Publish
+  // button were all gated on `isAdmin` (role==='admin', a true platform-staff
+  // flag), not on "does this account own the property being managed". Every
+  // ordinary signed-up owner (role: 'user') hit this, not just today's test
+  // accounts -- they could never see Property/Website/SEO/Banking/
+  // Subscription or the Publish button at all. Reusing isCurrentSlugOwnedByUser
+  // here (rather than inventing a new check) keeps this exactly as permissive
+  // as showLockedState already is: a real admin still gets full access
+  // everywhere (migration untouched), and any non-admin who got this far
+  // without hitting the lock screen is, by construction, on their own
+  // property.
+  const canManageProperty = isAdmin || isCurrentSlugOwnedByUser;
+
   // ── "Go to My Property" — navigate to first owned property ─────────────────────
   const goToMyProperty = () => {
     const myProp = userProperties[0];
     if (myProp) {
-      useProperty.getState().setActiveProperty(myProp);
-      navigate(`/props/${myProp.slug}`);
+      // Full page load, not navigate() -- see handleSwitchProperty above.
+      window.location.href = `/props/${myProp.slug}`;
     } else {
       useProperty.getState().setActiveProperty(null);
       setIsAccessDenied(false);
@@ -944,6 +993,28 @@ export function AdminSidebar({ isOpen, onClose, mockMode = false, onPropertyLoad
   const [isEditing, setIsEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [isAccessDenied, setIsAccessDenied] = useState(false);
+
+  // David: "Property conflict" modal -- admin accounts must keep full,
+  // uninterrupted access to any property (that's how migration/site-building
+  // work happens), so this is a dismissible heads-up, never a hard lock like
+  // showLockedState below. Dismissal is tracked per-slug so switching to
+  // ANOTHER unowned property re-prompts, but re-opening the sidebar on the
+  // same page/slug doesn't nag repeatedly.
+  const [showPropertyConflict, setShowPropertyConflict] = useState(false);
+  const dismissedConflictSlugRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!isAdmin || !currentSlug || userProperties.length === 0) {
+      setShowPropertyConflict(false);
+      return;
+    }
+    if (isCurrentSlugOwnedByUser) {
+      setShowPropertyConflict(false);
+      return;
+    }
+    if (dismissedConflictSlugRef.current === currentSlug) return;
+    setShowPropertyConflict(true);
+  }, [isAdmin, currentSlug, userProperties, isCurrentSlugOwnedByUser]);
 
   const [bookings, setBookings] = useState<(Booking & { property: Property; user: Profile })[]>([]);
   const [bookingsLoading, setBookingsLoading] = useState(false);
@@ -997,6 +1068,15 @@ export function AdminSidebar({ isOpen, onClose, mockMode = false, onPropertyLoad
   userRef.current = user;
   const isAdminRef = useRef(isAdmin);
   isAdminRef.current = isAdmin;
+  // David 2026-09-22: loadData() re-fires whenever userProperties.length changes
+  // (e.g. right after a brand-new property is created and counted in), and it
+  // unconditionally overwrote propFields/seoFields with fresh DB values -- if the
+  // admin was mid-edit (typing the headline) when that refire landed, their
+  // in-progress keystroke got stomped by the pre-edit DB value the instant it
+  // loaded. Mirror isEditing into a ref so loadData's closure always sees the
+  // CURRENT edit state, not the one from whenever loadData was defined.
+  const isEditingRef = useRef(isEditing);
+  isEditingRef.current = isEditing;
   // Guard against concurrent loadData calls (e.g., both [isOpen] and [user] effects firing)
   const isLoadingRef = useRef(false);
 
@@ -1055,29 +1135,51 @@ export function AdminSidebar({ isOpen, onClose, mockMode = false, onPropertyLoad
 
       // Step 1: Get property_id from onboarding_data (fast, reliable — avoids owner_id match issues)
       let propertyRecord: any = null;
-      const { data: od } = await supabase
-        .from('onboarding_data')
-        .select('property_id, property_headline')
-        .eq('user_id', currentUser.id)
-        .maybeSingle();
+      let od: { property_id?: string; property_headline?: string } | null = null;
 
-      if (od?.property_id) {
-        console.log('[AdminSidebar loadData] Found property_id in onboarding_data:', od.property_id);
+      // David: an admin visiting a property they don't own (migration work --
+      // must keep working, never gated) used to ALWAYS load via onboarding_data/
+      // owner_id keyed to the ADMIN'S OWN account here, regardless of which
+      // property's URL they were actually on. That's the "signed in as AI, saw
+      // AI's copy on surfhousebaja's page" bug -- the access bypass below was
+      // never the problem, this lookup ignoring the URL was. Non-admins can't
+      // hit this: the guard above already returns early unless slugOwnedByUser,
+      // so for them "my own property" and "the slug I'm on" are the same
+      // property by construction. Only admins need the slug-first branch.
+      if (currentIsAdmin && urlSlug && !slugOwnedByUser) {
+        console.log('[AdminSidebar loadData] Admin viewing a property they don\'t own — loading by URL slug:', urlSlug);
         const { data: propData } = await supabase
           .from('properties')
           .select('*')
-          .eq('id', od.property_id)
-          .single();
-        propertyRecord = propData;
-      } else {
-        console.log('[AdminSidebar loadData] No onboarding_data property_id, falling back to owner_id lookup');
-        const { data: propData } = await supabase
-          .from('properties')
-          .select('*')
-          .eq('owner_id', currentUser.id)
-          .limit(1)
+          .eq('slug', urlSlug)
           .maybeSingle();
         propertyRecord = propData;
+      } else {
+        const odRes = await supabase
+          .from('onboarding_data')
+          .select('property_id, property_headline')
+          .eq('user_id', currentUser.id)
+          .maybeSingle();
+        od = odRes.data;
+
+        if (od?.property_id) {
+          console.log('[AdminSidebar loadData] Found property_id in onboarding_data:', od.property_id);
+          const { data: propData } = await supabase
+            .from('properties')
+            .select('*')
+            .eq('id', od.property_id)
+            .single();
+          propertyRecord = propData;
+        } else {
+          console.log('[AdminSidebar loadData] No onboarding_data property_id, falling back to owner_id lookup');
+          const { data: propData } = await supabase
+            .from('properties')
+            .select('*')
+            .eq('owner_id', currentUser.id)
+            .limit(1)
+            .maybeSingle();
+          propertyRecord = propData;
+        }
       }
       // ✅ Set property state IMMEDIATELY — don't wait for bookings/profile queries
       const pd = propertyRecord;
@@ -1091,7 +1193,13 @@ export function AdminSidebar({ isOpen, onClose, mockMode = false, onPropertyLoad
         if (propName && onPropertyLoaded) {
           onPropertyLoaded(propName);
         }
+        // Don't clobber an in-progress edit: loadData() can be re-triggered (e.g.
+        // userProperties.length changing right after this very property was created)
+        // while the admin is actively typing in one of these fields -- see isEditingRef
+        // comment above. Only apply fresh DB values when not mid-edit.
+        if (!isEditingRef.current) {
         setPropFields({ title: pd.name || pd.title || '', property_headline: pd.property_headline || od?.property_headline || '', property_intro: pd.property_intro || '', address: pd.address || '', latitude: pd.latitude?.toString() || '', longitude: pd.longitude?.toString() || '', location_type: (pd.location_type as 'address' | 'coordinates') || 'coordinates', bedrooms: pd.bedrooms?.toString() || '', beds: pd.beds?.toString() || '', baths: pd.bathrooms?.toString() || '', max_guests: pd.max_guests?.toString() || '' });
+        }
         // David (item 11): SEO section should pull its page title / meta
         // description from the website name and property description when
         // the admin hasn't explicitly set a custom SEO value -- these are
@@ -1099,6 +1207,7 @@ export function AdminSidebar({ isOpen, onClose, mockMode = false, onPropertyLoad
         // meta_description already saved on the property always wins.
         const websiteNameFallback = pd.name || pd.title || '';
         const propertyDescriptionFallback = pd.property_intro || pd.description || '';
+        if (!isEditingRef.current) {
         setSeoFields(prev => ({
           meta_description: pd.meta_description || propertyDescriptionFallback || '',
           og_image_url: pd.og_image_url || '',
@@ -1112,6 +1221,7 @@ export function AdminSidebar({ isOpen, onClose, mockMode = false, onPropertyLoad
           generate_llms_txt: prev.generate_llms_txt,
           generate_faq_ai_txt: prev.generate_faq_ai_txt,
         }));
+        }
       } else {
         console.warn('[AdminSidebar loadData] ⚠️ pd falsy — NOT calling setProperty');
         sidebarPropertyDataRef.current = null;
@@ -1119,8 +1229,9 @@ export function AdminSidebar({ isOpen, onClose, mockMode = false, onPropertyLoad
 
       // Fire-and-forget: load bookings + profile WITHOUT blocking property display
       // Using .then() instead of await so these slow queries can't block state updates
-      console.log('[AdminSidebar DEBUG] currentIsAdmin:', currentIsAdmin, 'propertyRecord.id:', propertyRecord?.id);
-      if (currentIsAdmin) {
+      console.log('[AdminSidebar DEBUG] currentIsAdmin:', currentIsAdmin, 'slugOwnedByUser:', slugOwnedByUser, 'propertyRecord.id:', propertyRecord?.id);
+      // Property owners (not just staff admins) should see bookings ON their property, not be treated as guests.
+      if (currentIsAdmin || slugOwnedByUser) {
         supabase.from('bookings').select('*, property:properties(*), user:profiles(*)').eq('property_id', propertyRecord.id).order('created_at', { ascending: false }).then((bookingsRes) => {
           console.log('[AdminSidebar DEBUG bookings]', bookingsRes.data?.length, 'error:', bookingsRes.error);
           if (bookingsRes.data) {
@@ -1353,8 +1464,8 @@ export function AdminSidebar({ isOpen, onClose, mockMode = false, onPropertyLoad
       // Use property from state, fall back to sidebarPropertyDataRef if not yet loaded
       const propertyId = property?.id || sidebarPropertyDataRef.current?.id;
       console.log('[AdminSidebar handleSave] Saving. property.id:', property?.id, 'ref.id:', sidebarPropertyDataRef.current?.id, 'propFields:', propFields);
-      // Admins save property fields too; non-admins only save contact info
-      if (isAdmin && propertyId) {
+      // Admins AND property owners save property fields; everyone else only saves contact info
+      if (canManageProperty && propertyId) {
         // Call edge function for property updates — service role key bypasses RLS
         const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
         const { data: sessionData } = await supabase.auth.getSession();
@@ -1406,13 +1517,13 @@ export function AdminSidebar({ isOpen, onClose, mockMode = false, onPropertyLoad
           .from('onboarding_data')
           .update({ property_name: liveWebsiteName, slug: liveSlug, property_headline: propFields.property_headline ?? null })
           .eq('user_id', user.id);
-      } else if (isAdmin && !propertyId) {
+      } else if (canManageProperty && !propertyId) {
         console.warn('[AdminSidebar handleSave] No propertyId — skipping property save');
       }
       if (user) {
         await supabase.from('profiles').update({ full_name: contactFields.full_name || null, phone_number: contactFields.phone_number || null }).eq('id', user.id);
       }
-      if (isAdmin && propFields.title) setPropertyTitle(propFields.title);
+      if (canManageProperty && propFields.title) setPropertyTitle(propFields.title);
 
       // NOTE: Data saves are now independent of code deploys.
       // The published site reads fresh data from Supabase on every load —
@@ -1423,9 +1534,22 @@ export function AdminSidebar({ isOpen, onClose, mockMode = false, onPropertyLoad
     } catch (err) { console.error('Save failed', err); alert('Save failed: ' + (err instanceof Error ? err.message : err)); } finally { setIsEditing(false); setSaving(false); }
   };
 
-  const handlePublishFromSidebar = async () => {
+  const handlePublishFromSidebar = async (verifiedSubscription = false) => {
     if (!user) { setPublishError('Not signed in.'); return; }
     if (!property?.id) { setPublishError('No property found. Please reload.'); return; }
+    // Publishing (going live) now requires an active subscription -- Stripe payment
+    // moved here from GetSite.tsx's old "Create Draft Site" button so users can see
+    // their draft before paying. If they're not subscribed yet, send them to the
+    // Billing section to pick a plan instead of deploying for free. `verifiedSubscription`
+    // lets the post-checkout-return effect below re-call this once it has confirmed
+    // payment directly with Stripe, without waiting on React state to catch up.
+    // (David, 2026-09-21.)
+    if (!hasSubscription && !verifiedSubscription) {
+      sessionStorage.setItem('pending_publish_property_id', property.id);
+      setOpenSection('subscription');
+      setPublishError('Choose a plan below to publish your site.');
+      return;
+    }
     setPublishLoading(true);
     setPublishError(null);
     try {
@@ -1446,7 +1570,15 @@ export function AdminSidebar({ isOpen, onClose, mockMode = false, onPropertyLoad
       // Use the existing property — don't create a new DB record every publish
       const existingPropertyId = property.id;
       const existingSlug = property.slug || slug;
-      const siteUrl = `https://www.propbook.pro/props/${existingSlug}`;
+      // Bare domain, NOT www: the shared bundle's script/link tags
+      // (baked into every property's index.html by the SPA template)
+      // are hardcoded to //propbook.pro/dev/assets/... with no www. A
+      // page served from www.propbook.pro trying to load that script is
+      // a cross-origin request as far as the browser is concerned --
+      // module scripts enforce CORS, there are no CORS headers on that
+      // static file, so it silently fails and the page never renders.
+      // Bare domain keeps the redirect same-origin with its own assets.
+      const siteUrl = `https://propbook.pro/props/${existingSlug}`;
       sessionStorage.setItem('popup_site_url', siteUrl);
 
       // Persist AI/SEO file toggles to sessionStorage so they survive page reloads
@@ -1503,10 +1635,76 @@ export function AdminSidebar({ isOpen, onClose, mockMode = false, onPropertyLoad
     }
   };
 
+  // After redirecting to Stripe checkout from the gate above, Stripe always sends the
+  // browser back to this same page with ?paid=true&session_id=... (App.tsx strips the
+  // query string and, when pending_publish_property_id is set, deliberately does NOT
+  // reopen GetSite -- see App.tsx). Verify the checkout session directly against Stripe
+  // (via stripe-subscription's get_session action) rather than trusting
+  // profiles.stripe_subscription_status, which only updates via the subscription webhook
+  // -- and don't gate this on it lagging or failing. Then finish the publish.
+  useEffect(() => {
+    const pendingPropertyId = sessionStorage.getItem('pending_publish_property_id');
+    const sessionId = sessionStorage.getItem('stripe_session_id');
+    if (!pendingPropertyId || !sessionId || !property?.id || pendingPropertyId !== property.id) return;
+    (async () => {
+      try {
+        const session = await getSession();
+        const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/stripe-subscription`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}`, apikey: import.meta.env.VITE_SUPABASE_ANON_KEY },
+          body: JSON.stringify({ action: 'get_session', session_id: sessionId }),
+        });
+        const data = await res.json();
+        const paidOk = data.status === 'complete' || data.sub_status === 'active' || data.subscription?.status === 'active';
+        if (!paidOk) return;
+
+        // David: this is the step that went missing when Stripe checkout moved from
+        // "Create Draft Site" (old GetSite.tsx) to "Publish" (here). The old ?paid
+        // handler promoted the account to role:'admin' right after verifying payment --
+        // that's what turned a guest sidebar into an admin one. Nothing in the new
+        // publish flow (this effect or handlePublishFromSidebar) was doing that
+        // anymore, so nobody who paid and published through the new flow ever became
+        // an admin. Restoring it here, in the same place verification now happens.
+        if (user?.id) {
+          const { error: upgradeError } = await supabase
+            .from('profiles')
+            .update({ role: 'admin', website_live: true })
+            .eq('id', user.id);
+          if (upgradeError) {
+            console.error('[auto-publish-after-subscribe] Failed to upgrade role to admin:', upgradeError);
+          } else {
+            await supabase.auth.refreshSession();
+            await refreshUser();
+          }
+        }
+
+        sessionStorage.removeItem('pending_publish_property_id');
+        sessionStorage.removeItem('stripe_session_id');
+        sessionStorage.removeItem('stripe_paid_returning');
+        setPublishError(null);
+        loadSubscriptionData();
+        handlePublishFromSidebar(true);
+      } catch (err) {
+        console.error('[auto-publish-after-subscribe] session verification failed:', err);
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [property?.id]);
+
   const handleUpdateBookingStatus = async (bookingId: string, status: 'approved' | 'denied', reason?: string) => {
     if (!user || user.role !== 'admin') return;
     setBookingsLoading(true);
     try {
+      // Auth-hold flow: capture the guest's held payment on approval, or release it
+      // on denial, before flipping the booking's status. A booking with no payment
+      // intent yet (guest never reached payment) comes back as { skipped: true }
+      // and this still proceeds.
+      const { data: paymentResult, error: fnError } = await supabase.functions.invoke('capture-booking-payment', {
+        body: { bookingId, action: status === 'approved' ? 'capture' : 'cancel' },
+      });
+      if (fnError) throw fnError;
+      if (paymentResult?.error) throw new Error(paymentResult.error);
+
       const { error } = await supabase.from('bookings').update({ status, updated_at: new Date().toISOString(), ...(reason ? { denial_reason: reason } : {}) }).eq('id', bookingId);
       if (error) throw error;
       await loadData();
@@ -1533,7 +1731,7 @@ export function AdminSidebar({ isOpen, onClose, mockMode = false, onPropertyLoad
     if (next === 'subscription') loadSubscriptionData();
   };
 
-  const navItems: { key: Section; label: string }[] = isAdmin
+  const navItems: { key: Section; label: string }[] = canManageProperty
     ? [
         { key: 'property', label: 'Property' },
         { key: 'website', label: 'Website' },
@@ -1597,8 +1795,48 @@ export function AdminSidebar({ isOpen, onClose, mockMode = false, onPropertyLoad
   // Effective subscription plan: from Stripe API or profile
   const effectivePlan = subscriptionData?.plan || (user as any)?.stripe_subscription_plan;
 
+  const myOwnProperty = userProperties[0];
+
   return (
     <>
+      {/* David: "signed in as AI (an admin), saw AI's own property's copy on
+          surfhousebaja's page" -- heads-up only, never a hard lock. Admins
+          must keep full, uninterrupted access to any property for migration/
+          site-building work; this just tells them their own account is tied
+          to a different property, in case landing here wasn't intentional. */}
+      {showPropertyConflict && myOwnProperty && (
+        <div className="auth-modal-backdrop" onClick={(e) => { if (e.target === e.currentTarget) { dismissedConflictSlugRef.current = currentSlug; setShowPropertyConflict(false); } }}>
+          <div className="auth-modal">
+            <button
+              className="popup-close"
+              aria-label="Close"
+              onClick={() => { dismissedConflictSlugRef.current = currentSlug; setShowPropertyConflict(false); }}
+            >
+              <X className="h-5 w-5" />
+            </button>
+            <h1 className="hero-title hero-title-edit">Property conflict</h1>
+            <p style={{ marginBottom: '1.25rem' }}>
+              Your account is associated with <strong>{myOwnProperty.name || myOwnProperty.title}</strong>. Do you want to go there instead?
+            </p>
+            <button
+              className="btn"
+              style={{ width: '100%', marginBottom: '0.5rem' }}
+              onClick={() => { setShowPropertyConflict(false); goToMyProperty(); }}
+            >
+              Go to {myOwnProperty.name || myOwnProperty.title}
+            </button>
+            <p>
+              <button
+                type="button"
+                className="popup-link"
+                onClick={() => { dismissedConflictSlugRef.current = currentSlug; setShowPropertyConflict(false); }}
+              >
+                Stay here and keep editing this property
+              </button>
+            </p>
+          </div>
+        </div>
+      )}
       {isOpen && <div className="sidebar-overlay" onClick={onClose} />}
       <div className={`sidebar-panel ${isOpen ? 'translate-x-0' : 'translate-x-full'}`}>
         {/* Header */}
@@ -1654,13 +1892,13 @@ export function AdminSidebar({ isOpen, onClose, mockMode = false, onPropertyLoad
             </button>
             {bookingCardOpen && (
               <div className="border-t border-gray-200">
-                {bookingError ? <p className="text-sm text-red-600 p-4">{bookingError}</p> : <UserBookings bookings={bookings} onUpdateStatus={handleUpdateBookingStatus} onRefund={handleRefund} />}
+                {bookingError ? <p className="text-sm text-red-600 p-4">{bookingError}</p> : <UserBookings bookings={bookings} onUpdateStatus={handleUpdateBookingStatus} onRefund={handleRefund} canManageProperty={canManageProperty} />}
               </div>
             )}
           </div>
 
           {/* Credentials Card — admin only */}
-          {showCredentials && isAdmin && (
+          {showCredentials && canManageProperty && (
             <div className="sb-credentials">
               <button onClick={() => setShowCredentials(false)} className="sb-btn-close" style={{ position: 'absolute', top: 12, right: 12 }}><X className="h-4 w-4" /></button>
               <p className="text-center text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Website Credentials</p>
@@ -1680,17 +1918,20 @@ export function AdminSidebar({ isOpen, onClose, mockMode = false, onPropertyLoad
               </div>
 
               {/* PUBLISH SITE button — gated behind all 4 credentials */}
-              {isAdmin && (
+              {canManageProperty && (
                 <div style={{ marginTop: 16 }}>
                   <button
-                    onClick={handlePublishFromSidebar}
+                    onClick={() => handlePublishFromSidebar()}
                     disabled={publishLoading || !property?.id}
                     style={{
                       width: '100%',
                       padding: '10px 16px',
-                      backgroundColor: publishLoading ? '#9ca3af' : (!hasWebsite ? '#d97706' : '#16a34a'),
-                      color: 'white',
-                      border: 'none',
+                      /* David: "make the green publish button val-col" -- val-color
+                         (brand color, see .val-color in index.css) instead of the
+                         filled green/amber states. */
+                      backgroundColor: 'transparent',
+                      color: publishLoading ? '#9ca3af' : 'var(--brand)',
+                      border: '1px solid var(--brand)',
                       borderRadius: 8,
                       fontWeight: 600,
                       fontSize: '0.9rem',
@@ -1753,8 +1994,12 @@ export function AdminSidebar({ isOpen, onClose, mockMode = false, onPropertyLoad
                 gap: 8,
                 width: '100%',
                 padding: '10px 16px',
-                backgroundColor: 'var(--brand, #C47756)',
-                color: 'white',
+                /* David: "make the get your own booking website button val-col" --
+                   val-color (brand color, see .val-color in index.css) instead of
+                   a filled brand background. */
+                backgroundColor: 'transparent',
+                color: 'var(--brand)',
+                border: '1px solid var(--brand)',
                 borderRadius: 8,
                 fontWeight: 600,
                 fontSize: '0.9rem',
@@ -1772,7 +2017,6 @@ export function AdminSidebar({ isOpen, onClose, mockMode = false, onPropertyLoad
               <LogOut className="h-4 w-4" /><span>Sign Out</span>
             </button>
           </div>
-          <div style={{ height: '4rem' }} />
         </div>
       </div>
 

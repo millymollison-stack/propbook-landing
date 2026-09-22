@@ -16,7 +16,7 @@
  * it via upload.php. SEO files are included in the same request.
  */
 
-import { supabase, supabaseAdmin } from '../lib/supabase';
+import { supabase } from '../lib/supabase';
 import { createSlug } from './slugService';
 
 // Embedded SPA template — avoids CORS issues when deploying from the browser
@@ -413,7 +413,7 @@ export async function createNewSiteRecords(data: NewSiteData): Promise<{
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY}`,
+        'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`, // was the service_role key -- save-site-records does its own privileged writes server-side, this header only needs to satisfy Supabase's verify_jwt gate
       },
       body: JSON.stringify({
         // title: user's typed Website Name field — NOT scraped raw title
@@ -575,6 +575,22 @@ export async function duplicateSiteAfterPayment(
   if (toggles.generate_faq_ai_txt) {
     try { const d: PropertySeoData = { title: prop.title||prop.name||slug, description: prop.description||'', address: prop.address||'', location: (prop as any).location||prop.address||'', bedrooms: prop.bedrooms??null, beds: prop.beds??null, bathrooms: prop.bathrooms??null, max_guests: prop.max_guests??null, price_per_night: prop.price_per_night??null, images: prop.images||[], slug, site_url: siteUrl }; seoFiles['faq-ai.txt'] = generateFaqAiTxt(d); } catch {}
   }
+
+  // Always (re)write a SPA-fallback .htaccess alongside index.html. Without
+  // this, any nested path under the property's own folder -- /auth/confirm
+  // (password reset / email confirmation links), a future client-side route,
+  // etc. -- is a real 404 from Apache, since only /props/<slug>/ itself
+  // resolves directly to index.html. upload.php writes whatever filenames
+  // it's given, dotfiles included, so adding it to seoFiles is enough --
+  // no edge function change needed. Unconditional (not behind a toggle):
+  // every property site needs this to function, it's not an SEO option.
+  seoFiles['.htaccess'] = [
+    'RewriteEngine On',
+    'RewriteBase /',
+    'RewriteCond %{REQUEST_FILENAME} !-f',
+    'RewriteCond %{REQUEST_FILENAME} !-d',
+    `RewriteRule ^ /props/${slug}/index.html [L]`,
+  ].join('\n');
 
   // Step 4: Route through deploy-site edge function (server-side, no CORS)
   // The edge function calls upload.php internally, bypassing the browser CORS restriction

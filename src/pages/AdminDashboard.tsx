@@ -140,6 +140,30 @@ export function AdminDashboard() {
         return;
       }
 
+      // Auth-hold flow: capture (approve) or cancel (deny) each booking's held
+      // payment before flipping its status. A booking with no payment intent yet
+      // (guest never reached that step) comes back as { skipped: true } and still
+      // proceeds. A booking whose hold genuinely can't be captured/canceled is
+      // excluded from the status update below rather than silently marked approved/denied.
+      const actionableBookingIds: string[] = [];
+      for (const bookingId of selectedBookings) {
+        try {
+          const { data, error: fnError } = await supabase.functions.invoke('capture-booking-payment', {
+            body: { bookingId, action: status === 'approved' ? 'capture' : 'cancel' },
+          });
+          if (fnError) throw fnError;
+          if (data?.error) throw new Error(data.error);
+          actionableBookingIds.push(bookingId);
+        } catch (err) {
+          console.error(`❌ Payment ${status === 'approved' ? 'capture' : 'cancel'} failed for booking ${bookingId}:`, err);
+          window.alert(`Couldn't ${status === 'approved' ? 'approve' : 'deny'} booking ${bookingId}: ${err instanceof Error ? err.message : 'payment action failed'}`);
+        }
+      }
+      if (actionableBookingIds.length === 0) {
+        console.log('No bookings could be updated — all payment actions failed.');
+        return;
+      }
+
       console.log('Updating booking status in database...');
       const { error } = await supabase
         .from('bookings')
@@ -148,14 +172,14 @@ export function AdminDashboard() {
           updated_at: new Date().toISOString(),
           ...(status === 'denied' ? { denial_reason: denialReason } : {})
         })
-        .in('id', selectedBookings);
+        .in('id', actionableBookingIds);
 
       if (error) throw error;
       console.log('Database update successful');
 
       // Send email notifications for each updated booking
       console.log('Starting email notification process...');
-      for (const bookingId of selectedBookings) {
+      for (const bookingId of actionableBookingIds) {
         console.log('Processing booking ID:', bookingId);
         const booking = bookings.find(b => b.id === bookingId);
         console.log('Found booking:', booking);
@@ -493,7 +517,10 @@ export function AdminDashboard() {
 
       {/* Denial Reason Modal */}
       {showDenialModal && (
-        <div className="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center">
+        <div
+          className="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center"
+          onClick={(e) => { if (e.target === e.currentTarget) { setShowDenialModal(false); setDenialReason(''); } }}
+        >
           <div className="sb-panel-bg rounded-lg p-6 max-w-md w-full">
             <h3 className="h4-on-light mb-4">
               Provide Reason for Denial

@@ -12,7 +12,6 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@paddle/paddle-js": "^1.6.4",
     "@stripe/connect-js": "^3.4.4",
     "@stripe/react-stripe-js": "^3.6.0",
     "@stripe/stripe-js": "^4.0.0",

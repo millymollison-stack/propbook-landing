@@ -3,7 +3,11 @@
 Deno.serve({ verifyJwt: false }, async (req: Request) => {
   const url = new URL(req.url);
   const sessionId = url.searchParams.get('session_id') || '';
-  const redirectTo = url.searchParams.get('redirect') || 'http://localhost:5174/';
+  // No caller in the current codebase omits `redirect` (grepped clean), but this is a
+  // safety net in case something outside this repo (a Stripe Dashboard-configured URL,
+  // an old bookmark) hits this endpoint without it -- fail safe to production, not a dead
+  // local dev port.
+  const redirectTo = url.searchParams.get('redirect') || 'https://propbook.pro/app/';
 
   console.log('[stripe-return] HIT! session_id:', sessionId);
 

@@ -61,6 +61,19 @@ Deno.serve(async (req: Request) => {
 
     // Build PaymentIntent params — if the property has a connected account,
     // route the payment through it so funds land directly in their balance.
+    //
+    // NOTE (2026-09-21): capture_method is intentionally left as the default
+    // ("automatic") for now. This function is currently only called from
+    // PaymentPage.tsx, AFTER a host has already approved the booking -- so by
+    // the time a guest pays, the review decision is already made and there's
+    // nothing to hold. Manual capture only makes sense once card collection
+    // moves to booking-request time (before host review); that frontend change
+    // hasn't been built yet. Flipping capture_method to "manual" here without
+    // that change would leave every payment stuck in requires_capture forever
+    // (nothing in the app calls capture() on this flow), so don't re-enable it
+    // until the request-time payment step exists. See capture-booking-payment
+    // and stripe-webhook's payment_intent.canceled case, which are already
+    // built and waiting for that frontend piece.
     const intentParams: Stripe.PaymentIntentCreateParams = {
       amount: amountInCents,
       currency: "usd",

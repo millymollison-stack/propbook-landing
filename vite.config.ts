@@ -9,7 +9,15 @@ export default defineConfig({
   base: process.env.VITE_BASE_PATH || '/',
   build: {
     rollupOptions: {
+      // inlineDynamicImports forces everything (including code-split chunks
+      // from `await import(...)`) into the single assets/index.js bundle.
+      // Without this, Rollup emits separate chunks under chunkFileNames'
+      // fixed 'assets/[name].js' pattern, which has no hash and can collide
+      // between chunks — root-caused 2026-09-21 as the cause of a runtime
+      // "useRef is not defined" crash (a corrupted/overwritten chunk boundary
+      // split React's own module away from where it was referenced).
       output: {
+        inlineDynamicImports: true,
         entryFileNames: 'assets/index.js',
         chunkFileNames: 'assets/[name].js',
         assetFileNames: 'assets/index.css',
@@ -27,13 +35,6 @@ export default defineConfig({
         const assetsDir = join(distDir, 'assets');
 
         try {
-          if (existsSync(indexHtml)) {
-            copyFileSync(indexHtml, indexPhp);
-            console.log('[post-build-php] index.html → index.php');
-          } else {
-            console.warn('[post-build-php] index.html not found, skipping PHP copy');
-          }
-
           if (!existsSync(assetsDir)) {
             console.warn('[post-build-php] assets dir not found, skipping manifest');
             return;
@@ -43,6 +44,30 @@ export default defineConfig({
           const jsFile = files.find(f => f.startsWith('index') && f.endsWith('.js')) || '';
           const cssFile = files.find(f => f.startsWith('index') && f.endsWith('.css')) || '';
           const builtAt = Date.now().toString();
+
+          // Cache-bust the /app entry HTML itself — assets are served with a long
+          // max-age (public, max-age=604800), so without a changing query string
+          // browsers keep serving a stale bundle for up to 7 days after every
+          // deploy, even after the origin file is overwritten. (Root-caused
+          // 2026-09-21: a key rotation deploy appeared to "not take" because of
+          // exactly this — the new bundle was live on the server but every
+          // browser that had visited /app before kept using its cached copy.)
+          if (existsSync(indexHtml)) {
+            let html = readFileSync(indexHtml, 'utf8');
+            html = html.replace(
+              /(<script[^>]*\bsrc=")([^"?]*index\.js)(\??[^"]*)(")/,
+              (_m, pre, src, _q, post) => `${pre}${src}?v=${builtAt}${post}`
+            );
+            html = html.replace(
+              /(<link[^>]*\bhref=")([^"?]*index\.css)(\??[^"]*)(")/,
+              (_m, pre, href, _q, post) => `${pre}${href}?v=${builtAt}${post}`
+            );
+            writeFileSync(indexHtml, html);
+            copyFileSync(indexHtml, indexPhp);
+            console.log('[post-build-php] index.html cache-busted (?v=' + builtAt + ') and copied → index.php');
+          } else {
+            console.warn('[post-build-php] index.html not found, skipping PHP copy');
+          }
 
           writeFileSync(join(distDir, 'assets-manifest.json'), JSON.stringify({ js: jsFile, css: cssFile, builtAt }, null, 2));
           console.log('[post-build] Asset manifest:', { js: jsFile, css: cssFile, builtAt });

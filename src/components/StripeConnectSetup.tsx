@@ -46,6 +46,11 @@ function StatusPill({ ok, label }: { ok: boolean; label: string }) {
 }
 
 export function StripeConnectSetup({ variant = 'sidebar', onAccountLinked }: StripeConnectSetupProps) {
+  // Only show Stripe's test bank-account numbers while running against a test-mode
+  // publishable key -- this copy must never be shown to a real host once we switch to
+  // live keys (see go-live checklist), so gate it on the key prefix instead of relying on
+  // someone remembering to delete it by hand later.
+  const isTestMode = (import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || '').startsWith('pk_test_');
   const [account, setAccount] = useState<ConnectAccount | null>(null);
   const [loading, setLoading] = useState(true);
   const [onboarding, setOnboarding] = useState(false);
@@ -198,9 +203,11 @@ export function StripeConnectSetup({ variant = 'sidebar', onAccountLinked }: Str
               Each property site gets its own Stripe Express account, giving you a clean transaction history per property at year-end.
             </p>
           </div>
-          <div className="bg-gray-800 border border-gray-700 rounded-lg p-4 text-xs text-gray-400">
-            Use test routing number <span className="font-mono font-bold text-gray-200">110000000</span> and account number <span className="font-mono font-bold text-gray-200">000123456789</span> during setup to test without real bank details.
-          </div>
+          {isTestMode && (
+            <div className="bg-gray-800 border border-gray-700 rounded-lg p-4 text-xs text-gray-400">
+              Use test routing number <span className="font-mono font-bold text-gray-200">110000000</span> and account number <span className="font-mono font-bold text-gray-200">000123456789</span> during setup to test without real bank details.
+            </div>
+          )}
           {error && <p className="text-sm text-red-400">{error}</p>}
           <button
             onClick={handleOnboard}
@@ -224,12 +231,14 @@ export function StripeConnectSetup({ variant = 'sidebar', onAccountLinked }: Str
         <div className="bg-blue-50 rounded-lg p-3 text-xs text-gray-500">
           Each property has its own Stripe account for separate year-end transaction history.
         </div>
-        <div className="bg-gray-50 rounded-lg p-3">
-          <p className="text-xs font-semibold text-gray-600 mb-1">Test mode</p>
-          <p className="text-xs text-gray-500">
-            Use routing <span className="font-mono font-bold">110000000</span> and account <span className="font-mono font-bold">000123456789</span> to test without real bank details.
-          </p>
-        </div>
+        {isTestMode && (
+          <div className="bg-gray-50 rounded-lg p-3">
+            <p className="text-xs font-semibold text-gray-600 mb-1">Test mode</p>
+            <p className="text-xs text-gray-500">
+              Use routing <span className="font-mono font-bold">110000000</span> and account <span className="font-mono font-bold">000123456789</span> to test without real bank details.
+            </p>
+          </div>
+        )}
         {error && <p className="text-xs text-red-600">{error}</p>}
         <button
           onClick={handleOnboard}

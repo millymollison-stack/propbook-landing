@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { X } from 'lucide-react';
-import { supabase, supabaseAdmin } from '../lib/supabase';
+import { supabase } from '../lib/supabase';
 import { ImageGallery } from '../components/ImageGallery';
 import { PropertyDetails } from '../components/PropertyDetails';
 import { PropertyAmenities } from '../components/PropertyAmenities';
@@ -538,12 +538,21 @@ export function Home({ isEditing: externalIsEditing, onHasChanges, registerSaveA
           setImages(images.map(img => img.id === imageId ? { ...img, ...updates } : img));
         }
       } else {
-        // Real uploaded image — update in property_images table
-        const { error: updateError } = await supabaseAdmin
-          .from('property_images')
-          .update(updates)
-          .eq('id', imageId);
-        if (updateError) throw updateError;
+        // Real uploaded image — update in property_images table, routed through the
+        // update-property-image edge function (privileged write happens server-side)
+        // instead of a direct supabaseAdmin call using the service_role key from the browser.
+        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+        const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+        const res = await fetch(`${supabaseUrl}/functions/v1/update-property-image`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${supabaseAnonKey}`,
+          },
+          body: JSON.stringify({ id: imageId, ...updates }),
+        });
+        const resJson = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(resJson?.error || 'Failed to update image');
         setImages(images.map(img => img.id === imageId ? { ...img, ...updates } : img));
       }
     } catch (err) {
@@ -708,7 +717,7 @@ export function Home({ isEditing: externalIsEditing, onHasChanges, registerSaveA
       </div>
 
       {showReviewModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={(e) => { if (e.target === e.currentTarget) setShowReviewModal(false); }}>
           {/* Round 7: same fix as CustomerSite.tsx's copy of this modal --
               dropped the separate white sticky header bar, floating close X
               via the shared .popup-close class, and the shared

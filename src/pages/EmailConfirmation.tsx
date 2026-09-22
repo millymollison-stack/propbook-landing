@@ -7,11 +7,19 @@ import { Check, X, Loader } from 'lucide-react';
 export function EmailConfirmation() {
   const navigate = useNavigate();
   const location = useLocation();
-  const [status, setStatus] = useState<'checking' | 'manual' | 'loading' | 'success' | 'error'>('checking');
+  const [status, setStatus] = useState<'checking' | 'manual' | 'loading' | 'success' | 'error' | 'recovery'>('checking');
   const [message, setMessage] = useState('');
   const [tokenInput, setTokenInput] = useState('');
   const [newEmail, setNewEmail] = useState('');
   const [showNewEmailForm, setShowNewEmailForm] = useState(false);
+
+  // Password-recovery ("forgot password") state — separate from the
+  // status-driven copy above so the reset form doesn't get clobbered by
+  // the generic loading/success text used for signup/email-change links.
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [passwordSaving, setPasswordSaving] = useState(false);
+  const [passwordSaved, setPasswordSaved] = useState(false);
 
 
   useEffect(() => {
@@ -21,6 +29,16 @@ export function EmailConfirmation() {
 
     const token = urlParams.get('token') || hashParams.get('access_token');
     const type = urlParams.get('type') || hashParams.get('type');
+
+    // Password-reset links ("Forgot password?") land here with type=recovery.
+    // Supabase's client already establishes a temporary recovery session from
+    // the URL (detectSessionInUrl) -- this page's job is just to show the
+    // "set a new password" form instead of treating it as an email
+    // confirmation and bouncing the user straight back into the app.
+    if (type === 'recovery') {
+      setStatus('recovery');
+      return;
+    }
 
     if (token && type === 'email_change') {
       verifyToken(token);
@@ -176,11 +194,34 @@ export function EmailConfirmation() {
     }
   };
 
+  const handleSetNewPassword = async () => {
+    setMessage('');
+    if (newPassword.length < 6) {
+      setMessage('Password must be at least 6 characters.');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setMessage('Passwords do not match.');
+      return;
+    }
+    setPasswordSaving(true);
+    try {
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      if (error) throw error;
+      setPasswordSaved(true);
+      setTimeout(() => navigate('/'), 1500);
+    } catch (error: any) {
+      setMessage(error.message || 'Failed to update password. Please request a new reset link.');
+    } finally {
+      setPasswordSaving(false);
+    }
+  };
+
   return (
     <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center px-4 py-12 sm:px-6 lg:px-8">
       <div className="w-full max-w-md space-y-8">
         <div className="text-center">
-          <h1 className="h2-on-light mb-4">Email Confirmation</h1>
+          <h1 className="h2-on-light mb-4">{status === 'recovery' ? 'Reset Your Password' : 'Email Confirmation'}</h1>
           
           {status === 'checking' && (
             <>
@@ -253,6 +294,51 @@ export function EmailConfirmation() {
                   Request new confirmation email
                 </button>
               </div>
+            </>
+          )}
+
+          {status === 'recovery' && (
+            <>
+              {passwordSaved ? (
+                <>
+                  <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-green-100">
+                    <Check className="h-6 w-6 text-green-600" />
+                  </div>
+                  <h2 className="h2-on-light mt-6">Password updated!</h2>
+                  <p className="body-on-light mt-2">Taking you in...</p>
+                </>
+              ) : (
+                <div className="bg-blue-50 p-6 rounded-lg text-left">
+                  <h3 className="font-medium text-blue-900 mb-4">Set a new password</h3>
+                  <p className="text-sm text-blue-800 mb-4">Choose a new password for your account.</p>
+                  <input
+                    type="password"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    placeholder="New password (min. 6 characters)"
+                    autoComplete="new-password"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm mb-3"
+                  />
+                  <input
+                    type="password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    placeholder="Confirm new password"
+                    autoComplete="new-password"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm mb-3"
+                  />
+                  <button
+                    onClick={handleSetNewPassword}
+                    disabled={passwordSaving || !newPassword || !confirmPassword}
+                    className="w-full bg-blue-600 text-white py-2 px-4 rounded-md text-sm font-medium hover:bg-blue-700 disabled:bg-gray-400"
+                  >
+                    {passwordSaving ? 'Saving...' : 'Save new password'}
+                  </button>
+                  {message && (
+                    <p className="text-sm text-red-700 mt-3">{message}</p>
+                  )}
+                </div>
+              )}
             </>
           )}
 

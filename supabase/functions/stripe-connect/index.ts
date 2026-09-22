@@ -8,7 +8,6 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey",
 };
 
-const PLATFORM_FEE_PERCENT = 0.02; // 2%
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
@@ -192,26 +191,24 @@ Deno.serve(async (req: Request) => {
       const available = balance.available.find(b => b.currency === "usd")?.amount ?? 0;
       if (available <= 0) throw new Error("No available balance to pay out");
 
-      const fee = Math.round(available * PLATFORM_FEE_PERCENT);
-      const payoutAmount = available - fee;
-
-      // Best-effort: transfer 2% platform fee to the platform's own Stripe account
-      if (fee > 0) {
-        await stripe.transfers.create(
-          { amount: fee, currency: "usd", destination: "self" },
-          { stripeAccount: accountId }
-        ).catch(() => {
-          // Non-fatal — payout proceeds even if fee transfer fails
-        });
-      }
-
+      // The platform's 2% fee is already collected at booking time via
+      // application_fee_amount on the destination charge (see create-payment-intent) —
+      // by the time it lands here, `available` is the connected account's own balance,
+      // already net of that fee. This handler used to deduct a SECOND 2% and try to
+      // sweep it out with `stripe.transfers.create({ destination: "self" })`, which is
+      // not a valid Stripe destination and always failed — silently, since the call was
+      // wrapped in .catch(() => {}). Net effect: hosts were shorted 2% of every manual
+      // payout, and that withheld amount never went anywhere (not to the platform, since
+      // the transfer failed; not to the host, since it was excluded from the payout) — it
+      // just sat stuck in the connected account's balance. Fixed: pay out the full
+      // available balance, no second deduction.
       const payout = await stripe.payouts.create(
-        { amount: payoutAmount, currency: "usd" },
+        { amount: available, currency: "usd" },
         { stripeAccount: accountId }
       );
 
       return new Response(
-        JSON.stringify({ payout_id: payout.id, amount: payoutAmount, fee }),
+        JSON.stringify({ payout_id: payout.id, amount: available, fee: 0 }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }

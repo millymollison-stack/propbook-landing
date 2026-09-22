@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Share, User } from 'lucide-react';
+import { Share, User, X } from 'lucide-react';
 import { useAuth } from '../store/auth';
 import { useProperty } from '../store/property';
 import ColorPicker from './ColorPicker';
@@ -109,7 +109,16 @@ export function Layout({ children, isEditing, onToggleEdit, hasChanges, onSaveCh
   };
 
   return (
-    <div className="min-h-screen flex flex-col overflow-x-hidden">
+    // David: double scrollbar on the right, present on every page load
+    // regardless of sidebar state -- root cause is here, not the sidebar.
+    // `overflow-x-hidden` with no overflow-y set makes the CSS spec compute
+    // overflow-y as `auto` on this element too (a UA cannot leave one axis
+    // `visible` while the other is not). Any child bleeding even 1px past
+    // this div's bottom (normal with min-h-screen + flex-col) then makes
+    // *this div* its own scroll container, with its own scrollbar, right
+    // next to the real document scrollbar. `overflow-y-visible` forces
+    // vertical scrolling back onto the document only.
+    <div className="min-h-screen flex flex-col overflow-x-hidden overflow-y-visible">
       <header className="site-nav-header header-transparent">
         <nav className="site-nav-shell">
           <a href={window.location.pathname} className="site-nav-brand">
@@ -202,15 +211,10 @@ export function Layout({ children, isEditing, onToggleEdit, hasChanges, onSaveCh
             {/* Same floating-X close system as every other dark modal
                 (auth-modal, popup-modal) -- David: "remember consistency
                 on everything". */}
-            <button className="popup-close" onClick={closeSharePopup} aria-label="Close">&times;</button>
+            <button className="popup-close" onClick={closeSharePopup} aria-label="Close"><X className="h-5 w-5" /></button>
 
-            {/* Top share icon */}
-            <div className="cs-share-icon-circle">
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
-                <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
-              </svg>
-            </div>
+            {/* David: remove the big blue share icon from the top of this
+                popup. */}
             {/* Same changeable accent-font title class every other title in
                 the app uses. */}
             <h2 className="hero-title cs-share-title">Share this link with your audience</h2>

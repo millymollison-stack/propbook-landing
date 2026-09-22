@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Wifi, Car, Coffee, Tv, Waves, Scale, Fish, Truck, ChevronDown, ChevronUp, Utensils, Wind, Flame, Shirt, Timer, UtensilsCrossed, Flower2, Sun, Mountain, Sunset, Anchor, Footprints, Dumbbell, Bike, Gamepad2, BookOpen, Monitor, Printer, Shield, KeyRound, Siren, Heart, Zap, BedDouble, Sparkles, DoorOpen, PawPrint, Accessibility, Palmtree } from 'lucide-react';
 import type { Property } from '../types';
 import { useAuth } from '../store/auth';
@@ -82,6 +82,7 @@ interface CollapsibleSectionProps {
 
 function CollapsibleSection({ title, content, isEditing, isOpen, onToggle, onHasChanges, trackDirty, fieldName }: CollapsibleSectionProps) {
   const [editedContent, setEditedContent] = useState(content || '');
+  const sectionRef = useRef<HTMLDivElement>(null);
 
   // Keep editedContent in sync when content prop updates (after save completes)
   useEffect(() => {
@@ -90,9 +91,23 @@ function CollapsibleSection({ title, content, isEditing, isOpen, onToggle, onHas
 
 
   return (
-    <div className="dropdown-section">
+    <div className="dropdown-section" ref={sectionRef}>
       <button
-        onClick={onToggle}
+        onClick={(e) => {
+          // David: opening a dropdown "jumps to the middle" of the section
+          // instead of keeping its top in view -- that's the browser's own
+          // "scroll the focused element into view" behavior kicking in once
+          // the accordion content below the button changes the page height,
+          // and it has no idea where we'd actually want to land. Blurring
+          // the button first stops it from taking over, then we drive the
+          // scroll ourselves once the new content has rendered, pinning the
+          // section's own top edge instead of guessing at a middle.
+          e.currentTarget.blur();
+          onToggle();
+          requestAnimationFrame(() => {
+            sectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          });
+        }}
         className="dropdown-header"
       >
         <h1 className="hero-title">{title}</h1>
@@ -204,8 +219,15 @@ export function PropertyAmenities({ property, isEditing, onHasChanges, onUpdate,
           {!isEditing && (
             <div className="grid-2-cols">
               {displayAmenities.map(({ name, icon: Icon }) => (
-                <div key={name} className="flex items-center space-x-2">
-                  <Icon className="h-5 w-5 text-white" />
+                // David: "align the icons with the amenities title, remove
+                // any padding around the icons except 4px on the right" --
+                // space-x-2 was adding an 8px gap via margin on every side
+                // of the row's flow; replaced with a single 4px right
+                // margin directly on the icon (mr-1) so the icon's own left
+                // edge lines up flush with "Amenities" above it, with only
+                // the 4px separating it from its label.
+                <div key={name} className="flex items-start">
+                  <Icon className="h-5 w-5 text-white flex-shrink-0 mt-0.5 mr-1" />
                   <span className="body-on-dark">{name}</span>
                 </div>
               ))}

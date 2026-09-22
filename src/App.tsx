@@ -73,7 +73,17 @@ function AppContent() {
   // loads straight into the GetSite popup instead of requiring the
   // sidebar button click first. Flip back to false to restore the old
   // behavior.
-  const [showGetSite, setShowGetSite] = useState(true);
+  // BUT: AppContent is shared between /app (the main app) AND every
+  // rendered property site (/props/<slug>) -- see App() below, both
+  // routes mount the same component. The unconditional `true` meant a
+  // property site loaded with GetSite already open too, including for
+  // David himself visiting his own site as its admin. Scope the
+  // convenience default to the main app only (window.__PROPERTY_DATA__
+  // is only set on a rendered property site).
+  const [showGetSite, setShowGetSite] = useState(() => !(window as any).__PROPERTY_DATA__);
+  useEffect(() => {
+    console.log('[DIAG showGetSite changed] ->', showGetSite);
+  }, [showGetSite]);
   // Lifted state for GetSite → Home real-time preview
   const [scrapedProperty, setScrapedProperty] = useState<Partial<Property> | null>(null);
   const [scrapedImages, setScrapedImages] = useState<PropertyImage[]>([]);
@@ -81,8 +91,38 @@ function AppContent() {
   // Expose setShowGetSite as a window function so sidebar button can call it directly
   // (bypasses prop chain issues where the prop might be undefined)
   useEffect(() => {
-    (window as any).__openGetSite = () => setShowGetSite(true);
+    (window as any).__openGetSite = () => {
+      // David: "Get your own booking website" is clicked from GuestSidebar,
+      // which only ever renders on SOMEONE ELSE'S already-deployed /props/<slug>
+      // page. That page's whole bundle -- router basename, embedded
+      // window.__PROPERTY_DATA__ -- is pinned to THAT property. Opening
+      // GetSite in place there meant a freshly created draft could never be
+      // shown afterward (AdminSidebar's slug check still points at the
+      // property whose page this is, not the new draft), which is what
+      // looked like "I click Create Draft Site and nothing happens, still on
+      // the old property, only a guest sidebar". /app has no property pinned
+      // to it, so send them there first -- it's the only context a brand-new
+      // draft can actually be continued in afterward.
+      if ((window as any).__PROPERTY_DATA__) {
+        sessionStorage.setItem('propbook_force_getsite', '1');
+        window.location.href = '/app';
+        return;
+      }
+      setShowGetSite(true);
+    };
     return () => { delete (window as any).__openGetSite; };
+  }, []);
+  // David: one-shot flag set by __openGetSite above right before redirecting
+  // to /app — lets the very next /app load force GetSite open and skip the
+  // "existing owner, stop nagging" auto-close effect below just this once,
+  // without weakening that effect for a normal /app visit.
+  const forceGetSiteRef = useRef(false);
+  useEffect(() => {
+    if (sessionStorage.getItem('propbook_force_getsite') === '1') {
+      sessionStorage.removeItem('propbook_force_getsite');
+      forceGetSiteRef.current = true;
+      setShowGetSite(true);
+    }
   }, []);
   // Looked up once when user logs in — the slug of the user's own property
   const [_userPropertySlug, setUserPropertySlug] = useState<string | null>(null);
@@ -96,8 +136,62 @@ function AppContent() {
       .eq('owner_id', user.id)
       .limit(1)
       .maybeSingle()
-      .then(({ data }) => setUserPropertySlug(data?.slug ?? null));
+      .then(({ data }) => {
+        setUserPropertySlug(data?.slug ?? null);
+        // David: "created a draft, never saw an admin sidebar" -- on /app,
+        // nothing was ever wiring up currentPropertyOwnerId at all (only
+        // CustomerSite's per-property page did that, via onPropertyLoaded
+        // below). isViewingOwnProperty was therefore ALWAYS false on /app,
+        // for every non-admin-role user, so AdminSidebar could never render
+        // there -- only GuestSidebar. Finding a property owned by this user
+        // here means isViewingOwnProperty should be true on /app too.
+        if (data?.slug && !(window as any).__PROPERTY_DATA__) {
+          setCurrentPropertyOwnerId(user.id);
+        }
+      });
   }, [user]);
+
+  // David: fires the instant a brand-new draft is saved (GetSite's "Create
+  // Draft Site" button) -- sets ownership immediately rather than waiting on
+  // the effect above to notice, which never re-runs on its own since `user`
+  // doesn't change when a property is created. This is what actually flips
+  // AdminSidebar on right after a draft is created, instead of leaving the
+  // user stuck looking at GuestSidebar with nowhere to go.
+  const handleSiteCreated = (propertyId: string, siteUrl: string) => {
+    console.log('[DIAG handleSiteCreated] FIRED propertyId=', propertyId, 'siteUrl=', siteUrl, 'user=', !!user);
+    if (!user) return;
+    // David: this update to _userPropertySlug below re-triggers the "stop
+    // nagging existing owners" effect further down, which immediately closed
+    // GetSite (and its own Welcome-modal state along with it) the instant
+    // ownership registered -- before the Welcome modal it was about to show
+    // itself ever rendered. That effect is only guarded for the cross-
+    // property redirect path (forceGetSiteRef), not this one. Creating a
+    // draft is just as legitimate a reason to skip that auto-close, so set
+    // the same guard here too.
+    forceGetSiteRef.current = true;
+    setCurrentPropertyOwnerId(user.id);
+    const slugMatch = siteUrl.match(/\/props\/([^/?#]+)/);
+    if (slugMatch) setUserPropertySlug(slugMatch[1]);
+    // Give an immediate, visible confirmation even if the Welcome modal is
+    // missed/dismissed quickly -- slide the admin sidebar open right away
+    // rather than leaving the user staring at a page with nothing changed.
+    setSidebarOpen(true);
+  };
+
+  // Once we learn the signed-in user already has a published property, stop
+  // forcing the GetSite ("Create Your Site") popup open on /app -- that
+  // convenience default is for brand-new/anonymous visitors only, not for an
+  // existing owner returning to the site they already built. Scoped to /app
+  // (no __PROPERTY_DATA__) since property-site pages already default this to
+  // false on their own.
+  useEffect(() => {
+    console.log('[DIAG autoclose effect] fired. _userPropertySlug=', _userPropertySlug, 'forceGetSiteRef=', forceGetSiteRef.current, 'hasPropertyData=', !!(window as any).__PROPERTY_DATA__);
+    if (forceGetSiteRef.current) { console.log('[DIAG autoclose effect] SKIPPED — forceGetSiteRef is true'); return; }
+    if (_userPropertySlug && !(window as any).__PROPERTY_DATA__) {
+      console.log('[DIAG autoclose effect] CLOSING GetSite now');
+      setShowGetSite(false);
+    }
+  }, [_userPropertySlug]);
   const saveAllRef = useRef<(() => Promise<void>) | null>(null);
 
   useEffect(() => {
@@ -130,7 +224,22 @@ function AppContent() {
     const params = new URLSearchParams(window.location.search);
     const paid = params.get('paid') || earliestParams.get('paid');
     const sessionId = params.get('session_id') || earliestParams.get('session_id');
+    // One-shot: whatever we needed from __earliest_url has now been read into
+    // `paid`/`sessionId` above (and gets persisted into durable stripe_* flags
+    // below before GetSite ever needs them). Clearing it here stops this same
+    // stale capture from re-triggering the effect the NEXT time `user` changes
+    // for an unrelated reason on a completely different page.
+    sessionStorage.removeItem('__earliest_url');
     if (paid === 'true' && sessionId) {
+      // Publish was triggered from the sidebar's Publish button (not GetSite) --
+      // that flow verifies the session itself and deploys directly, so don't pop
+      // GetSite back open on top of it. (David, 2026-09-21.)
+      const pendingSidebarPublish = !!sessionStorage.getItem('pending_publish_property_id');
+      // The user was in the sidebar when they clicked Publish; a full-page Stripe
+      // redirect resets sidebarOpen to its default (closed), which would stop
+      // AdminSidebar from loading `property` and prevent its own post-checkout
+      // effect (which needs it) from ever running. Re-open it here.
+      if (pendingSidebarPublish) setSidebarOpen(true);
       console.log('[App ?paid handler] Detected Stripe return, sessionId:', sessionId);
       // Remember where the user came from so we redirect back after the save completes
       sessionStorage.setItem('stripe_original_pathname', window.location.pathname);
@@ -151,11 +260,11 @@ function AppContent() {
             // Don't strand the user without GetSite just because the admin-role
             // promotion failed — still open it so the save/migration can run.
           } finally {
-            setShowGetSite(true);
+            if (!pendingSidebarPublish) setShowGetSite(true);
           }
         })();
       } else {
-        setShowGetSite(true);
+        if (!pendingSidebarPublish) setShowGetSite(true);
       }
     }
   }, [user]);
@@ -352,7 +461,7 @@ function AppContent() {
 
       {/* GetSite popup — shown when guest clicks 'Get your own booking website' in sidebar */}
       {showGetSite && (
-        <GetSite onClose={() => setShowGetSite(false)} onImported={handleGetSiteImported} onSiteNameChange={setSiteName} />
+        <GetSite onClose={() => setShowGetSite(false)} onImported={handleGetSiteImported} onSiteNameChange={setSiteName} onSiteCreated={handleSiteCreated} />
       )}
     </>
   );

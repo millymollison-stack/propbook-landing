@@ -83,6 +83,7 @@ function getEmailContent(data: BookingEmailRequest): { subject: string; html: st
         
         ${booking.special_requests ? `<h2>Special Requests</h2><p>${booking.special_requests}</p>` : ''}
         
+        <p><strong>Please respond within 24 hours</strong> — your guest has been told you'll get back to them by then.</p>
         <p>Log in to your admin dashboard to approve or deny this booking.</p>
       `,
     };
@@ -107,10 +108,10 @@ function getEmailContent(data: BookingEmailRequest): { subject: string; html: st
         
         <div style="background-color: #fef3cd; padding: 15px; border-radius: 5px; margin: 20px 0;">
           <p style="margin: 0; font-weight: bold;">Your request is pending review</p>
-          <p style="margin: 10px 0 0 0;">The host will review your booking and send you a payment link once approved.</p>
+          <p style="margin: 10px 0 0 0;">Your host will get back to you within 24 hours to confirm your dates.</p>
         </div>
         
-        <p>You'll receive an email shortly with a payment link once the host approves your booking.</p>
+        <p>You'll hear from us by email as soon as your host responds.</p>
         
         <p>- The ${property.title} Team</p>
       `,

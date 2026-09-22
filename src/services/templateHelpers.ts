@@ -16,8 +16,6 @@
  * Hostinger SSH: u805830916@82.29.86.252 port 65002
  */
 
-import { supabase } from '../lib/supabase';
-import { createSlug } from './slugService';
 import { BUNDLE_VERSION } from './bundle-versions';
 
 export interface ScrapedData {
@@ -303,128 +301,11 @@ window.__PROPERTY_DATA__ = ${propertyDataJson};
 <script type="module" crossorigin src="https://propbook.pro/props/_dev/${jsBundle}?v=${version}"></script>`);
 }
 
-// ─────────────────────────────────────────────
-// STEP 3a — Create Supabase records via Edge Function (Button 1: Save Site)
-// ─────────────────────────────────────────────
-export async function createNewSiteRecords(data: NewSiteData): Promise<{
-  propertyId: string;
-  siteUrl: string;
-  slug: string;
-}> {
-  const slug = data.slug || createSlug(data.websiteName);
-  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-  const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-  console.log('[createNewSiteRecords] INPUT slug:', data.slug, '-> final slug:', slug);
-  console.log('[createNewSiteRecords] INPUT websiteName:', data.websiteName);
-  console.log('[createNewSiteRecords] INPUT scrapedData.title:', data.scrapedData?.title);
-  if (!supabaseUrl || !supabaseAnonKey) {
-    throw new Error(`Supabase env not configured: VITE_SUPABASE_URL=${supabaseUrl}, VITE_SUPABASE_ANON_KEY=${supabaseAnonKey}`);
-  }
-
-  let res;
-  try {
-    res = await fetch(`${supabaseUrl}/functions/v1/save-site-records`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY}`,
-      },
-      body: JSON.stringify({
-        title: data.websiteName,
-        slug,
-        description: data.scrapedData?.description || data.websiteDesc,
-        location: data.scrapedData?.location || '',
-        maxGuests: data.scrapedData?.guests || 8,
-        bedrooms: data.scrapedData?.bedrooms || 2,
-        beds: data.scrapedData?.beds || 3,
-        baths: data.scrapedData?.baths || 1,
-        pricePerNight: data.scrapedData?.price
-          ? parseFloat(data.scrapedData.price.replace(/[^0-9.]/g, ''))
-          : 150,
-        rating: data.scrapedData?.rating ?? null,
-        reviews: data.scrapedData?.reviews ?? null,
-        heroImage: data.scrapedData?.hero_image || '',
-        images: data.scrapedData?.images || [],
-        stripeAccountId: data.userStripeAccountId || null,
-        stripeAccountStatus: data.userStripeAccountId ? 'active' : null,
-        userId: data.userId,
-        brand_color: data.brand_color || null,
-        font_accent: data.font_accent || null,
-        // Pass full scrapedData so save-site-records can use it directly
-        // (migrate-property is the primary migration path; this is the fallback)
-        scrapedData: data.scrapedData || null,
-      }),
-    });
-    const result = await res.json();
-    if (!res.ok || result.error) {
-      throw new Error(`Property insert failed: ${result.error || res.statusText}`);
-    }
-    const { propertyId } = result;
-    return { propertyId, siteUrl: `https://www.propbook.pro/props/${slug}`, slug };
-  } catch (err) {
-    console.error('[createNewSiteRecords] Error:', err);
-    throw err;
-  }
-}
-
-// ─────────────────────────────────────────────
-// STEP 4 — Deploy to Hostinger via edge function
-// Calls deploy-site edge function which SSHs into Hostinger,
-// copies Migration template, builds the React app, and activates the site
-// ─────────────────────────────────────────────
-export async function duplicateSiteAfterPayment(
-  slug: string,
-  propertyId: string
-): Promise<{ slug: string; propertyId: string; deployUrl: string }> {
-  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-  const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-  const siteUrl = `https://www.propbook.pro/props/${slug}`;
-
-  console.log('[duplicateSiteAfterPayment] 🚀 Deploying to Hostinger for slug:', slug);
-
-  try {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) throw new Error('No session — please sign in again');
-
-    const res = await fetch(`${supabaseUrl}/functions/v1/deploy-site`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${session.access_token}`,
-        'Apikey': supabaseAnonKey,
-      },
-      body: JSON.stringify({ slug, propertyId }),
-    });
-
-    const data = await res.json();
-    if (!res.ok || data.error) {
-      throw new Error(data.error || `Deploy failed: ${res.status}`);
-    }
-
-    console.log('[duplicateSiteAfterPayment] ✅ Deploy complete:', siteUrl);
-    return { slug, propertyId, deployUrl: siteUrl };
-  } catch (err) {
-    console.error('[duplicateSiteAfterPayment] ❌ Deploy error:', err);
-    return { slug, propertyId, deployUrl: siteUrl };
-  }
-}
-
-export async function sendNewSiteEmail(data: NewSiteData, siteUrl: string): Promise<void> {
-  try {
-    await supabase.functions.invoke('send-booking-email', {
-      body: {
-        type: 'new_site_created',
-        user: { email: data.email, full_name: data.websiteName },
-        property: { title: data.scrapedData?.title || data.websiteName },
-        booking: null,
-        adminEmail: data.bookingsEmail || data.email,
-        adminName: data.websiteName,
-        siteUrl,
-        message: `Your site is live at: ${siteUrl}`,
-      },
-    });
-  } catch (err) {
-    console.warn('Confirmation email error:', err);
-  }
-}
-// deploy trigger
+// David 2026-09-22: removed dead code here -- createNewSiteRecords(),
+// duplicateSiteAfterPayment(), and sendNewSiteEmail() used to be duplicated in this
+// file, but nothing imported them from here (only generateTemplateHtml() above is
+// actually used from templateHelpers.ts -- confirmed via grep across src/).
+// The live versions of all three are in src/services/siteDuplicationService.ts.
+// A stale, unreachable duplicate like this is exactly the kind of thing that turns
+// into a real bug the moment someone imports the wrong one by mistake -- see
+// claude/stability-plan-2026-09-22.md.

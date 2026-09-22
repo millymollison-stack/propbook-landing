@@ -74,7 +74,10 @@ export function GuestAuthModal({ isOpen, onClose, propertyId, onSuccess }: Guest
   };
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[200] p-4">
+    <div
+      className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[200] p-4"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
       <div className="sb-panel-bg rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
         {/* Header */}
         <div className="bg-gradient-to-r from-indigo-600 to-purple-600 px-6 py-5 flex items-center justify-between">
@@ -87,7 +90,7 @@ export function GuestAuthModal({ isOpen, onClose, propertyId, onSuccess }: Guest
             </p>
           </div>
           <button onClick={onClose} className="text-white/80 hover:text-white transition-colors">
-            <X size={22} />
+            <X className="h-5 w-5" />
           </button>
         </div>
 

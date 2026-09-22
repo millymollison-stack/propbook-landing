@@ -121,7 +121,11 @@ export function TemplatePreview({
             ({reviews || 0} review{(reviews || 0) !== 1 ? 's' : ''})
           </span>
         </div>
-        <button className="preview-book-btn">Book Now</button>
+        {/* David: "remove the Book Now button from the preview -- it's just
+            stuck on the page rather than locked to the bottom of the
+            preview modal." This is a static mockup card (no real booking
+            flow behind it), so the non-functional button is removed
+            rather than repositioned. */}
       </div>
     </div>
   );

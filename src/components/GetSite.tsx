@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { X } from 'lucide-react';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
 import { TemplatePreview } from './TemplatePreview';
@@ -197,6 +198,7 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
  const [stripePayMethod, setStripePayMethod] = useState<'card' | 'paypal' | 'venmo'>('card');
  const [_stripeSubscriptionId, setStripeSubscriptionId] = useState('');
  const [showCongrats, setShowCongrats] = useState(false);
+ const [showWelcomeModal, setShowWelcomeModal] = useState(false);
  const [congratsUrl, setCongratsUrl] = useState('');
  const [showBuilding, _setShowBuilding] = useState(false);
  const [buildingCountdown, setBuildingCountdown] = useState(120);
@@ -694,6 +696,23 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
   const paidFlag = paidFromUrl || sessionStorage.getItem('stripe_paid_returning');
   const sessionIdFinal = sessionIdFromUrl || sessionIdFromStorage;
 
+  // David 2026-09-22: this whole handler is the ORIGINAL "Create Draft Site" flow's
+  // post-Stripe verification -- it predates moving checkout to the Publish button in
+  // the sidebar (AdminSidebarBundle.tsx -> handlePublishFromSidebar / the
+  // auto-publish-after-subscribe effect there). That effect already fully owns
+  // verifying the session, promoting role:'admin', and re-publishing for checkouts
+  // started from the sidebar -- marked by pending_publish_property_id, set right
+  // before redirecting to Stripe. Without this guard, BOTH handlers fired on the
+  // same ?paid=true/session_id return: this one called handleSaveSiteInPopup(true)
+  // a second time, ~60-90s after the real save, using whatever was left in
+  // sessionStorage/React state by then (often stale or empty), which silently
+  // overwrote the just-published title/headline/description with generic
+  // fallback copy. Bail out here and let the sidebar's own effect handle it.
+  if (sessionStorage.getItem('pending_publish_property_id')) {
+    console.log('[DEBUG ?paid handler] pending_publish_property_id set — new sidebar-publish flow owns this, skipping legacy handler');
+    return;
+  }
+
   // If no paid=true and no sessionId anywhere, nothing to do
   if (!paidFlag && !sessionIdFinal) return;
 
@@ -955,20 +974,20 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
  onImported(previewData);
  }
  }
- // Directly upsert scraped data to onboarding_data via Supabase REST — this is the
- // PRIMARY source for handleSaveSiteInPopup after Stripe redirect (React state and
- // sessionStorage are cleared on app remount). Do this FIRST so it survives the redirect.
- // Use the service_role key directly so it works even if the user isn't set yet.
+ // Upsert scraped data to onboarding_data via the save-onboarding-scrape edge function --
+ // this is the PRIMARY source for handleSaveSiteInPopup after Stripe redirect (React state
+ // and sessionStorage are cleared on app remount). Do this FIRST so it survives the redirect.
+ // Routed server-side (the function does the privileged upsert itself) instead of posting
+ // straight to /rest/v1/onboarding_data with the service_role key from the browser -- this
+ // still works even if the user isn't fully set yet, same as before.
  const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
- const SUPABASE_SERVICE_KEY = import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY;
+ const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
  if (SUPABASE_URL && user?.id) {
-  fetch(`${SUPABASE_URL}/rest/v1/onboarding_data`, {
+  fetch(`${SUPABASE_URL}/functions/v1/save-onboarding-scrape`, {
    method: 'POST',
    headers: {
     'Content-Type': 'application/json',
-    'apikey': SUPABASE_SERVICE_KEY,
-    'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`,
-    'Prefer': 'resolution=merge-duplicates',
+    'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
    },
    body: JSON.stringify({
     user_id: user.id,
@@ -981,7 +1000,7 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
     scraped_reviews: data.reviews || null,
     scraped_guests: data.guests || null,
    }),
-  }).catch(e => console.warn('[handleAirbnbScrape] Direct Supabase save failed:', e));
+  }).catch(e => console.warn('[handleAirbnbScrape] save-onboarding-scrape failed:', e));
  }
  await saveToSupabase({
   scraped_title: data.title || null,
@@ -1005,97 +1024,24 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
  }
  };
  const handlePublish = async (_e?: React.MouseEvent) => {
-   console.log('[handlePublish] 🔵 ENTRY subStatus=' + (user?.stripe_subscription_status || 'none') + ' user=' + !!user + ' plan=' + planChoice);
-   // If user already has an active subscription, save the site directly (no Stripe redirect)
-   // NOTE: handleSaveSiteInPopup itself handles the redirect — do NOT redirect here again
-   if (user?.stripe_subscription_status === 'active' || user?.stripe_subscription_status === 'trialing') {
-     console.log('[handlePublish] ✅ Has active sub — calling handleSaveSiteInPopup directly');
-     const siteResult = await handleSaveSiteInPopup();
-     if (siteResult?.propertyId) {
-       sessionStorage.setItem('home_loaded_property_id', siteResult.propertyId);
-     }
-     return;
-   }
+   console.log('[handlePublish] ENTRY user=' + !!user);
+   // Stripe payment used to be triggered from this button before the site (or even a
+   // DB record) existed. Moved: this button now only ever saves the draft -- the user
+   // gets to see and edit their site first. Paying and going live happens later, from
+   // the Publish button in the sidebar (AdminSidebarBundle.tsx -> handlePublishFromSidebar),
+   // which gates on an active subscription and redirects to Stripe checkout itself.
+   // (David, 2026-09-21: "rewire stripe to be triggered from the publish button in the
+   // sidebar not GetSite.tsx so users get to see their site first before paying.")
    if (!user) { setStripeError('Please sign in or create an account first.'); return; }
-   if (!planChoice) { setStripeError('Please select a subscription plan first.'); return; }
    if (!websiteName.trim()) { setStripeError('Please enter a website name first.'); return; }
-   console.log('[handlePublish] 🔵 No active sub — redirecting to Stripe. subStatus=' + (user?.stripe_subscription_status || 'none'));
-   // Clear stale Stripe-return state from any previous attempt in this browser tab
-   // (a different account, a failed attempt, a different session_id). Without this,
-   // a leftover 'stripe_payment_returning' flag makes the real post-payment handler
-   // in the ?paid=true effect below think THIS brand-new payment was "already
-   // handled" and it silently no-ops — the user lands back with no site created.
-   // (openStripeGateway already did this; handlePublish — the function actually
-   // wired to the Create Draft Site / Publish button — did not, until now.)
-   sessionStorage.removeItem('stripe_payment_returning');
-   sessionStorage.removeItem('stripe_paid_returning');
-   sessionStorage.removeItem('stripe_redirect_initiated');
-   sessionStorage.removeItem('stripe_migration_done');
-   sessionStorage.setItem('popup_website_name', websiteName);
    setStripeError('');
    setStripeProcessing(true);
-   await saveToSupabase();
-
-   try {
-     const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-     const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-
-     const activeExtras: string[] = [];
-     if (extras.seo) activeExtras.push('seo');
-     if (extras.ads) activeExtras.push('ads');
-     if (extras.analytics) activeExtras.push('analytics');
-     if (extras.social) activeExtras.push('social');
-
-     const res = await fetch(`${supabaseUrl}/functions/v1/stripe-subscription`, {
-       method: 'POST',
-       headers: {
-         'Content-Type': 'application/json',
-         'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
-         'Apikey': supabaseAnonKey,
-       },
-       body: JSON.stringify({
-         action: 'create_checkout_session',
-         plan: planChoice,
-         hosting_choice: hostingChoice,
-         extras: activeExtras,
-         include_scrape: designChoice === 'airbnb',
-         email: user.email,
-         user_id: user.id,
-         slug: websiteName,
-         return_url: (window.location.origin.replace(/\/$/, '')) + '/app/?paid=true&session_id={CHECKOUT_SESSION_ID}',
-       }),
-     });
-
-     const data = await res.json();
-     console.log('[handlePublish] 🔵 Stripe response: ok=' + res.ok + ' hasUrl=' + !!data.url + ' error=' + (data.error || ''));
-
-     if (!data.url) {
-       setStripeError(data.error || 'Could not initialise payment. Please try again.');
-       setStripeProcessing(false);
-       return;
-     }
-
-     sessionStorage.setItem('popup_user_website_name', websiteName);
-     sessionStorage.setItem('popup_plan', planChoice);
-     sessionStorage.setItem('popup_hosting', hostingChoice);
-     sessionStorage.setItem('popup_design', designChoice);
-     sessionStorage.setItem('popup_extras_seo', extras.seo ? 'true' : 'false');
-     sessionStorage.setItem('popup_extras_ads', extras.ads ? 'true' : 'false');
-     sessionStorage.setItem('popup_extras_analytics', extras.analytics ? 'true' : 'false');
-     sessionStorage.setItem('popup_extras_social', extras.social ? 'true' : 'false');
-     sessionStorage.setItem('popup_website_name', websiteName);
-     sessionStorage.setItem('popup_website_desc', websiteDesc);
-     sessionStorage.setItem('popup_brand_color', brandColor);
-     sessionStorage.setItem('popup_font_accent', fontAccent);
-     sessionStorage.setItem('popup_property_name', scrapedData?.title || websiteName || '');
-     if (scrapedData) sessionStorage.setItem('popup_scraped_data', JSON.stringify(scrapedData));
-     console.log('[handlePublish] 🔵 Redirecting to: ' + data.url);
-     if (data.sessionId) sessionStorage.setItem('stripe_session_id', data.sessionId);
-     sessionStorage.setItem('stripe_original_pathname', window.location.pathname);
-     window.location.href = data.url;
-   } catch {
-     setStripeError('Could not connect to payment server. Please try again.');
-     setStripeProcessing(false);
+   const siteResult = await handleSaveSiteInPopup();
+   setStripeProcessing(false);
+   console.log('[DIAG handlePublish] siteResult=', siteResult, 'onSiteCreated exists?', !!onSiteCreated);
+   if (siteResult?.propertyId) {
+     sessionStorage.setItem('home_loaded_property_id', siteResult.propertyId);
+     if (onSiteCreated) onSiteCreated(siteResult.propertyId, siteResult.siteUrl);
    }
  };
 
@@ -1290,6 +1236,10 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
      // ── Deploy React app to Hostinger via upload.php ──
      // Wrap in try-catch so the function ALWAYS returns result even if deploy fails
      let deployUrl = constructedSiteUrl;
+     // Skipped for a fresh draft (migrationMode=false) -- the site should not go live
+     // until the user actually publishes (and pays) from the sidebar Publish button,
+     // which deploys via the newer duplicateSiteAfterPayment() path instead.
+     if (migrationMode) {
      try {
        console.log('[handleSaveSiteInPopup] 🚀 Deploying React app to /props/', result.slug, '...');
 
@@ -1377,14 +1327,16 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
      } catch (deployErr) {
        console.warn('[handleSaveSiteInPopup] ⚠️ Deploy failed (non-fatal, site records created):', deployErr);
      }
+     }
 
      // Show success state — suppressed in migration mode; the ?paid handler
      // redirects to the deployed site URL instead of showing any banner.
+     console.log('[DIAG handleSaveSiteInPopup] reached success tail, migrationMode=', migrationMode, 'about to setShowWelcomeModal(true)?', !migrationMode);
      setCongratsUrl(constructedSiteUrl);
      setDeployUrl(deployUrl);
      setSavingSite(false);
      if (!migrationMode) setIsOpen(false);
-     if (!migrationMode) setShowCongrats(true);
+     if (!migrationMode) setShowWelcomeModal(true);
 
      // Return the result so callers (e.g. ?paid handler in App.tsx) can get the propertyId
      return { propertyId: result.propertyId, siteUrl: constructedSiteUrl, slug: result.slug };
@@ -1426,7 +1378,7 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
 
    {/* ── Finish building popup ── */}
    {showFinishPopup && (
-     <div className="popup-backdrop" style={{ background: 'rgba(0,0,0,0.75)', zIndex: 9999, pointerEvents: 'auto' }}>
+     <div className="popup-backdrop" style={{ background: 'rgba(0,0,0,0.75)', zIndex: 9999, pointerEvents: 'auto' }} onClick={(e) => { if (e.target === e.currentTarget) setShowFinishPopup(false); }}>
        <div className="popup-modal" style={{ maxWidth: 400, alignItems: 'center', textAlign: 'center', padding: '36px 40px' }}>
          <div style={{ fontSize: '2.5rem', marginBottom: 16 }}>✅</div>
          <h2 style={{ fontSize: '1.3rem', fontWeight: 700, marginBottom: 12, color: '#fff', textTransform: 'none', letterSpacing: 0 }}>Finish building your site and publish it via the sidebar.</h2>
@@ -1450,16 +1402,19 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
  {isOpen && (
  <div className="popup-backdrop" onClick={handleClose}>
  <div className="popup-modal" onClick={(e) => e.stopPropagation()}>
- <button onClick={handleClose} className="popup-close">×</button>
+ <button onClick={handleClose} className="popup-close"><X className="h-5 w-5" /></button>
 
  {/* Intro */}
  <h1>Create your site</h1>
  <p>Set up your own property booking site now. You can continue editing the site once published.</p>
  <div style={{ height: 16 }} />
 
- {/* Account upgrade */}
+ {/* Account upgrade -- only makes sense once someone is actually signed in;
+     previously rendered unconditionally and fell back to the literal string
+     "account", showing "Signed in as account" to signed-out visitors. */}
+ {user && (
  <label style={{ display: 'flex', flexDirection: 'column', gap: 6, cursor: 'pointer', padding: '10px 0' }}>
-   <span style={{ color: '#ccc', fontSize: 'clamp(0.85rem, 1.5vw, 1rem)' }}>Signed in as <strong style={{ background: 'rgba(80,180,100,0.2)', border: '1px solid rgba(80,180,100,0.4)', borderRadius: 6, padding: '2px 8px', color: '#6fdb8c', fontWeight: 700 }}>{user?.full_name || user?.email || 'account'}</strong></span>
+   <span style={{ color: '#ccc', fontSize: 'clamp(0.85rem, 1.5vw, 1rem)' }}>Signed in as <strong style={{ background: 'rgba(80,180,100,0.2)', border: '1px solid rgba(80,180,100,0.4)', borderRadius: 6, padding: '2px 8px', color: '#6fdb8c', fontWeight: 700 }}>{user.full_name || user.email}</strong></span>
    <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 0' }}>
      <input
        type="checkbox"
@@ -1470,6 +1425,7 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
      Switch to an Admin account
    </div>
  </label>
+ )}
 
 
   {/* Banking section - completed in sidebar after signup */}
@@ -1647,7 +1603,13 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
  onClick={(e) => { e.stopPropagation(); handleAirbnbScrape(e); }}
  disabled={isImporting || !airbnbUrl}
  >
- {isImporting ? `Importing... (${countdown}s)` : 'Get data'}
+ {/* David: "Landing page: Change the button text in the first panel to:
+     Preview your site now" -- was "Get data". This is the Airbnb-import
+     tab's submit button, shown by default (designChoice starts as
+     'airbnb') the moment the "Create your site" popup opens on
+     propbook.pro with no property loaded -- i.e. the first thing a new
+     visitor clicks. */}
+ {isImporting ? `Importing... (${countdown}s)` : 'Preview your site now'}
  </button>
  {importError && <p>{importError}</p>}
  {isImporting && (
@@ -1859,15 +1821,15 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
  <br /><hr />
 
  {/* Payment */}
- <h1>Publish your site</h1>
- <p>After payment your site will build and then you can continue editing the site once published.</p>
+ <h1>Create your draft</h1>
+ <p>Save your site as a draft to preview and keep editing it. You'll publish (and pay) from the sidebar once it's ready.</p>
  <br />
  <button
  className="h2 publish-btn"
  onClick={(e) => { e.stopPropagation(); handlePublish(e); }}
  disabled={!websiteName.trim() || stripeProcessing}
  >
-   {stripeProcessing ? 'REDIRECTING...' : 'CREATE DRAFT SITE'}
+   {stripeProcessing ? 'SAVING...' : 'CREATE DRAFT SITE'}
  </button>
 
  {/* Fixed bottom total banner */}
@@ -2004,75 +1966,20 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
  </div>
  )}
 
- {/* Success modal - shown after Stripe payment completes */}
- {showCongrats && (
- <div className="stripe-modal-backdrop" style={{ zIndex: 99999 }} onClick={() => setShowCongrats(false)}>
- <div className="stripe-modal-box" style={{ textAlign: 'center', padding: '40px 32px' }} onClick={e => e.stopPropagation()}>
- <div style={{ fontSize: '3rem', marginBottom: '16px' }}>🎉</div>
- <h1 style={{ margin: '0 0 12px 0', fontSize: '1.5rem', color: '#fff' }}>Well done!</h1>
- <p style={{ color: '#aaa', fontSize: '0.95rem', margin: '0 0 24px 0', lineHeight: 1.6 }}>
- Your subscription is active. You can now publish your site!
+ {/* Welcome modal — shown once the draft is saved (no payment yet) */}
+ {showWelcomeModal && (
+ <div className="popup-backdrop" style={{ background: 'rgba(0,0,0,0.85)', zIndex: 99999 }} onClick={(e) => { if (e.target === e.currentTarget) { setShowWelcomeModal(false); if (onClose) onClose(); } }}>
+ <div className="popup-modal" style={{ maxWidth: 420, alignItems: 'center', textAlign: 'center', padding: '36px 40px' }} onClick={e => e.stopPropagation()}>
+ <h1 style={{ fontSize: '1.4rem', fontWeight: 700, marginBottom: 14, color: '#fff', textTransform: 'none', letterSpacing: 0 }}>
+ Welcome to {websiteName || 'your site'}
+ </h1>
+ <p style={{ color: 'rgba(255,255,255,0.65)', fontSize: '0.9rem', marginBottom: 24, lineHeight: 1.5 }}>
+ Continue designing your site via the Edit button in the top nav, and add your site details in the sidebar — where you can also publish your site and republish it with updates.
  </p>
  <button
- className="btn"
- style={{ width: '100%', fontSize: '1rem', padding: '14px' }}
- onClick={() => {
- setShowCongrats(false);
- setIsOpen(false);
- handlePublish();
- }}
- >
- Publish Now
- </button>
- <button
- onClick={() => setShowCongrats(false)}
- style={{ background: 'transparent', border: 'none', color: '#888', fontSize: '0.85rem', cursor: 'pointer', marginTop: '12px' }}
- >
- Maybe later
- </button>
- </div>
- </div>
- )}
-
- {/* Quick success banner with copy command - stays until dismissed */}
- {showCongrats && congratsUrl && (
- <div
- style={{
- position: 'fixed',
- top: '24px',
- left: '50%',
- transform: 'translateX(-50%)',
- zIndex: 99999,
- background: '#1a1a1a',
- border: '1px solid #333',
- borderRadius: '12px',
- padding: '20px 28px',
- textAlign: 'center',
- boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
- minWidth: '420px',
- maxWidth: '640px',
- width: '90vw',
- }}
- >
- <div style={{ fontSize: '2rem', marginBottom: '10px' }}>✅</div>
- <p style={{ color: '#fff', fontWeight: 600, fontSize: '1rem', margin: '0 0 4px 0' }}>
- Site "{websiteName || 'Your property'}" saved to Supabase!
- </p>
- <p style={{ color: '#888', fontSize: '0.8rem', margin: '0 0 12px 0' }}>
- Railway deploy triggered - your site will be live on propbook.pro shortly.
- </p>
- {deployUrl && (
- <div style={{ background: '#111', border: '1px solid #444', borderRadius: '8px', padding: '10px 14px', textAlign: 'left', marginBottom: '12px' }}>
- <code style={{ color: '#86efac', fontSize: '0.72rem', wordBreak: 'break-all', fontFamily: 'ui-monospace, monospace', whiteSpace: 'pre-wrap' }}>{deployUrl}</code>
- </div>
- )}
- <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
- <button
- onClick={() => { setShowCongrats(false); }}
- style={{ background: 'transparent', color: '#888', border: '1px solid #444', borderRadius: '6px', padding: '6px 16px', fontSize: '0.8rem', cursor: 'pointer' }}
- >
- Done
- </button>
+ onClick={() => { setShowWelcomeModal(false); if (onClose) onClose(); }}
+ style={{ background: 'var(--brand, #C47756)', color: '#fff', border: 'none', borderRadius: 8, padding: '12px 32px', fontSize: '1rem', fontWeight: 600, cursor: 'pointer' }}
+ >Got it</button>
  </div>
  </div>
  )}

@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
-import { Star, Trash2, ArrowUp, ArrowDown, AlertCircle, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Star, Trash2, ArrowUp, ArrowDown, AlertCircle, ChevronLeft, ChevronRight, Pencil, Check, X } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../store/auth';
 import { Review } from '../types';
@@ -17,6 +17,10 @@ export default function ReviewsList({ showStars = true, isEditing = false, prope
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editText, setEditText] = useState('');
+  const [editName, setEditName] = useState('');
+  const [editRating, setEditRating] = useState(5);
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
   const sliderRef = useRef<HTMLDivElement>(null);
@@ -24,6 +28,18 @@ export default function ReviewsList({ showStars = true, isEditing = false, prope
   useEffect(() => {
     loadReviews();
   }, [isAdmin, propertyId]);
+
+  // David: deleting the review currently being viewed crashed to a blank
+  // "something went wrong" page -- the delete itself succeeded (reviews
+  // shrank), but currentIndex was left pointing past the end of the new,
+  // shorter array (e.g. delete the last of 3 while viewing index 2 -> only
+  // indices 0-1 exist now), so getVisibleReviews() below returned
+  // [undefined] and rendering undefined.review_text threw, tripping
+  // React's error boundary. Clamping currentIndex whenever the review
+  // count changes keeps it always pointing at a real review.
+  useEffect(() => {
+    setCurrentIndex((idx) => Math.min(idx, Math.max(reviews.length - 1, 0)));
+  }, [reviews.length]);
 
   const loadReviews = async () => {
     try {
@@ -63,6 +79,40 @@ export default function ReviewsList({ showStars = true, isEditing = false, prope
     } catch (err) {
       console.error('Error deleting review:', err);
       setError('Failed to delete review');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const startEdit = (review: Review) => {
+    setEditingId(review.id);
+    setEditText(review.review_text);
+    setEditName(review.guest_name);
+    setEditRating(review.rating);
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+  };
+
+  // David: "the modal did not allow me to edit the reviews" -- there was
+  // no edit path at all before, only reorder/delete. Adds one, reusing
+  // the same actionLoading/error plumbing as delete/reorder above.
+  const saveEdit = async (reviewId: string) => {
+    setActionLoading(reviewId);
+    setError(null);
+    try {
+      const { error } = await supabase
+        .from('reviews')
+        .update({ guest_name: editName, review_text: editText, rating: editRating })
+        .eq('id', reviewId);
+
+      if (error) throw error;
+      setEditingId(null);
+      await loadReviews();
+    } catch (err) {
+      console.error('Error editing review:', err);
+      setError('Failed to save review');
     } finally {
       setActionLoading(null);
     }
@@ -173,42 +223,94 @@ export default function ReviewsList({ showStars = true, isEditing = false, prope
               key={review.id}
               className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-md p-4 border border-white/20 hover:shadow-xl transition-all duration-300 flex flex-col h-full width-full-min"
             >
-              {/* Review Text */}
-              {/* Round 5: dropped flex-grow (it stretched this box to fill
-                  the card's full height, pushing the author/name section
-                  down by a variable, often large gap depending on review
-                  length) and tightened pt-4 -> pt-2 — David: "space between
-                  the review and the name... too big". Any extra height
-                  needed to keep cards in a row level now falls at the very
-                  bottom of the card instead of between text and name. */}
-              <p className="body-on-light leading-relaxed mb-2 italic">"{review.review_text}"</p>
-
-              {/* Author & Date with Stars */}
-              <div className="border-t border-gray-100 pt-2 flex justify-between items-start">
-                <div>
-                  <h4 className="h4-on-light">{review.guest_name}</h4>
-                  <p className="body-on-light mt-1">
-                    Stayed {format(new Date(review.stay_date), 'MMMM yyyy')}
-                  </p>
-                </div>
-                <div className="flex gap-1">
-                  {showStars && (
-                    <>
-                      {[1, 2, 3, 4, 5].map((star) => (
+              {editingId === review.id ? (
+                // David: "the modal did not allow me to edit the reviews" --
+                // inline edit form, same card, no separate modal to keep in
+                // sync with the crash-prone slider state above.
+                <div className="space-y-2">
+                  <input
+                    type="text"
+                    value={editName}
+                    onChange={(e) => setEditName(e.target.value)}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                    placeholder="Guest name"
+                  />
+                  <textarea
+                    value={editText}
+                    onChange={(e) => setEditText(e.target.value)}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                    rows={3}
+                    placeholder="Review text"
+                  />
+                  <div className="flex items-center gap-1">
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <button key={star} type="button" onClick={() => setEditRating(star)}>
                         <Star
-                          key={star}
-                          className={`w-5 h-5 ${
-                            star <= review.rating ? 'fill-yellow-400 text-yellow-400' : 'text-gray-200'
-                          }`}
+                          className={`w-5 h-5 ${star <= editRating ? 'fill-yellow-400 text-yellow-400' : 'text-gray-200'}`}
                         />
-                      ))}
-                    </>
-                  )}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => saveEdit(review.id)}
+                      disabled={actionLoading === review.id}
+                      className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-green-600 text-white text-sm hover:bg-green-700 disabled:opacity-50"
+                    >
+                      <Check className="w-4 h-4" /> Save
+                    </button>
+                    <button
+                      onClick={cancelEdit}
+                      className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-gray-200 text-gray-700 text-sm hover:bg-gray-300"
+                    >
+                      <X className="w-4 h-4" /> Cancel
+                    </button>
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <>
+                  {/* Review Text */}
+                  {/* Round 5: dropped flex-grow (it stretched this box to fill
+                      the card's full height, pushing the author/name section
+                      down by a variable, often large gap depending on review
+                      length) and tightened pt-4 -> pt-2 — David: "space between
+                      the review and the name... too big". Any extra height
+                      needed to keep cards in a row level now falls at the very
+                      bottom of the card instead of between text and name. */}
+                  <p className="body-on-light leading-relaxed mb-2 italic">"{review.review_text}"</p>
+
+                  {/* Author & Date with Stars */}
+                  <div className="border-t border-gray-100 pt-2 flex justify-between items-start">
+                    <div>
+                      <h4 className="h4-on-light">{review.guest_name}</h4>
+                      <p className="body-on-light mt-1">
+                        Stayed {format(new Date(review.stay_date), 'MMMM yyyy')}
+                      </p>
+                    </div>
+                    <div className="flex gap-1">
+                      {showStars && (
+                        <>
+                          {[1, 2, 3, 4, 5].map((star) => (
+                            <Star
+                              key={star}
+                              /* David: "in mobile the stars in the reviews
+                                 fall off the edge of the container -- make
+                                 them much smaller." Smaller by default,
+                                 back to the original size from sm: up. */
+                              className={`w-3 h-3 sm:w-5 sm:h-5 ${
+                                star <= review.rating ? 'fill-yellow-400 text-yellow-400' : 'text-gray-200'
+                              }`}
+                            />
+                          ))}
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </>
+              )}
 
               {/* Admin Controls - only show in Edit Mode */}
-              {isAdmin && isEditing && (
+              {isAdmin && isEditing && editingId !== review.id && (
                 <div className="flex items-center gap-2 pt-4 mt-4 border-t border-gray-200">
                   <button
                     onClick={() => handleReorder(review.id, 'up')}
@@ -223,6 +325,13 @@ export default function ReviewsList({ showStars = true, isEditing = false, prope
                     className="p-2 rounded-full bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                   >
                     <ArrowDown className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => startEdit(review)}
+                    disabled={actionLoading === review.id}
+                    className="p-2 rounded-full bg-blue-100 text-blue-700 hover:bg-blue-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    <Pencil className="w-4 h-4" />
                   </button>
                   <button
                     onClick={() => handleDelete(review.id)}

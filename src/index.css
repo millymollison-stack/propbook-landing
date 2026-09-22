@@ -43,7 +43,12 @@ html, body {
      force-capitalizing every word mangled his own casing. Other
      .hero-title uses are short, already-correct-case section labels
      (Amenities, Activities, ...) so removing this is safe everywhere
-     else the class is used too. */
+     else the class is used too. Overriding the global bare `h1 {
+     text-transform: uppercase }` rule here too, since every .hero-title
+     use is an <h1> and was inheriting SHOUTING CASE from that rule --
+     David wants Initial Caps everywhere (headline, dropdown titles,
+     Amenities heading, sidebar Profile heading). */
+  text-transform: none !important;
   margin-bottom: 10px !important;
   color: rgba(255, 255, 255, 0.9) !important;
   padding: 0px 0px 0px 0px !important;
@@ -92,11 +97,23 @@ html, body {
 }
 .body-on-light {
   color: #4b5563;
-  font-size: 0.95rem;
+  /* David: "increase body copy so the app is consistent with the landing
+     page" -- bumped 15% (0.95rem * 1.15). */
+  font-size: 1.0925rem;
 }
 .body-on-dark {
   color: rgba(255, 255, 255, 0.8);
-  font-size: 0.95rem;
+  font-size: 1.0925rem;
+}
+/* David: "the amenities features text need to be reduced in size 20%" --
+   .body-on-dark is shared by lots of other dark-background copy elsewhere
+   (booking sections, reviews, etc.), so scope this to just the amenity
+   name labels instead of touching the shared class everywhere it's used.
+   1.0925rem * 0.8 = 0.874rem. The <=480px "+25%" mobile boost below also
+   applies !important to .body-on-dark, so it needs its own matching
+   override (0.874rem's mobile-boosted counterpart) further down. */
+.grid-2-cols .body-on-dark {
+  font-size: 0.874rem;
 }
 .eyebrow-on-dark {
   font-size: 0.85rem;
@@ -150,17 +167,28 @@ html, body {
 
 /* ============================================
    MOBILE (<=480px): BODY COPY +25%
-   David, after checking the site on his phone: "All body copy needs to be
-   25% larger at a mobile viewport." Scoped to the semantic body-text
-   classes (.body-on-light/.body-on-dark) plus the Tailwind text-xs/sm/base
+   David, round 2 after checking on his phone again: bumped from the
+   prior +15% mobile boost to the full +25% he originally asked for, on
+   top of the same already-increased base (.body-on-light/.body-on-dark,
+   1.0925rem). Scoped to the semantic body-text classes
+   (.body-on-light/.body-on-dark) plus the Tailwind text-xs/sm/base
    utilities that most paragraph/description text in the app still uses
    directly -- NOT headings, titles, buttons, prices, or the small-caps
    label/eyebrow/caption classes above, which are sized and tuned
-   separately from body copy.
+   separately from body copy. This stylesheet is shared by the app and
+   by live property sites (CustomerSite.tsx), so both get this at once.
    ============================================ */
 @media (max-width: 480px) {
   .body-on-light, .body-on-dark {
-    font-size: 1.1875rem !important; /* 0.95rem * 1.25 */
+    font-size: 1.365625rem !important; /* 1.0925rem * 1.25 */
+  }
+  /* Same 20% reduction as the base .grid-2-cols .body-on-dark rule above,
+     just computed from this breakpoint's own boosted value instead of the
+     base one, and with !important to actually win against it:
+     1.365625rem * 0.8 = 1.0925rem (which, coincidentally, is exactly the
+     un-boosted base font-size -- not a typo). */
+  .grid-2-cols .body-on-dark {
+    font-size: 1.0925rem !important;
   }
   .text-xs {
     font-size: 0.9375rem !important; /* 0.75rem * 1.25 */
@@ -170,6 +198,23 @@ html, body {
   }
   .text-base {
     font-size: 1.25rem !important; /* 1rem * 1.25 */
+  }
+  /* Moved down from the old @media (max-width: 410px) block above --
+     David's phone is 420px wide, so that breakpoint never fired for him.
+     Same values, just triggering at the width that matches the rest of
+     this "body copy" boost. .hero-subtitle backs the property description
+     and the amenities free-text description; the bare `p` is a fallback
+     for body paragraphs that don't carry one of the classes above. */
+  .hero-subtitle { font-size: 1.25rem !important; padding: 0px !important; }
+  .hero-subtitle h1 { font-size: 1.8rem !important; }
+  p { font-size: 1.1rem !important; }
+  /* David: "include the section titles in the sidebar like Property,
+     Website, SEO, Contact etc" -- these are the AdminSidebar's nav-row
+     labels (.sb-nav-btn-label), base clamp(0.9rem,2vw,1.1rem). Not a true
+     page title (font-weight is 400, same visual weight as body text), so
+     folding it in here with the rest of what he's calling body copy. */
+  .sb-nav-btn-label {
+    font-size: 1.2rem !important;
   }
 }
 
@@ -204,7 +249,11 @@ html, body {
 .hero-price-suffix {
   display: block;
   font-family: 'Inter', sans-serif;
-  font-size: clamp(1rem, 1.4vw, 1.125rem);
+  /* David: "reduce this text size by 30% so it can fit under the number
+     better" -- clamp(1rem,1.4vw,1.125rem) * 0.7. Also: the JSX text itself
+     was "USD /night" (space only before the slash) -- changed to
+     "USD/night" so it doesn't read as unbalanced either side of the "/". */
+  font-size: clamp(0.7rem, 0.98vw, 0.7875rem);
   font-weight: 400;
   color: rgba(255, 255, 255, 0.8);
   margin-top: 2px;
@@ -396,7 +445,13 @@ html, body {
    instead of the grid itself, widening every cell without touching the
    2/3/4-column breakpoints in .grid-2-cols. */
 @media (max-width: 480px) {
-  .amenities-content { padding-left: 6px; padding-right: 6px; }
+  /* David: Amenities content should sit the same distance from the edges
+     as the gallery-content-overlay container above. That container now
+     has 0 side padding of its own, so its total edge distance is just its
+     inner wrapper's Tailwind px-4 = 16px. Amenities has no such wrapper --
+     .amenities-content is the outermost padded box here -- so 16px (1rem)
+     directly on it matches. */
+  .amenities-content { padding-left: 1rem; padding-right: 1rem; }
 }
 
 /* ============================================
@@ -409,6 +464,31 @@ html, body {
   border: 1px solid rgba(255, 255, 255, 0.15);
   border-radius: 0.5rem;
   padding: 1.5rem;
+}
+/* David: "expand the amenities features further to the edge of the page"
+   -- .glass-card is only ever used here (PropertyAmenities.tsx, both the
+   view-mode wrapper and the edit-mode selector), so it's safe to trim
+   just its own horizontal padding at mobile without affecting anything
+   else. .amenities-content already carries the page's standard 16px edge
+   inset -- this stops the card from eating another 24px on top of that. */
+@media (max-width: 480px) {
+  .amenities-content > .glass-card {
+    /* David (corrected, after the padding-left:1rem attempt below was
+       wrong): "make the icons line up with the Amenities title... reduce
+       the margin or padding on the content inside that container... to
+       make more room, there's a lot of wasted space on the sides and the
+       text keeps going to two lines." Title and icons are both direct
+       children of this card, so they already share whatever padding it
+       has -- adding padding-left:1rem to chase alignment with the
+       PropertyDetails text box above them (a different, separate
+       complaint) ate into the grid's width on the one axis that mattered
+       for the two-line wrapping, which is the opposite of what was
+       actually asked for. Back to 0 on both sides: title and icons stay
+       aligned with each other (that was never actually broken), and the
+       amenity grid gets its full width back. */
+    padding-left: 0;
+    padding-right: 0;
+  }
 }
 
 /* ============================================
@@ -442,9 +522,21 @@ html, body {
 @media (max-width: 410px) {
   .lozenge { font-size: 0.85rem; padding: 0.15rem 0.5rem; margin: 0 0 10px 0; }
   .gallery-content-overlay { padding: 0.25rem; }
-    .hero-subtitle { font-size: 1.25rem !important; padding: 0px !important; }
-  .hero-subtitle h1 { font-size: 1.8rem !important; }
-    p { font-size: 1.1rem !important; }
+  /* .hero-subtitle / p body-copy sizing used to live here at 410px --
+     David: his phone is 420px wide, so it never crossed this breakpoint
+     and he kept missing the bigger text. Moved to the 480px "BODY COPY"
+     block below (still the same values) so it actually fires on his
+     phone, and so it lives in one place with the rest of the mobile
+     body-copy sizing instead of its own one-off breakpoint. */
+}
+
+/* David: "the darker container above the image slider" should sit 20px
+   closer to the edges on mobile. Placed after the 410px block above (and
+   at a wider 480px breakpoint) so it wins on left/right at every width
+   this rule covers, without touching that block's top/bottom values,
+   which weren't reported as an issue. */
+@media (max-width: 480px) {
+  .gallery-content-overlay { padding-left: 0; padding-right: 0; }
 }
 
 /* ============================================
@@ -486,6 +578,16 @@ html, body {
 
 .footer-content { margin-bottom: 35px; }
 .copyright-footer { background: #f9fafb; max-width: 80rem; margin: 0 auto; height: 80px; }
+/* David: "now that the booking banner is taller we need to raise the
+   position of the copyright banner from the bottom of the page by 12px."
+   Layout.tsx already conditionally applies this class to lift the
+   copyright footer clear of the fixed .redbanner (position:fixed,
+   bottom:0, height:56px) that sits on top of it -- but no rule for it
+   existed yet, so the footer was never actually being raised at all.
+   56px (banner height) + 12px (David's ask) = 68px. */
+.footer-pad-top {
+  padding-top: 68px;
+}
 .copyright-text {
   text-align: center;
   color: #9ca3af;
@@ -644,7 +746,11 @@ html, body {
 
 .dropdown-header {
   width: 100%;
-  padding: 6px 0px 0px 20px;
+  /* David: dropdown title text sat ~3px below true vertical center --
+     caused by the asymmetric 6px-top/0px-bottom padding pushing the
+     flex align-items:center content box off-center. Symmetric padding
+     fixes it. */
+  padding: 0px 0px 0px 20px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -656,8 +762,21 @@ html, body {
 .w-5 { width: 3.25rem !important;}
 
 .dropdown-header .hero-title {
-  margin-bottom: 5px;
-  padding: 0;
+  /* David: "vertical text placement in the dropdowns got worse -- moved
+     down." Root cause: .hero-title's transform: scaleY(1.2) is anchored
+     at transform-origin: bottom (needed elsewhere so tall titles don't
+     grow down into content below them), which stretches the title
+     entirely UPWARD. Combined with .hero-title's own margin-bottom: 10px
+     !important (which out-ranked this rule's plain 5px, so it was never
+     actually applying), the bottom anchor point sat too high in the
+     button, pushing the visible text up and off the top edge. Needed
+     !important to actually beat the base rule now, and transform-origin:
+     center so the scale grows evenly instead of only upward -- scoped to
+     dropdown titles only, doesn't touch the property headline/section
+     titles elsewhere that rely on the bottom anchor. */
+  margin-bottom: 5px !important;
+  padding: 0 !important;
+  transform-origin: center !important;
 }
 
 .dropdown-header:hover { background: rgba(255, 255, 255, 0.2); }
@@ -698,7 +817,8 @@ html, body {
   text-transform: capitalize;
   color: #000 !important;
   text-align: center;
-  padding-top: 14px;
+  /* David: "add 10px above the title 'what our guests say'" -- was 14px. */
+  padding-top: 24px;
   padding-bottom: 10px;
   transform: scaleY(1.2);
   transform-origin: bottom;
@@ -714,8 +834,10 @@ html, body {
   background: var(--brand);
   color: #fff;
   border-radius: 6px;
-  font-size: 0.875rem;
-  font-weight: 500;
+  /* David: "text inside all buttons could also be 30% larger and bold" --
+     0.875rem * 1.3. */
+  font-size: 1.1375rem;
+  font-weight: 700;
   border: none;
   cursor: pointer;
   transition: opacity 0.15s;
@@ -1097,7 +1219,11 @@ html, body {
   align-items: flex-start;
   gap: 8px;
   cursor: pointer;
-  margin-top: 0.5rem;
+  /* David: "reduce the space above ... the checkbox" -- this margin-top
+     was stacking on top of the 0.5rem flex gap .booking-modal-col-right
+     already puts between every stacked child, doubling up the same
+     spacing. Dropped so the shared gap is the only source of it. */
+  margin-top: 0;
 }
 
 .booking-liability-checkbox {
@@ -1124,8 +1250,11 @@ html, body {
   align-items: center;
   gap: 0.5rem;
   /* David: wanted some breathing room above the button -- the column's
-     shared 0.5rem gap (.booking-modal-col-right) was too tight. */
-  margin-top: 0.75rem;
+     shared 0.5rem gap (.booking-modal-col-right) was too tight -- then
+     later "reduce the space ... below the checkbox and text above the
+     button", so dialed back from 0.75rem to a smaller top-up over that
+     same shared gap instead of removing the extra space entirely. */
+  margin-top: 0.25rem;
   padding: 12px 24px;
   background: var(--brand);
   color: #fff;
@@ -1328,7 +1457,12 @@ p {
   border: none !important;
   border-radius: 6px;
   font-size: 1.2rem;
-  font-weight: 500;
+  /* David: "I wish the buttons had a standard text size" -- named .btn's
+     own (sign-in modal) size as the one that already looks right, so its
+     size is untouched here and used below as the target other button
+     classes are brought up to match; "the text inside all buttons could
+     also be ... bold" does apply to this one too. */
+  font-weight: 700;
   cursor: pointer;
   margin: 28px 0;
   transition: background-color 0.15s;
@@ -1456,6 +1590,19 @@ input[type="tel"]:focus {
     max-width: 50rem;
     margin-left: auto;
     margin-right: auto;
+  }
+}
+/* David: "the calendar needs the container width to be expanded left and
+   right to match the dropdown widths" -- BookingCalendar and the
+   Property Details/Activities/etc dropdowns both sit inside the same
+   .amenities-content wrapper (16px edge inset at mobile, see above), but
+   this card's own 10px left/right margin on top of that made it visibly
+   narrower than the dropdowns beside it. Dropped just the horizontal
+   margin at mobile so both line up; top/bottom spacing is untouched. */
+@media (max-width: 480px) {
+  .booking-calendar-outer {
+    margin-left: 0;
+    margin-right: 0;
   }
 }
 
@@ -2167,7 +2314,9 @@ hr {
 
 /* Style weekday cells to fit 3 letters */
 .rdp-head_cell {
-  font-size: 14px !important;
+  /* David: "font size increase by 25% on all the elements except the
+     title and the key text" -- 14px * 1.25. */
+  font-size: 17.5px !important;
   letter-spacing: 0 !important;
 }
 
@@ -2318,6 +2467,19 @@ hr {
 @media (max-width: 410px) {
   /* .gallery-content-overlay's own padding shrinks to 0.25rem below 410px,
      so the excess to cancel out is smaller here than the -20px above. */
+  .titleandpricebox > div:last-child {
+    margin-right: -4px;
+  }
+}
+/* David: "at 480 viewport the price per night is going too far to the
+   right and falling off the page. Bring it in 16px." -- 480px falls
+   inside the max-width:767px tier above (-20px), which was calibrated for
+   wider phones; it's too aggressive once the viewport gets this narrow
+   (same reason the max-width:410px tier above dials it back further).
+   Placed last so it wins over the -20px rule for anything <=500px,
+   bringing the price in by 16px (-20px -> -4px) right where David saw it
+   clipping; matches the already-safe -4px value the narrower tier uses. */
+@media (max-width: 500px) {
   .titleandpricebox > div:last-child {
     margin-right: -4px;
   }
@@ -4144,6 +4306,18 @@ input[type="password"] {
   color: #ffffff;
   height: 110px;
 }
+/* David: "at mobile view the text box expanded to 16px from the edge of
+   the page" -- the title/price row stacks vertically at this width
+   (there's no price box floating alongside it to stay clear of), so the
+   60% desktop width just cramps the box for no reason. Full width, with
+   the page's own 16px edge padding (the max-w-7xl px-4 wrapper this sits
+   inside) doing the rest. */
+@media (max-width: 480px) {
+  .edit-intro-textarea {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+}
 
 /* ---- .edit-section-textarea ---- */
 /* Was missing color: #fff (unlike its siblings .edit-textarea/.edit-intro-
@@ -4434,7 +4608,12 @@ button.rdp-day.rdp-button[disabled]:not(.rdp-day_selected).rdp-day_selected,
   position: fixed;
   inset: 0;
   z-index: 99998;
-  pointer-events: none;
+  /* David: "click off the sidebar to close it automatically" -- was
+     pointer-events: none, which silently swallowed the onClick={onClose}
+     wired to this element on every click. GuestSidebar has its own
+     document-level mousedown listener as a fallback, which is why only
+     the admin sidebar was reported as not closing. */
+  pointer-events: auto;
 }
 
 .sidebar-panel {
@@ -4463,6 +4642,20 @@ button.rdp-day.rdp-button[disabled]:not(.rdp-day_selected).rdp-day_selected,
   overflow-y: auto;
   display: flex;
   flex-direction: column;
+  /* David: phantom/extra vertical scrollbar showing on the page even while
+     this drawer is closed (translated fully offscreen via translate-x-full
+     in the second .sidebar-panel rule below). Root cause: this element is
+     always mounted in the DOM (GuestSidebar/AdminSidebarBundle only toggle
+     the translate-x-0/translate-x-full classes, never unmount it), and a
+     position:fixed + height:100dvh element that's also a CSS transform
+     target can still be counted by some engines' scrollable-overflow
+     calculation for the document, even though it's positioned out of the
+     visible viewport. `contain: layout` tells the browser this element's
+     internal layout is isolated from the rest of the page, so it can no
+     longer contribute to the ancestor/document scroll area -- fixes the
+     "always ~2 units taller than the window" scrollbar without touching
+     the actual open/close animation or visible sizing. */
+  contain: layout;
 }
 
 /* ============================================
@@ -4500,8 +4693,10 @@ button.rdp-day.rdp-button[disabled]:not(.rdp-day_selected).rdp-day_selected,
   display: flex;
   align-items: center;
   gap: 5px;
-  font-size: 12px;
-  font-weight: 500;
+  /* David: "text inside all buttons could also be 30% larger and bold" --
+     12px * 1.3 = 15.6px, rounded to 16px. */
+  font-size: 16px;
+  font-weight: 700;
   color: var(--brand);
   background: none;
   border: none;
@@ -4516,8 +4711,10 @@ button.rdp-day.rdp-button[disabled]:not(.rdp-day_selected).rdp-day_selected,
 /* Cancel / Save buttons (edit mode) */
 .sidebar-btn-cancel,
 .sidebar-btn-save {
-  font-size: 12px;
-  font-weight: 500;
+  /* David: "text inside all buttons could also be 30% larger and bold" --
+     matches .sidebar-btn-edit's own same-row bump above. */
+  font-size: 16px;
+  font-weight: 700;
   background: none;
   border: none;
   cursor: pointer;
@@ -4802,6 +4999,21 @@ input.sidebar-input::placeholder {
 
 .sidebar-panel.translate-x-full {
   transform: translateX(100%) !important;
+  /* David: "double scroll bar on the right side" even with the sidebar
+     closed, unaffected by contain:layout on the base .sidebar-panel rule
+     (that targeted the ancestor scrollable-overflow calculation, which
+     turned out not to be the actual cause here). This element still has
+     overflow-y:auto and content tall enough to need a scrollbar while
+     open -- some engines paint a native element's own scrollbar track at
+     its pre-transform layout position rather than its transformed
+     (offscreen) paint position, which would render right at this panel's
+     untransformed right:0 edge -- right next to the real page scrollbar,
+     producing exactly the double-scrollbar-while-closed symptom. Turning
+     its own scrolling off while closed removes that scrollbar entirely
+     until the panel actually opens and switches to .translate-x-0 (which
+     doesn't carry this override), regardless of which exact mechanism is
+     painting it. */
+  overflow: hidden !important;
 }
 
 /* Bookings section heading — small muted label */
@@ -5655,6 +5867,26 @@ textarea.sb-input {
 
 
 /* ────────────────────────────────────────────
+   BOOKINGS FILTER SELECT (UserBookings.tsx / sidebar bookings list)
+   David: "the bookings filter selector is wrong. The text is in white on
+   a white background so you cannot see it." Same root cause the booking
+   modal select below was already patched for -- the global bare `select`
+   rule earlier in this file (dark-glass form styling: color:white,
+   near-transparent background) is unscoped and was reaching this plain
+   light-page filter dropdown too. Same fix, applied here.
+   ──────────────────────────────────────────── */
+.bookings-filter-select {
+  /* Same light-gray value as .booking-modal-select below -- David wants
+     one consistent non-white background rule for every select on a light
+     panel, not a separate white patched in per component. */
+  background-color: #f3f4f6 !important;
+  background: #f3f4f6 !important;
+  color: #111827 !important;
+  color-scheme: light !important;
+  border: 1px solid #d1d5db !important;
+}
+
+/* ────────────────────────────────────────────
    BOOKING MODAL — consistent with sb-input-light
    ──────────────────────────────────────────── */
 .booking-modal-select {
@@ -5669,17 +5901,24 @@ textarea.sb-input {
      <select> itself can't reach. color-scheme forces the browser to render
      that native popup in light mode regardless of OS theme. */
   color-scheme: light !important;
-  /* Round 6 follow-up: David -- "guest selector drop down in gray not
-     white." A transparent background on a <select> relies on the
-     browser to paint white behind it, but several browsers (notably
-     Safari on macOS) keep their own gray native control surface under
-     a transparent/appearance:none select instead of showing what's
-     behind it. Set to an explicit opaque white so it's actually white
-     everywhere, matching the white .modal-panel-light panel it sits on. */
-  background: #ffffff !important;
+  /* David: "make the selector not have a white background, and make that
+     a rule for all selectors in the project" -- was a hard #ffffff
+     (Round 6, to fix Safari's native-gray-control leak through a
+     transparent background). Switched to the same light gray
+     (#f3f4f6, Tailwind gray-100) already used for gray-toned controls
+     elsewhere in this file -- still fully opaque so the old Safari leak
+     stays fixed, just not pure white anymore. .bookings-filter-select
+     below uses this exact same value now too; any future light-panel
+     <select> should match it rather than introducing another one-off. */
+  background: #f3f4f6 !important;
+  /* David (still seeing a gray-tinted guests field vs. the other inputs):
+     some browsers paint a native gradient background-image on <select>
+     even once appearance is reset -- kill it explicitly so the flat color
+     above always wins. */
+  background-image: none !important;
   border: 1px solid rgba(0, 0, 0, 0.20) !important;
   border-radius: 6px !important;
-  padding: 10px 14px !important;
+  padding: 10px 32px 10px 14px !important;
   box-shadow: 0 1px 3px rgba(0,0,0,0.08) !important;
   transition: border-color 0.15s, box-shadow 0.15s !important;
   outline: none !important;
@@ -5687,11 +5926,28 @@ textarea.sb-input {
   -moz-appearance: none !important;
   appearance: none !important;
   box-sizing: border-box !important;
+  /* David: "the guest selector has out of place tiny text inside" -- with
+     appearance:none stripping the native dropdown arrow but nothing put
+     in its place, some engines fall back to rendering their own small
+     native disclosure indicator inside the box instead of nothing, which
+     reads as a stray bit of tiny text. Drawing an explicit chevron here
+     removes any native fallback glyph everywhere, consistently. */
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='%23374151' stroke-width='1.5'%3E%3Cpath d='M6 8l4 4 4-4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") !important;
+  background-repeat: no-repeat !important;
+  background-position: right 10px center !important;
+  background-size: 16px 16px !important;
 }
 .booking-modal-select:focus {
   border-color: var(--brand) !important;
   box-shadow: 0 0 0 2px rgba(196,119,86,0.25) !important;
   outline: none !important;
+}
+/* Belt-and-suspenders for the OPEN dropdown's option list, in addition to
+   color-scheme:light above -- some engines honor an explicit background/
+   color on <option> independently of color-scheme, so set both. */
+.booking-modal-select option {
+  background-color: #ffffff !important;
+  color: #000 !important;
 }
 
 /* ────────────────────────────────────────────
@@ -5703,7 +5959,22 @@ textarea.sb-input {
   font-size: clamp(0.9rem, 2vw, 1.1rem) !important;
   font-weight: 400 !important;
   color: #000 !important;
-  background: rgba(0, 0, 0, 0.00) !important;
+  /* David: the SEO section's "Social share image" <select> (and anything
+     else riding on .sb-input-light) was rendering with a solid BLACK
+     background. Root cause: this rule set background to fully transparent
+     (alpha 0) and relied on color-scheme:light to make the browser paint
+     a light native canvas underneath. That works for text inputs/textareas
+     (custom-painted once -webkit-appearance:none applies), but a <select>
+     is still a native widget in most engines even with appearance:none, and
+     several browsers ignore color-scheme for a *transparent* select and
+     paint its native control surface using the OS/system theme instead --
+     black, on a system in dark mode. Same family of bug as the
+     .booking-modal-select background fight below: "transparent" is not a
+     safe background for a form control that keeps native chrome. Made it
+     a real opaque white so there's nothing left for a dark OS theme to
+     show through. */
+  background: #ffffff !important;
+  color-scheme: light !important;
   border: 1px solid rgba(0, 0, 0, 0.20) !important;
   border-radius: 6px !important;
   padding: 10px 14px !important;
@@ -5725,7 +5996,12 @@ textarea.sb-input {
   border: 2px solid var(--brand) !important;
   box-shadow: 0 0 0 3px rgba(var(--brand-rgb, 196, 119, 86), 0.15) !important;
 }
-.sb-input-light::placeholder { color: #9ca3af; }
+/* David: "the text input below has white place holder text on white" --
+   the global ::placeholder rule further up this file sets
+   color: rgba(255,255,255,0.3) !important (for the dark popup inputs),
+   and !important beats this rule's higher selector specificity regardless
+   of source order. Needed its own !important to actually win. */
+.sb-input-light::placeholder { color: #9ca3af !important; }
 
 /* Native <input type="date"> renders with a shorter intrinsic height than
    text inputs in some browsers (Safari especially) even with identical

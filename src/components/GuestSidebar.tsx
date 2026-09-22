@@ -417,8 +417,13 @@ export function GuestSidebar({ isOpen, onClose, currentSlug}: GuestSidebarProps)
   const handleSwitchProperty = (prop: Property) => {
     setShowPropertySwitcher(false);
     setActiveProperty(prop);
-    navigate(`/props/${prop.slug}`);
+    // David: each /props/<slug> bundle's router basename + embedded
+    // window.__PROPERTY_DATA__ are pinned to whichever property was in its
+    // ORIGINAL static index.html. A client-side navigate() here left the
+    // previous property's data in memory alongside the new one -- a full
+    // page load is what actually boots the destination property cleanly.
     onClose();
+    window.location.href = `/props/${prop.slug}`;
   };
 
   const handleSaveContact = async () => {

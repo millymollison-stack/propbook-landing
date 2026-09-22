@@ -21,7 +21,12 @@ function ts() { return new Date().toLocaleTimeString('en-US', { hour12: false, h
 
 // ─── DiagPanel ────────────────────────────────────────────────────────────────
 function DiagPanel({ logs }: { logs: LogEntry[] }) {
-  const [open, setOpen] = useState(true);
+  // David (2026-09-22): this panel was rendering for every guest on every booking --
+  // raw console-style event logs have no business being in a paying customer's
+  // checkout. It's still there for us to debug a specific report, just opt-in now.
+  const debugEnabled = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('debug') === 'payments';
+  const [open, setOpen] = useState(false);
+  if (!debugEnabled) return null;
   const colors: Record<LogLevel, string> = {
     info: 'text-blue-600',
     ok: 'text-green-600',
@@ -317,21 +322,22 @@ export function PaymentForm({
     <div className="sb-panel-bg rounded-lg space-y-5">
       {/* Booking summary */}
       <div>
-        <h3 className="h4-on-light mb-3">Complete Payment</h3>
+        <h3 className="h4-on-light mb-1">Complete payment</h3>
+        <p className="body-on-light text-sm mb-3">You're one step away from a confirmed booking.</p>
         <div className="bg-gray-50 rounded-lg p-4 text-sm space-y-2">
-          <div className="flex justify-between">
+          <div className="flex justify-between gap-3">
             <span className="body-on-light">Property</span>
-            <span className="font-medium text-gray-900 text-right max-w-[60%]">{propertyTitle}</span>
+            <span className="font-medium text-gray-900 text-right">{propertyTitle}</span>
           </div>
           {dates && (
-            <div className="flex justify-between">
+            <div className="flex justify-between gap-3">
               <span className="body-on-light">Dates</span>
               <span className="font-medium text-gray-900 text-right">{dates}</span>
             </div>
           )}
-          <div className="flex justify-between pt-2 border-t border-gray-200">
-            <span className="font-semibold text-gray-900">Total</span>
-            <span className="font-bold text-[var(--brand)] text-base">${amount.toFixed(2)}</span>
+          <div className="flex justify-between items-center pt-2 border-t border-gray-200">
+            <span className="font-semibold text-gray-900">Total due today</span>
+            <span className="font-bold text-[var(--brand)] text-lg">${amount.toFixed(2)}</span>
           </div>
         </div>
       </div>

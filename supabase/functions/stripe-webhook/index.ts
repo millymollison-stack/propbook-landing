@@ -69,7 +69,6 @@ export default Deno.serve({ verifyJwt: false }, async (req: Request) => {
       const email  = session.metadata?.email || session.customer_email;
       const plan   = session.metadata?.plan;
       const subId  = session.subscription as string | null;
-      const slug   = session.metadata?.slug;
       const customerId = session.customer as string | null;
 
       // Always save stripe_customer_id immediately so customer.subscription.created
@@ -110,27 +109,11 @@ export default Deno.serve({ verifyJwt: false }, async (req: Request) => {
         console.log(`[stripe-webhook] Profile updated for email=${email}`);
       }
 
-      // Trigger deploy if slug provided
-      if (userId && slug) {
-        console.log(`[stripe-webhook] Triggering deploy for slug=${slug}`);
-        try {
-          const deployRes = await fetch(
-            `${Deno.env.get("SUPABASE_URL")}/functions/v1/stripe-subscription`,
-            {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
-              },
-              body: JSON.stringify({ userId, slug }),
-            }
-          );
-          const deployData = await deployRes.json();
-          console.log(`[stripe-webhook] Deploy result:`, JSON.stringify(deployData));
-        } catch (deployErr: any) {
-          console.error(`[stripe-webhook] Deploy error: ${deployErr.message}`);
-        }
-      }
+      // David: removed the old "trigger deploy" fetch to stripe-subscription here -- it
+      // called into a dead code path (renderPropertyHtml, several undeclared variables,
+      // always threw) that was silently swallowed by this try/catch and did nothing. The
+      // real site-creation flow is GetSite.tsx -> save-site-records, unrelated to this
+      // webhook. Confirmed dead, deleted rather than fixed (2026-09-21).
       break;
     }
 
@@ -190,6 +173,23 @@ export default Deno.serve({ verifyJwt: false }, async (req: Request) => {
         await supabase.from("bookings").update({
           payment_status: "failed",
         }).eq("stripe_payment_intent_id", pi.id);
+      }
+      break;
+    }
+
+    // Auth-hold flow (capture_method: "manual"): fires when a hold is released --
+    // either the host explicitly denied via capture-booking-payment (action: "cancel"),
+    // or Stripe auto-released an authorization nobody acted on within its validity
+    // window (~7 days for most cards). Only downgrades status away from "approved" if
+    // it hadn't already been captured/approved through some other path, so this can't
+    // clobber a booking that was separately approved and later legitimately refunded.
+    case "payment_intent.canceled": {
+      const pi = event.data.object as Stripe.PaymentIntent;
+      if (pi.metadata?.bookingId) {
+        await supabase.from("bookings").update({
+          payment_status: "canceled",
+        }).eq("stripe_payment_intent_id", pi.id).neq("status", "approved");
+        console.log(`[stripe-webhook] payment_intent.canceled for bookingId=${pi.metadata.bookingId} -- hold released`);
       }
       break;
     }

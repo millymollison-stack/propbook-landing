@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { X } from 'lucide-react';
 import { useAuth } from '../store/auth';
 
 interface SignupProps {
@@ -51,9 +52,9 @@ export function Signup({ onSuccess, onClose, onSwitchToLogin }: SignupProps = {}
   };
 
   return (
-    <div className="auth-modal-backdrop">
+    <div className="auth-modal-backdrop" onClick={(e) => { if (e.target === e.currentTarget) handleClose(); }}>
       <div className="auth-modal">
-        <button className="popup-close" onClick={handleClose} aria-label="Close">&times;</button>
+        <button className="popup-close" onClick={handleClose} aria-label="Close"><X className="h-5 w-5" /></button>
         <h1>Create your account</h1>
         <p>Already have an account? <button type="button" className="popup-link" onClick={onSwitchToLogin}>Sign in</button></p>
         <form onSubmit={handleSubmit}>

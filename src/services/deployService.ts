@@ -96,21 +96,21 @@ export async function deploySiteToHostinger(
       return { success: false, error: result.error || 'Upload failed' };
     }
 
-    // Mark property as active in Supabase
+    // Mark property as active in Supabase -- routed through the update-property edge
+    // function (which does the privileged write server-side) instead of a direct PATCH
+    // to /rest/v1/properties using the service_role key from the browser.
     const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-    const supabaseKey = import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY;
+    const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
     await fetch(
-      `${supabaseUrl}/rest/v1/properties?id=eq.${propertyId}`,
+      `${supabaseUrl}/functions/v1/update-property`,
       {
-        method: 'PATCH',
+        method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'apikey': supabaseKey,
-          'Authorization': `Bearer ${supabaseKey}`,
-          'Prefer': 'return=minimal',
+          'Authorization': `Bearer ${supabaseAnonKey}`,
         },
-        body: JSON.stringify({ is_live: true }),
+        body: JSON.stringify({ id: propertyId, is_live: true }),
       }
     );
 

@@ -55,7 +55,18 @@ export default function ReviewForm({ onSuccess, propertyId }: ReviewFormProps) {
         stay_date: '',
       });
 
-      if (onSuccess) onSuccess();
+      // David: "I tried to leave a review and it didn't work. Did work
+      // after a page refresh." The insert itself succeeds immediately
+      // (confirmed: RLS allows it, no error), but ReviewsList's
+      // remount-triggered refetch was firing on the very same tick as
+      // this insert -- a fresh page load's query always saw it because
+      // enough time had passed by then, but back-to-back insert+select
+      // this fast can occasionally lose that race against Supabase's
+      // connection pooling. A short delay before telling the parent to
+      // refetch gives the write time to be visible to the very next read.
+      setTimeout(() => {
+        if (onSuccess) onSuccess();
+      }, 400);
 
       setTimeout(() => setSuccess(false), 5000);
     } catch (err) {
@@ -112,41 +123,48 @@ export default function ReviewForm({ onSuccess, propertyId }: ReviewFormProps) {
           </div>
         </div>
 
-        <div>
-          <label htmlFor="stay_date" className="review-form-label">
-            When did you stay?
-          </label>
-          <input
-            type="date"
-            id="stay_date"
-            required
-            value={formData.stay_date}
-            onChange={(e) => setFormData({ ...formData, stay_date: e.target.value })}
-            className="sb-input-light"
-          />
-        </div>
+        {/* David: "put the stars and the date input on the same line so
+            the content can fit in a modal" -- was two full-width rows,
+            pushing the form past the modal's visible height and forcing a
+            scrollbar. Combined into one row; stars sized down slightly so
+            all 5 still fit comfortably in their half of the row. */}
+        <div className="flex gap-4">
+          <div className="flex-1 min-w-0">
+            <label htmlFor="stay_date" className="review-form-label">
+              When did you stay?
+            </label>
+            <input
+              type="date"
+              id="stay_date"
+              required
+              value={formData.stay_date}
+              onChange={(e) => setFormData({ ...formData, stay_date: e.target.value })}
+              className="sb-input-light"
+            />
+          </div>
 
-        <div>
-          <label className="review-form-label">Rating</label>
-          <div className="flex gap-2">
-            {[1, 2, 3, 4, 5].map((star) => (
-              <button
-                key={star}
-                type="button"
-                onClick={() => setFormData({ ...formData, rating: star })}
-                onMouseEnter={() => setHoveredRating(star)}
-                onMouseLeave={() => setHoveredRating(0)}
-                className="transition-transform hover:scale-110 review-form-star-btn"
-              >
-                <Star
-                  className={`w-8 h-8 ${
-                    star <= (hoveredRating || formData.rating)
-                      ? 'fill-yellow-400 text-yellow-400'
-                      : 'text-gray-300'
-                  }`}
-                />
-              </button>
-            ))}
+          <div className="flex-1 min-w-0">
+            <label className="review-form-label">Rating</label>
+            <div className="flex gap-1">
+              {[1, 2, 3, 4, 5].map((star) => (
+                <button
+                  key={star}
+                  type="button"
+                  onClick={() => setFormData({ ...formData, rating: star })}
+                  onMouseEnter={() => setHoveredRating(star)}
+                  onMouseLeave={() => setHoveredRating(0)}
+                  className="transition-transform hover:scale-110 review-form-star-btn"
+                >
+                  <Star
+                    className={`w-6 h-6 ${
+                      star <= (hoveredRating || formData.rating)
+                        ? 'fill-yellow-400 text-yellow-400'
+                        : 'text-gray-300'
+                    }`}
+                  />
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 

@@ -309,7 +309,7 @@ export function BookingCalendar({
       specialRequests: bookingData.data?.special_requests,
       adminContact: adminProfile ? {
         name: adminProfile.full_name || 'Property Manager',
-        email: adminProfile.email || 'contact@surfhousebaja.com',
+        email: adminProfile.email || '',
         phone: adminProfile.phone_number
       } : undefined
     });
@@ -358,8 +358,36 @@ export function BookingCalendar({
   return (
     <div className="space-y-6">
       <div className="p-2 sm:p-4 sb-panel-bg rounded-lg shadow booking-calendar-outer">
-        <div className="flex justify-between items-center mb-4 pt-2 pl-1">
-          <h1 className="hero-title-edit">
+        {/* David: more space above the title, less below (like the Confirm
+            Your Booking modal's title spacing), and the admin toggle button
+            shortened + made small/text-style like the sidebar Edit button so
+            it stops squishing the title. Round 2: "remove the extra space
+            under the title -- 20px between the title and the month below is
+            fine" -- mb-2 (8px) bumped to a flat 20px.
+            Round 3: David -- screenshot showing a huge gap under this title
+            and the button sitting well off its baseline. Root cause: this
+            h1 was the one .hero-title-edit use in the whole project that
+            wasn't ALSO paired with .booking-modal-title (every other use --
+            the booking/confirmation modal titles, the Photos modal, the
+            review modal -- already resets margin/padding to 0 with it) --
+            so this one alone was inheriting the generic h1{}
+            rule's margin-bottom:30px + padding-bottom:25px, 55px of blank
+            box that both pushed the row much taller than the text itself
+            and threw items-end's "shared bottom edge" off the title's real
+            baseline by that same 55px. Adding .booking-modal-title here
+            fixes both at once. On top of that, cut mb-[20px] by 70% per
+            David's ask, now that it's the only deliberate spacing value
+            left in this gap. */}
+        {/* David: the Booking/Blocking toggle button didn't sit on the
+            title's baseline -- .hero-title-edit's transform-origin:bottom
+            scaleY stretches its glyphs upward from the box's own bottom
+            edge, so items-center (aligning box middles) put the button's
+            small text noticeably higher than where the title visually
+            reads. items-end lines both up on that shared bottom edge --
+            now that the h1's own margin/padding bug above is fixed, that
+            shared bottom edge actually sits on the title's real baseline. */}
+        <div className="flex justify-between items-end mb-[6px] pt-4 pl-1">
+          <h1 className="hero-title-edit booking-modal-title">
             {isAdmin && !isBookingMode ? 'Block Dates' : 'Select your dates'}
           </h1>
           {isAdmin && (
@@ -368,11 +396,9 @@ export function BookingCalendar({
                 setIsBookingMode(!isBookingMode);
                 setSelected(undefined);
               }}
-              className={`px-2 sm:px-3 py-1 rounded-md text-sm ${
-                isBookingMode ? 'bg-gray-100' : 'bg-gray-200'
-              } hover:bg-gray-200`}
+              className="sidebar-btn-edit"
             >
-              {isBookingMode ? 'Switch to Blocking' : 'Switch to Booking'}
+              {isBookingMode ? 'Blocking' : 'Booking'}
             </button>
           )}
         </div>
@@ -396,11 +422,17 @@ export function BookingCalendar({
               caption: { 
                 paddingLeft: '0px',
                 paddingRight: '8px',
-                marginBottom: '8px'
+                marginBottom: '16px' /* David: "add another 10px below the month" -- was 6px */
               },
               caption_label: {
                 textAlign: 'left',
-                paddingLeft: '0px'
+                paddingLeft: '0px',
+                // David: "font size increase by 25% on all the elements
+                // except the title and the key text" -- this had no
+                // explicit size (inherited the ambient 16px), so it's
+                // pinned here first so the +25% has a real base to work
+                // from: 16px * 1.25 = 20px.
+                fontSize: '20px'
               },
               nav: {
                 paddingRight: '0px'
@@ -430,7 +462,8 @@ export function BookingCalendar({
                 height: 'auto',
                 minHeight: '28px',
                 aspectRatio: '1',
-                fontSize: 'clamp(12px, 2.5vw, 16px)',
+                // David: "font size increase by 25%" -- clamp(12px,2.5vw,16px) * 1.25.
+                fontSize: 'clamp(15px, 3.125vw, 20px)',
                 textAlign: 'center'
               },
               // Brighter selection blue (David, Round 6) -- was the pale
@@ -467,7 +500,10 @@ export function BookingCalendar({
           />
         </div>
 
-        <div className="mt-4 flex flex-wrap gap-4 text-sm">
+        {/* David: "add another 10px below ... the day of the month numbers"
+            -- was mt-4 (16px) between the calendar grid and this key/legend
+            row, now 26px. */}
+        <div className="mt-[26px] flex flex-wrap gap-4 text-sm">
           <div className="flex items-center space-x-2">
             <div className="w-4 h-4 bg-red-300 rounded" />
             <span className="text-xs text-gray-600 whitespace-nowrap">Booked</span>
@@ -491,7 +527,7 @@ export function BookingCalendar({
         <div className="fixed inset-0 z-[9997] overflow-y-auto" aria-labelledby="booking-modal-title" role="dialog" aria-modal="true">
           <div className="flex items-center justify-center min-h-screen p-4 text-center">
             <div
-              className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity"
+              className="fixed inset-0 bg-gray-500 bg-opacity-75 backdrop-blur-sm transition-opacity"
               aria-hidden="true"
               onClick={() => setSelected(undefined)}
             />
@@ -625,7 +661,16 @@ export function BookingCalendar({
       {showPaymentForm && createdBookingId && createPortal(
         <div className="fixed inset-0 z-[9999] overflow-y-auto" aria-labelledby="payment-modal" role="dialog" aria-modal="true">
           <div className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-            <div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" aria-hidden="true" />
+            <div
+              className="fixed inset-0 bg-gray-500 bg-opacity-75 backdrop-blur-sm transition-opacity"
+              aria-hidden="true"
+              onClick={() => {
+                setShowPaymentForm(false);
+                setSelected(undefined);
+                setGuestCount(1);
+                setSpecialRequests('');
+              }}
+            />
             <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
             <div className="inline-block align-bottom sb-panel-bg rounded-lg px-4 pt-5 pb-4 text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full sm:p-6">
               <PaymentForm
@@ -653,96 +698,111 @@ export function BookingCalendar({
         document.body
       )}
 
-      {/* Booking Confirmation Modal */}
-      {showConfirmation && bookingConfirmation && (
-        <div className="fixed inset-0 z-50 overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
-          <div className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-            <div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" aria-hidden="true"></div>
-            <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
-            <div className="inline-block align-bottom sb-panel-bg rounded-lg px-4 pt-5 pb-4 text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full sm:p-6">
-              <div>
-                <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-green-100">
-                  <Check className="h-6 w-6 text-green-600" />
-                </div>
-                <div className="mt-3 text-center sm:mt-5">
-                  <h3 className="h4-on-light leading-6" id="modal-title">
-                    Booking Request Submitted!
-                  </h3>
-                  <div className="mt-4 text-left">
-                    <div className="bg-gray-50 rounded-lg p-4 space-y-3">
-                      <h4 className="font-medium text-gray-900">Booking Details:</h4>
-                      <div className="space-y-2 text-sm">
-                        <div className="flex justify-between">
-                          <span className="body-on-light">Check-in:</span>
-                          <span className="font-medium">{bookingConfirmation.checkIn}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="body-on-light">Check-out:</span>
-                          <span className="font-medium">{bookingConfirmation.checkOut}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="body-on-light">Guests:</span>
-                          <span className="font-medium">{bookingConfirmation.guests}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="body-on-light">Total Price:</span>
-                          <span className="font-medium">${bookingConfirmation.totalPrice}</span>
-                        </div>
-                        {bookingConfirmation.specialRequests && (
-                          <div className="pt-2 border-t">
-                            <span className="body-on-light block">Special Requests:</span>
-                            <span className="text-sm">{bookingConfirmation.specialRequests}</span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                    
-                    {bookingConfirmation.adminContact && (
-                      <div className="mt-4 bg-blue-50 rounded-lg p-4">
-                        <h4 className="font-medium text-blue-900 mb-2">Property Manager Contact:</h4>
-                        <div className="space-y-1 text-sm text-blue-800">
-                          <div>{bookingConfirmation.adminContact.name}</div>
-                          <div>{bookingConfirmation.adminContact.email}</div>
-                          {bookingConfirmation.adminContact.phone && (
-                            <div>{bookingConfirmation.adminContact.phone}</div>
-                          )}
-                        </div>
-                      </div>
-                    )}
+      {/* Booking Confirmation Modal -- David (2026-09-22): redesigned. The old
+          version repeated "payment successful" across three separate boxes
+          (a bulleted "Thank you" list, then a whole extra green "Payment
+          Confirmed" card saying the same thing again), had a header that
+          said "Booking Request Submitted!" while the body said the booking
+          was already "confirmed" -- contradictory, since payment succeeding
+          IS the confirmation for this instant-book flow (see the webhook's
+          payment_intent.succeeded handler, which sets status: 'approved'
+          before this modal ever shows). It also hardcoded "our beautiful
+          surf house" regardless of which property was actually booked. This
+          version: one consistent "Confirmed" header, a single receipt-style
+          card with payment status folded in as a line item rather than its
+          own box, the real property name, and a tighter "what happens next"
+          list with no repeated claims. */}
+      {showConfirmation && bookingConfirmation && createPortal(
+        <div className="fixed inset-0 z-[9998] overflow-y-auto" aria-labelledby="confirmation-modal-title" role="dialog" aria-modal="true">
+          <div className="flex items-center justify-center min-h-screen p-4 text-center">
+            <div
+              className="fixed inset-0 bg-gray-500 bg-opacity-75 backdrop-blur-sm transition-opacity"
+              aria-hidden="true"
+              onClick={() => setShowConfirmation(false)}
+            />
+            <div
+              className="inline-block align-middle sb-panel-bg rounded-lg text-left overflow-hidden shadow-xl transform transition-all w-full max-w-[420px] modal-panel-light"
+              style={{ maxHeight: '88vh', overflowY: 'auto' }}
+            >
+              <button
+                type="button"
+                onClick={() => setShowConfirmation(false)}
+                aria-label="Close"
+                className="popup-close"
+              >
+                <X className="h-5 w-5" />
+              </button>
+              <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-green-100">
+                <Check className="h-6 w-6 text-green-600" />
+              </div>
+              <h2 id="confirmation-modal-title" className="hero-title-edit booking-modal-title text-center">
+                Booking Confirmed
+              </h2>
+              <p className="body-on-light text-center text-sm -mt-2 mb-1">
+                {property.title} · your stay is booked and paid for.
+              </p>
 
-                    <div className="body-on-light mt-4">
-                      <h4 className="font-medium text-gray-900 mb-2">Thank you for your booking!</h4>
-                      <ul className="space-y-1 list-disc list-inside">
-                        <li>We're excited to host you at our beautiful surf house!</li>
-                        <li>Your payment has been processed successfully</li>
-                        <li>Your booking is now <span className="font-medium text-green-600">confirmed</span></li>
-                        <li>You'll receive a confirmation email with all the details</li>
-                        <li>You can check your booking details anytime by clicking on your profile</li>
-                      </ul>
+              <div className="text-left">
+                <div className="bg-gray-50 rounded-lg p-3 space-y-1.5 text-sm">
+                  <div className="flex justify-between">
+                    <span className="body-on-light">Check-in</span>
+                    <span className="font-medium text-right">{bookingConfirmation.checkIn}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="body-on-light">Check-out</span>
+                    <span className="font-medium text-right">{bookingConfirmation.checkOut}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="body-on-light">Guests</span>
+                    <span className="font-medium">{bookingConfirmation.guests}</span>
+                  </div>
+                  {bookingConfirmation.specialRequests && (
+                    <div className="pt-1.5 border-t border-gray-200">
+                      <span className="body-on-light block mb-0.5">Special requests</span>
+                      <span>{bookingConfirmation.specialRequests}</span>
                     </div>
-
-                    <div className="mt-4 bg-green-50 rounded-lg p-4">
-                      <h4 className="font-medium text-green-900 mb-2">Payment Confirmed</h4>
-                      <p className="text-sm text-green-800">
-                        Your payment of ${bookingConfirmation.totalPrice} has been successfully processed.
-                        A receipt has been sent to your email.
-                      </p>
-                    </div>
+                  )}
+                  <div className="flex justify-between items-center pt-1.5 border-t border-gray-200">
+                    <span className="font-semibold text-gray-900">Total paid</span>
+                    <span className="font-bold text-[var(--brand)] text-base">${bookingConfirmation.totalPrice}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-xs text-green-700">
+                    <Check className="h-3.5 w-3.5 flex-shrink-0" />
+                    Payment received · receipt sent to your email
                   </div>
                 </div>
+
+                {bookingConfirmation.adminContact && (
+                  <div className="mt-2 bg-blue-50 rounded-lg p-3">
+                    <h4 className="font-medium text-blue-900 mb-1 text-sm">Your host</h4>
+                    <div className="space-y-0.5 text-sm text-blue-800">
+                      <div>{bookingConfirmation.adminContact.name}</div>
+                      {bookingConfirmation.adminContact.email && <div>{bookingConfirmation.adminContact.email}</div>}
+                      {bookingConfirmation.adminContact.phone && (
+                        <div>{bookingConfirmation.adminContact.phone}</div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                <ul className="mt-2 space-y-1 text-sm body-on-light list-disc list-inside">
+                  <li>We'll email you the full confirmation and check-in details</li>
+                  <li>You can review this booking anytime from your profile</li>
+                </ul>
               </div>
-              <div className="mt-5 sm:mt-6">
+              <div className="mt-3">
                 <button
                   type="button"
                   onClick={() => setShowConfirmation(false)}
-                  className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-[var(--brand)] text-base font-medium text-white hover:bg-[var(--brand-hover)] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#C47756] sm:text-sm"
+                  className="booking-modal-submit-btn w-full"
                 >
                   Got it, thanks!
                 </button>
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

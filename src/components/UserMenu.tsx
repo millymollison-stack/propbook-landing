@@ -161,6 +161,16 @@ export function UserMenu() {
     setBookingsLoading(true);
 
     try {
+      // Auth-hold flow: capture the guest's held payment on approval, or release
+      // it on denial, before flipping the booking's status. A booking with no
+      // payment intent yet (guest never reached payment) comes back as
+      // { skipped: true } and this still proceeds.
+      const { data: paymentResult, error: fnError } = await supabase.functions.invoke('capture-booking-payment', {
+        body: { bookingId, action: status === 'approved' ? 'capture' : 'cancel' },
+      });
+      if (fnError) throw fnError;
+      if (paymentResult?.error) throw new Error(paymentResult.error);
+
       const { error } = await supabase
         .from('bookings')
         .update({

@@ -339,7 +339,7 @@ export function ImageGallery({
                   value={propertyTitle}
                   onChange={(e) => setPropertyTitle(e.target.value)}
                   onBlur={handlePropertyTextSave}
-                  className="text-2xl md:text-3xl font-normal uppercase text-white focus:outline-none focus:ring-2 focus:ring-[var(--brand)] px-2 py-1 edit-title-input"
+                  className="text-2xl md:text-3xl font-normal text-white focus:outline-none focus:ring-2 focus:ring-[var(--brand)] px-2 py-1 edit-title-input"
                 />
                 <div className="flex flex-col items-end">
                   <div className="flex items-baseline">
@@ -356,7 +356,7 @@ export function ImageGallery({
                       min="0"
                     />
                   </div>
-                  <span className="hero-price-suffix">USD /night</span>
+                  <span className="hero-price-suffix">USD/night</span>
                 </div>
               </div>
             ) : (
@@ -367,7 +367,7 @@ export function ImageGallery({
                     <span className="hero-price-currency">$</span>
                     <h1 className="hero-title-price">{editPrice}</h1>
                   </div>
-                  <span className="hero-price-suffix">USD /night</span>
+                  <span className="hero-price-suffix">USD/night</span>
                 </div>
               </div>
             )}
@@ -614,39 +614,49 @@ export function ImageGallery({
     </div>
 
     {/* Full-screen swipeable gallery -- phone viewport only (see
-        openGalleryModal above). Plain white modal per David's spec, not
-        the usual dark popup treatment used elsewhere in the app. */}
+        openGalleryModal above). White modal per David's spec, not the
+        usual dark popup treatment used elsewhere in the app. David:
+        "make the arrows match the image slider's style, white modal
+        with 6px corner radius and a title, 5px margin from the edge of
+        the viewport, keep the photo counter." Inset 5px on every side
+        (instead of a flush inset-0) so the rounded corners actually
+        show against the page behind it. */}
     {showGalleryModal && (
-      <div className="fixed inset-0 z-[100] bg-white flex flex-col">
-        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
-          <span className="text-sm font-medium text-gray-500">
+      <div className="fixed inset-[5px] z-[100] bg-white rounded-[6px] shadow-xl flex flex-col overflow-hidden">
+        {/* David: "the style to say Photos and be a tile at the top of the
+            modal" -- a plain flush header read as part of the body, so it
+            gets its own filled bar (rounded to match the modal's own 6px
+            corners) to read as a distinct header tile. */}
+        <div className="flex items-center gap-2 px-4 py-3 bg-gray-50 rounded-t-[6px]">
+          <span className="hero-title-edit booking-modal-title truncate flex-1 min-w-0">Photos</span>
+          <span className="text-sm font-medium text-gray-500 flex-shrink-0">
             {galleryIndex + 1} / {sortedImages.length}
           </span>
           <button
             type="button"
             onClick={() => setShowGalleryModal(false)}
             aria-label="Close gallery"
-            className="p-2 -mr-2 text-gray-700"
+            className="p-2 -mr-2 text-gray-700 flex-shrink-0"
           >
             <X className="h-6 w-6" />
           </button>
         </div>
         <div
-          className="relative flex-1 overflow-hidden"
+          className="relative flex-1 overflow-hidden bg-black"
           onTouchStart={handleGalleryTouchStart}
           onTouchEnd={handleGalleryTouchEnd}
         >
           <img
             src={sortedImages[galleryIndex]?.url || ''}
             alt={`Property view ${galleryIndex + 1}`}
-            className="h-full w-full object-contain select-none"
+            className="h-full w-full object-cover select-none"
             draggable={false}
           />
           <button
             type="button"
             onClick={galleryPrevious}
             aria-label="Previous photo"
-            className="absolute left-2 top-1/2 -translate-y-1/2 bg-white/90 rounded-full p-2 shadow-md text-gray-800"
+            className="absolute left-4 top-1/2 -translate-y-1/2 px-3 py-2 bg-white/20 backdrop-blur-sm border border-white/15 rounded text-white/90 hover:bg-white/30 hover:text-white transition-all"
           >
             <ChevronLeft className="h-6 w-6" />
           </button>
@@ -654,7 +664,7 @@ export function ImageGallery({
             type="button"
             onClick={galleryNext}
             aria-label="Next photo"
-            className="absolute right-2 top-1/2 -translate-y-1/2 bg-white/90 rounded-full p-2 shadow-md text-gray-800"
+            className="absolute right-4 top-1/2 -translate-y-1/2 px-3 py-2 bg-white/20 backdrop-blur-sm border border-white/15 rounded text-white/90 hover:bg-white/30 hover:text-white transition-all"
           >
             <ChevronRight className="h-6 w-6" />
           </button>

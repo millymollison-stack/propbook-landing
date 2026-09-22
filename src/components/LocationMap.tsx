@@ -183,7 +183,7 @@ export function LocationMap({ property, onSave, onClose, isOpen }: LocationMapPr
                   </>
                 )}
                 <button onClick={onClose} className="sidebar-btn-close">
-                  <X className="h-6 w-6" />
+                  <X className="h-5 w-5" />
                 </button>
               </div>
             </div>
