@@ -1791,7 +1791,7 @@ export function AdminSidebar({ isOpen, onClose, mockMode = false, onPropertyLoad
             <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>🔒</div>
             <h2 style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: '0.5rem' }}>You don't have admin access here</h2>
             <p style={{ color: '#6b7280', fontSize: '0.9rem', marginBottom: '1.5rem' }}>
-              This property belongs to another account. Go to your property using the button below, or sign in as an admin of this property.
+              This property belongs to another account. Go to your own property, or log out to view this site as a guest.
             </p>
             <button
               className="sidebar-btn-edit"
@@ -1799,6 +1799,20 @@ export function AdminSidebar({ isOpen, onClose, mockMode = false, onPropertyLoad
               onClick={goToMyProperty}
             >
               Go to My Property →
+            </button>
+            {/* David 2026-09-22: this popup used to leave someone logged into the wrong
+                account with no way to actually see the page they came here for -- "Go to My
+                Property" only helps if that's what they wanted; it doesn't let them view THIS
+                site. Every subscriber gets role:'admin' now (see AGENTS.md / stability plan),
+                so this triggers a lot in normal testing/dev with multiple test accounts.
+                Logging out unmounts AdminSidebar entirely (App.tsx gates it on `user`), which
+                is exactly what lets this same page render as a normal guest view. */}
+            <button
+              className="sidebar-btn-edit"
+              style={{ width: '100%', background: 'transparent', color: '#6b7280', border: '1px solid #e5e7eb', marginTop: '0.75rem' }}
+              onClick={async () => { await signOut(); onClose(); }}
+            >
+              Log Out to View This Site
             </button>
           </div>
         </div>
