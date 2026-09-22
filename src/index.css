@@ -2456,19 +2456,25 @@ hr {
 .titleandpricebox {
   display: flex;
   align-items: baseline;
-  /* David 2026-09-22: "put the price and headline on the same line with
-     20px padding between them" -- was justify-content:space-between,
-     which pinned the price to the row's far right edge (its actual
-     position depended on the row's full width, not the headline's own
-     length). Switched to a fixed 20px gap sitting right after the
-     headline instead. flex-wrap so a long headline + price can still
-     drop the price to its own line rather than overflow/clip, same as
-     the edit-mode-only wrap rules below already do. */
-  justify-content: flex-start;
-  gap: 20px;
+  /* Right-justified (price pinned to the row's far right edge) -- this is
+     the read-only/view-mode layout. */
+  justify-content: space-between;
   flex-wrap: wrap;
   width: 100%;
   padding: 0px;
+}
+
+/* David 2026-09-22: "put the price and headline on the same line with
+   20px padding between them" -- was requested for EDIT mode (headline
+   input + price input), but landing it on the shared base rule above
+   also moved the read-only price off the right edge, since both the
+   editing and view-mode markup use this same class. Scoped to editing
+   via :has(), same technique the mobile rules below already use, so the
+   read-only row keeps the original space-between layout David asked to
+   have restored. */
+.titleandpricebox:has(.edit-title-input) {
+  justify-content: flex-start;
+  gap: 20px;
 }
 
 .titleandpricebox h1 {
