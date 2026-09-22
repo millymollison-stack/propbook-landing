@@ -273,6 +273,23 @@ interface SubscriptionData {
   cancel_at_period_end: boolean;
 }
 
+// David 2026-09-22: this crashed the whole Subscription section (App ErrorBoundary, blank
+// page) when current_period_end came back as something fromUnixTime() couldn't handle --
+// see the matching fix + comment in supabase/functions/stripe-subscription/index.ts, which
+// stops that from happening from this specific endpoint. This is the second layer: however
+// current_period_end got here, a bad value should show '–' instead of taking the whole
+// sidebar down with it.
+function formatPeriodEnd(currentPeriodEnd: number | null): string {
+  if (!currentPeriodEnd) return '–';
+  try {
+    const date = fromUnixTime(currentPeriodEnd);
+    if (isNaN(date.getTime())) return '–';
+    return format(date, 'MMM d, yyyy');
+  } catch {
+    return '–';
+  }
+}
+
 function googleMapsUrl(address: string, lat: string, lng: string): string {
   if (lat && lng) return `https://www.google.com/maps?q=${lat},${lng}`;
   if (address) return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
@@ -857,7 +874,7 @@ function SubscriptionSection({ subscription, loading, checkoutLoading, onSubscri
         </div>
         <div className="py-3 grid grid-cols-2 gap-4">
           <div><h4 className="sb-h4-grey">Amount</h4><p className="text-base font-bold text-gray-900">${subscription.amount > 0 ? (subscription.amount / 100).toFixed(2) : '–'}<span className="text-sm font-normal text-gray-500">/{subscription.interval}</span></p></div>
-          <div><h4 className="sb-h4-grey">{isTrialing ? 'Trial Ends' : 'Next Payment'}</h4><p className="text-base font-bold text-gray-900">{subscription.current_period_end ? format(fromUnixTime(subscription.current_period_end), 'MMM d, yyyy') : '–'}</p></div>
+          <div><h4 className="sb-h4-grey">{isTrialing ? 'Trial Ends' : 'Next Payment'}</h4><p className="text-base font-bold text-gray-900">{formatPeriodEnd(subscription.current_period_end)}</p></div>
         </div>
         {subscription.cancel_at_period_end && <div className="py-3"><div className="flex items-center gap-2 text-yellow-700 bg-yellow-50 rounded-lg px-3 py-2"><AlertCircle className="h-4 w-4" /><p className="text-xs font-medium">Cancels at end of billing period</p></div></div>}
         <div className="py-3"><h4 className="sb-h4-grey">Subscription ID</h4><p className="sb-mono">{subscription.id}</p></div>

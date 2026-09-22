@@ -60,6 +60,19 @@ Deno.serve(async (req: Request) => {
           { headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
 
+      // David 2026-09-22: stripe_subscription_period_end is a Postgres `timestamptz`
+      // column (stored by stripe-webhook as an ISO string, e.g. "2026-10-22 12:30:19+00"),
+      // but the frontend's SubscriptionData.current_period_end is typed `number | null` and
+      // rendered with date-fns's fromUnixTime(), which expects Unix SECONDS. Passing the raw
+      // ISO string straight through made `fromUnixTime("2026-10-22T12:30:19+00:00")` compute
+      // NaN (string coerced via `* 1000`), producing an Invalid Date that crashed the whole
+      // Subscription section render with "RangeError: Invalid time value" (blank page via the
+      // App ErrorBoundary) -- reported live on ipenemaa15. Convert back to Unix seconds here so
+      // this endpoint actually returns what its own declared shape promises.
+      const periodEndUnix = profile.stripe_subscription_period_end
+        ? Math.floor(new Date(profile.stripe_subscription_period_end).getTime() / 1000)
+        : null;
+
       return new Response(JSON.stringify({
         subscription: {
           id: profile.stripe_subscription_id,
@@ -67,7 +80,7 @@ Deno.serve(async (req: Request) => {
           plan: profile.stripe_subscription_plan,
           amount: profile.stripe_subscription_amount ?? 1000,
           interval: profile.stripe_subscription_interval ?? 'month',
-          current_period_end: profile.stripe_subscription_period_end,
+          current_period_end: periodEndUnix,
           customer_id: profile.stripe_customer_id,
         }
       }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
