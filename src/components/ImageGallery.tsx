@@ -341,22 +341,24 @@ export function ImageGallery({
                   onBlur={handlePropertyTextSave}
                   className="text-2xl md:text-3xl font-normal text-white focus:outline-none focus:ring-2 focus:ring-[var(--brand)] px-2 py-1 edit-title-input"
                 />
-                <div className="flex flex-col items-end">
-                  <div className="flex items-baseline">
-                    <span className="hero-price-currency">$</span>
-                    <input
-                      type="number"
-                      value={editPrice}
-                      onChange={(e) => setEditPrice(parseFloat(e.target.value) || 0)}
-                      onBlur={handlePropertyStatsSave}
-                      className="w-24 text-2xl md:text-3xl font-bold text-white focus:outline-none edit-price-input"
-                      onFocus={(e) => {
-                        e.target.style.border = '1px solid var(--brand)';
-                      }}
-                      min="0"
-                    />
-                  </div>
-                  <span className="hero-price-suffix">USD/night</span>
+                {/* David 2026-09-22: dropped the USD/night label in edit mode --
+                    fighting .titleandpricebox's baseline alignment to keep it
+                    tucked under a text <input> (rather than under the .hero-title-price
+                    h1 it was designed for) kept coming back as floating/detached
+                    text in his screenshots. Read-only mode below is untouched. */}
+                <div className="flex items-baseline edit-price-row">
+                  <span className="hero-price-currency">$</span>
+                  <input
+                    type="number"
+                    value={editPrice}
+                    onChange={(e) => setEditPrice(parseFloat(e.target.value) || 0)}
+                    onBlur={handlePropertyStatsSave}
+                    className="w-24 text-2xl md:text-3xl font-bold text-white focus:outline-none edit-price-input"
+                    onFocus={(e) => {
+                      e.target.style.border = '1px solid var(--brand)';
+                    }}
+                    min="0"
+                  />
                 </div>
               </div>
             ) : (
@@ -401,7 +403,7 @@ export function ImageGallery({
                       value={editBedrooms}
                       onChange={(e) => setEditBedrooms(parseInt(e.target.value) || 0)}
                       onBlur={handlePropertyStatsSave}
-                      className="w-8 sm:w-10 bg-transparent text-white focus:outline-none text-xs sm:text-sm edit-stat-input"
+                      className="bg-transparent text-white focus:outline-none text-xs sm:text-sm edit-stat-input text-center"
                       onFocus={(e) => {
                         e.target.style.border = '2px solid var(--brand)';
                       }}
@@ -409,14 +411,14 @@ export function ImageGallery({
                     />
                     <span className="ml-1 text-xs sm:text-sm">Beds</span>
                   </span>
-                  <span className="inline-flex items-center px-4 py-1.5 rounded-[0.5rem] bg-white/10 backdrop-blur-sm border border-white/15 text-white text-sm font-medium">
-                    <Bath className="w-4 h-4 mr-2" />
+                  <span className="inline-flex items-center px-2 sm:px-3 py-1 rounded-[0.5rem] bg-white/10 backdrop-blur-sm border border-white/15 text-white text-xs sm:text-sm font-medium">
+                    <Bath className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
                     <input
                       type="number"
                       value={editBathrooms}
                       onChange={(e) => setEditBathrooms(parseInt(e.target.value) || 0)}
                       onBlur={handlePropertyStatsSave}
-                      className="w-8 sm:w-10 bg-transparent text-white focus:outline-none text-xs sm:text-sm edit-stat-input"
+                      className="bg-transparent text-white focus:outline-none text-xs sm:text-sm edit-stat-input text-center"
                       onFocus={(e) => {
                         e.target.style.border = '2px solid var(--brand)';
                       }}
@@ -431,7 +433,7 @@ export function ImageGallery({
                       value={editMaxGuests}
                       onChange={(e) => setEditMaxGuests(parseInt(e.target.value) || 0)}
                       onBlur={handlePropertyStatsSave}
-                      className="w-8 sm:w-10 bg-transparent text-white focus:outline-none text-xs sm:text-sm edit-stat-input"
+                      className="bg-transparent text-white focus:outline-none text-xs sm:text-sm edit-stat-input text-center"
                       onFocus={(e) => {
                         e.target.style.border = '2px solid var(--brand)';
                       }}

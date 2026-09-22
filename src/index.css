@@ -4263,8 +4263,17 @@ input[type="password"] {
   border: 1px solid rgba(255, 255, 255, 0.3);
   font-family: 'Inter', sans-serif;
   color: inherit;
-  padding: 1px 4px;
-  width: auto;
+  padding: 1px 2px;
+  /* David 2026-09-22: "reduce the size of the number inputs to 25px" --
+     was relying on Tailwind's w-8/sm:w-10 (32px/40px) in the JSX, which
+     also meant Beds/Bath/Persons could disagree with each other if those
+     utility classes ever drifted out of sync (Bath's own wrapper span
+     already had -- fixed alongside this in ImageGallery.tsx). One fixed
+     width here now, !important since a Tailwind width utility carries the
+     same specificity and could otherwise win on source order. */
+  width: 25px !important;
+  text-align: center;
+  box-sizing: border-box;
 }
 
 /* ---- .edit-textarea ---- */
@@ -4281,6 +4290,12 @@ input[type="password"] {
   font-size: 1.7rem !important;
   line-height: 1.1;
   border-radius: 6px;
+  /* David 2026-09-22: "mirror the font the headline is using" -- the
+     shared .edit-title-input, .edit-price-input rule above hardcodes
+     Inter, and unlike .edit-price-input (fixed below already) this class
+     never overrode it, so the title input was stuck on Inter while the
+     read-only .hero-title next to it renders in --font-accent. */
+  font-family: var(--font-accent, 'Playfair Display'), serif !important;
 }
 
 /* ---- .edit-price-input ---- */
@@ -4299,8 +4314,9 @@ input[type="password"] {
   font-family: var(--font-accent, 'Playfair Display'), serif !important;
   box-sizing: border-box !important;
   padding: 8px 8px !important;
-  /* Was 50px -- shrunk so USD/night (.hero-price-suffix) sits tucked
-     under the box instead of floating below extra empty height. */
+  /* Was 50px, shrunk to match the title input's height. (USD/night used
+     to sit under this box in edit mode -- removed 2026-09-22, see
+     ImageGallery.tsx, so this height is now just for title/price parity.) */
   height: 40px !important;
 }
 
@@ -4331,6 +4347,42 @@ input[type="password"] {
   .edit-intro-textarea {
     width: 100% !important;
     max-width: 100% !important;
+  }
+}
+
+/* David 2026-09-22: edit-mode title/price row + stat boxes didn't fit on
+   narrower screens -- the title (60%) and price (30%) inputs kept their
+   desktop widths and fixed 1.7rem font-size right down to phone widths,
+   clipping the price number and cramping the headline. Scoped to the
+   editing state via :has() so the read-only row above is untouched. */
+@media (max-width: 640px) {
+  .titleandpricebox:has(.edit-title-input) {
+    flex-wrap: wrap;
+    row-gap: 8px;
+  }
+  .titleandpricebox:has(.edit-title-input) .edit-title-input {
+    width: 100% !important;
+    font-size: 1.4rem !important;
+  }
+  .titleandpricebox:has(.edit-title-input) .edit-price-input {
+    width: 150px !important;
+    font-size: 1.4rem !important;
+  }
+}
+@media (max-width: 380px) {
+  .titleandpricebox:has(.edit-title-input) .edit-title-input,
+  .titleandpricebox:has(.edit-title-input) .edit-price-input {
+    font-size: 1.2rem !important;
+  }
+  /* Keep Beds/Bath/Persons on one row on the narrowest phones by trimming
+     the pill padding and gap between them -- the 25px inputs themselves
+     (.edit-stat-input above) already don't need to shrink further. */
+  .gallery-content-overlay .flex.flex-wrap {
+    gap: 4px !important;
+  }
+  .gallery-content-overlay .flex.flex-wrap > span {
+    padding-left: 6px !important;
+    padding-right: 6px !important;
   }
 }
 
@@ -4499,10 +4551,17 @@ input[type="number"]::-moz-outer-spin-button {
   -webkit-appearance: none;
 }
 
-/* ---- Price group in edit mode ---- */
-.gallery-content-overlay .flex.items-baseline .flex.items-baseline:has(.edit-price-input) {
-  justify-content: flex-end !important;
-}
+/* David 2026-09-22: REMOVED (was here) -- ".gallery-content-overlay
+   .flex.items-baseline .flex.items-baseline:has(.edit-price-input)" never
+   actually matched anything. It needed TWO nested ".flex.items-baseline"
+   ancestors, but the JSX only ever had one (the $-and-price-input row) --
+   the price row's actual wrapper was ".flex.flex-col.items-end", not a
+   second ".flex.items-baseline". Confirmed dead via grep before removing.
+   The USD/night-under-price positioning it was trying to help with is now
+   moot too -- USD/night was dropped from edit mode entirely (see
+   ImageGallery.tsx), and the price row is now a plain ".edit-price-row"
+   with nothing left to justify-content:flex-end against. */
+
 
 /* ============================================
    BOOKING MODAL TEXTAREA
