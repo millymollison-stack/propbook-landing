@@ -63,8 +63,12 @@ Deno.serve(async (req: Request) => {
       // Sent when browser built the SPA itself and just needs server-side upload
       prebuiltHtml,
       seoFiles, // Record<string, base64string>
+      publishAttemptId,
     } = await req.json();
     if (!propertyId || !slug) throw new Error("Missing propertyId or slug");
+    // Correlation id for tracing one publish attempt across save-site-records / deploy-site /
+    // migrate-property logs (client generates it, see siteDuplicationService.ts).
+    const logPrefix = `[${publishAttemptId || 'no-id'}]`;
 
     // Verify property belongs to user
     const { data: property } = await supabase
@@ -83,7 +87,7 @@ Deno.serve(async (req: Request) => {
     let browserUploadOk = false;
 
     if (prebuiltHtml || seoFiles) {
-      console.log("[deploy-site] Uploading browser-provided pre-built files via upload.php...");
+      console.log(logPrefix, "[deploy-site] Uploading browser-provided pre-built files via upload.php...");
       try {
         const files: Record<string, string> = {};
         if (prebuiltHtml) files["index.html"] = prebuiltHtml;
@@ -99,7 +103,7 @@ Deno.serve(async (req: Request) => {
         });
         const uploadData = await uploadRes.json().catch(() => null);
         if (uploadData?.success) {
-          console.log("[deploy-site] ✅ Pre-built files uploaded successfully");
+          console.log(logPrefix, "[deploy-site] ✅ Pre-built files uploaded successfully");
           // Purge Cloudflare cache for shared CSS/JS so all sites get fresh files
           await purgeCloudflareCache([
             "https://www.propbook.pro/dev/index.css",
@@ -108,16 +112,16 @@ Deno.serve(async (req: Request) => {
           browserUploadOk = true;
           deployResult = { success: true, siteUrl };
         } else {
-          console.warn("[deploy-site] Pre-built file upload failed:", uploadData?.error);
+          console.warn(logPrefix, "[deploy-site] Pre-built file upload failed:", uploadData?.error);
         }
       } catch (err: any) {
-        console.error("[deploy-site] Pre-built upload threw:", err.message);
+        console.error(logPrefix, "[deploy-site] Pre-built upload threw:", err.message);
       }
     }
 
     // ── Step 2: Only try Mac Mini build if no browser HTML was provided ──
     if (!deployResult?.success) {
-      console.log(`[deploy-site] No browser HTML — trying Mac Mini build for slug=${slug}...`);
+      console.log(logPrefix, `[deploy-site] No browser HTML — trying Mac Mini build for slug=${slug}...`);
       try {
         const deployRes = await fetch(DEPLOY_PHP_URL, {
           method: "POST",
@@ -130,7 +134,7 @@ Deno.serve(async (req: Request) => {
         });
 
         const deployText = await deployRes.text();
-        console.log(`[deploy-site] deploy-react-upload.php response (${deployRes.status}):`, deployText.slice(0, 300));
+        console.log(logPrefix, `[deploy-site] deploy-react-upload.php response (${deployRes.status}):`, deployText.slice(0, 300));
 
         // Parse the last JSON line (PHP may output multiple status lines)
         const lines = deployText.trim().split("\n");
@@ -142,17 +146,17 @@ Deno.serve(async (req: Request) => {
         }
 
         if (deployResult?.success) {
-          console.log(`[deploy-site] ✅ Deploy via PHP succeeded: ${deployResult.siteUrl}`);
+          console.log(logPrefix, `[deploy-site] ✅ Deploy via PHP succeeded: ${deployResult.siteUrl}`);
           // Purge Cloudflare cache for shared CSS/JS so all sites get fresh files
           await purgeCloudflareCache([
             "https://www.propbook.pro/dev/index.css",
             "https://www.propbook.pro/dev/index-BWUGJmZY.js",
           ]);
         } else {
-          console.warn(`[deploy-site] ⚠️ PHP deploy failed: ${deployResult?.error}`);
+          console.warn(logPrefix, `[deploy-site] ⚠️ PHP deploy failed: ${deployResult?.error}`);
         }
       } catch (fetchErr: any) {
-        console.error("[deploy-site] PHP fetch error:", fetchErr.message);
+        console.error(logPrefix, "[deploy-site] PHP fetch error:", fetchErr.message);
       }
     }
 
@@ -167,10 +171,10 @@ Deno.serve(async (req: Request) => {
       .eq("id", propertyId);
 
     if (updateErr) {
-      console.error("[deploy-site] ⚠️ Property status update failed:", updateErr.message);
+      console.error(logPrefix, "[deploy-site] ⚠️ Property status update failed:", updateErr.message);
     }
 
-    console.log(`[deploy-site] ✅ Done for slug=${slug}, siteUrl=${finalSiteUrl}`);
+    console.log(logPrefix, `[deploy-site] ✅ Done for slug=${slug}, siteUrl=${finalSiteUrl}`);
 
     return new Response(
       JSON.stringify({

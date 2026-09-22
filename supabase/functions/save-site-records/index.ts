@@ -23,9 +23,14 @@ Deno.serve(async (req: Request) => {
 
     const { title, slug, description, propertyIntro, location, maxGuests, bedrooms, beds, baths,
             pricePerNight, heroImage, images, stripeAccountId, stripeAccountStatus,
-            userId, name, propertyTitle, propertyHeadline, brand_color, font_accent } = body;
+            userId, name, propertyTitle, propertyHeadline, brand_color, font_accent,
+            publishAttemptId } = body;
+    // Correlation id for tracing one publish attempt across save-site-records / deploy-site /
+    // migrate-property logs (client generates it, see siteDuplicationService.ts). Falls back to
+    // "no-id" for older clients that haven't picked up the change yet.
+    const logPrefix = `[${publishAttemptId || 'no-id'}]`;
     // [C4] Edge fn received
-    console.log('[C4] SAVE-SITE title="'+(title||'')+'" propertyTitle="'+(propertyTitle||'')+'" desc="'+(description||'').slice(0,50)+'"');
+    console.log(logPrefix+' [C4] SAVE-SITE title="'+(title||'')+'" propertyTitle="'+(propertyTitle||'')+'" desc="'+(description||'').slice(0,50)+'"');
 
     // Fetch reference copy from the master Surf House Baja property
     const { data: refProp } = await supabase
@@ -35,7 +40,7 @@ Deno.serve(async (req: Request) => {
       .single();
     const ref = refProp || {};
 
-    console.log('[save-site-records] title:', title, 'slug:', slug, 'refKeys:', Object.keys(ref));
+    console.log(logPrefix, '[save-site-records] title:', title, 'slug:', slug, 'refKeys:', Object.keys(ref));
 
     const siteUrl = `https://www.propbook.pro/props/${slug}`;
 
@@ -82,7 +87,7 @@ Deno.serve(async (req: Request) => {
     if (upsertError) throw new Error(`Property upsert failed: ${upsertError.message}`);
     const propertyRecord = upserted;
 
-    console.log('[save-site-records] Property saved:', propertyRecord.id);
+    console.log(logPrefix, '[save-site-records] Property saved:', propertyRecord.id);
 
     if (images && images.length > 0) {
       // Last 2 scraped images become the site's background-layer images by
@@ -100,8 +105,8 @@ Deno.serve(async (req: Request) => {
         is_background: idx >= backgroundStartIdx,
       }));
       const { error: imagesError } = await supabase.from("property_images").insert(imageRecords);
-      if (imagesError) console.warn("[save-site-records] images insert warning:", imagesError.message);
-      else console.log("[save-site-records] Images inserted:", images.length);
+      if (imagesError) console.warn(logPrefix, "[save-site-records] images insert warning:", imagesError.message);
+      else console.log(logPrefix, "[save-site-records] Images inserted:", images.length);
     }
 
     // Seed 3 generic starter reviews the first time this property is created,
@@ -159,8 +164,8 @@ Deno.serve(async (req: Request) => {
         },
       ];
       const { error: reviewsSeedError } = await supabase.from("reviews").insert(starterReviews);
-      if (reviewsSeedError) console.warn("[save-site-records] starter reviews insert warning:", reviewsSeedError.message);
-      else console.log("[save-site-records] Seeded 3 starter reviews for property:", propertyRecord.id);
+      if (reviewsSeedError) console.warn(logPrefix, "[save-site-records] starter reviews insert warning:", reviewsSeedError.message);
+      else console.log(logPrefix, "[save-site-records] Seeded 3 starter reviews for property:", propertyRecord.id);
     }
 
     const { error: onboardingError } = await supabase

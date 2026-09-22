@@ -1053,8 +1053,12 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
    const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
    console.log('[handleSaveSiteInPopup] ✅ env vars loaded:', { supabaseUrl: !!supabaseUrl, supabaseAnonKey: !!supabaseAnonKey });
    try {
-     const { createNewSiteRecords } = await import('../services/siteDuplicationService');
+     const { createNewSiteRecords, getOrCreatePublishAttemptId } = await import('../services/siteDuplicationService');
      console.log('[handleSaveSiteInPopup] ✅ imported services, starting site creation...');
+     // Same correlation id createNewSiteRecords/duplicateSiteAfterPayment use — created here
+     // if this is the first step of the attempt, reused if createNewSiteRecords already ran.
+     // See siteDuplicationService.ts's getOrCreatePublishAttemptId() comment.
+     const publishAttemptId = getOrCreatePublishAttemptId();
 
      // ── Resolve scrapedData with three-tier fallback ──
      // 1. React state (live, from parent props)
@@ -1218,19 +1222,20 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
            'Apikey': supabaseAnonKey,
          },
          body: JSON.stringify({
+           publishAttemptId,
            targetPropertyId: result.propertyId,
            onboardingData: migrationData,
          }),
        });
        const migData = await migRes.json();
        if (migRes.ok && migData.success) {
-         console.log('[handleSaveSiteInPopup] ✅ Migrated scraped data:', migData.fields_copied);
+         console.log(`[${publishAttemptId}] [handleSaveSiteInPopup] ✅ Migrated scraped data:`, migData.fields_copied);
          sessionStorage.setItem('popup_property_id', result.propertyId);
        } else {
-         console.warn('[handleSaveSiteInPopup] ⚠️ Migration failed:', migData.error);
+         console.warn(`[${publishAttemptId}] [handleSaveSiteInPopup] ⚠️ Migration failed:`, migData.error);
        }
      } catch (migErr) {
-       console.warn('[handleSaveSiteInPopup] ⚠️ Migration error:', migErr);
+       console.warn(`[${publishAttemptId}] [handleSaveSiteInPopup] ⚠️ Migration error:`, migErr);
      }
 
      // ── Deploy React app to Hostinger via upload.php ──

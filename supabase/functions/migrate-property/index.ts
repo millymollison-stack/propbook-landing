@@ -27,10 +27,13 @@ Deno.serve(async (req: Request) => {
     );
     if (authError || !user) throw new Error("Unauthorized");
 
-    const { targetPropertyId, onboardingData } = await req.json();
+    const { targetPropertyId, onboardingData, publishAttemptId } = await req.json();
     if (!targetPropertyId) throw new Error("Missing targetPropertyId");
+    // Correlation id for tracing one publish attempt across save-site-records / deploy-site /
+    // migrate-property logs (client generates it, see siteDuplicationService.ts).
+    const logPrefix = `[${publishAttemptId || 'no-id'}]`;
 
-    console.log(`[migrate-property] Starting migration for user=${user.id}, targetProperty=${targetPropertyId}`);
+    console.log(logPrefix, `[migrate-property] Starting migration for user=${user.id}, targetProperty=${targetPropertyId}`);
 
     // Fetch + authorize the target BEFORE building scrapedFields: both branches below
     // reference targetProperty.slug, which was previously declared further down.
@@ -44,7 +47,7 @@ Deno.serve(async (req: Request) => {
     if (!targetProperty) throw new Error(`Target property ${targetPropertyId} not found`);
     if (targetProperty.owner_id !== user.id) throw new Error("Not authorized to migrate to this property");
 
-    console.log(`[migrate-property] Target property: ${targetProperty.title}`);
+    console.log(logPrefix, `[migrate-property] Target property: ${targetProperty.title}`);
 
     let scrapedFields: Record<string, any> = {};
     let sourceImages: any[] = [];
@@ -67,18 +70,18 @@ Deno.serve(async (req: Request) => {
     // Allow migration without images — user-typed text is valid even without a scrape
     const hasOnboardingData = hasRealText;
 
-    console.log('[migrate-property] hasOnboardingData:', hasOnboardingData, '{ text:', hasRealText, 'images:', hasRealImages, '(' + scrapedImgList.length + ' total) }');
-    console.log('[migrate-property] scraped_title:', onboardingData?.scraped_title);
-    console.log('[migrate-property] scraped_description:', onboardingData?.scraped_description);
-    console.log('[migrate-property] scraped_images length:', scrapedImgList.length);
-    console.log('[migrate-property] scraped_images first 3:', scrapedImgList.slice(0, 3));
+    console.log(logPrefix, '[migrate-property] hasOnboardingData:', hasOnboardingData, '{ text:', hasRealText, 'images:', hasRealImages, '(' + scrapedImgList.length + ' total) }');
+    console.log(logPrefix, '[migrate-property] scraped_title:', onboardingData?.scraped_title);
+    console.log(logPrefix, '[migrate-property] scraped_description:', onboardingData?.scraped_description);
+    console.log(logPrefix, '[migrate-property] scraped_images length:', scrapedImgList.length);
+    console.log(logPrefix, '[migrate-property] scraped_images first 3:', scrapedImgList.slice(0, 3));
 
     if (hasOnboardingData) {
       const heroImg = onboardingData.scraped_hero_image || onboardingData.hero_image || '';
       const imgList = scrapedImgList;
-      console.log('[migrate-property] Using onboarding_data, heroImg:', heroImg, 'imgList length:', imgList.length);
+      console.log(logPrefix, '[migrate-property] Using onboarding_data, heroImg:', heroImg, 'imgList length:', imgList.length);
       // [C5] Log what we're about to write to property_intro
-      console.log('[C5] MIGRATE-PROPERTY desc='+(onboardingData.description||'').slice(0,40)+' prop_intro='+(onboardingData.property_intro||'').slice(0,40)+' scraped_desc='+(onboardingData.scraped_description||'').slice(0,40));
+      console.log(logPrefix, '[C5] MIGRATE-PROPERTY desc='+(onboardingData.description||'').slice(0,40)+' prop_intro='+(onboardingData.property_intro||'').slice(0,40)+' scraped_desc='+(onboardingData.scraped_description||'').slice(0,40));
       scrapedFields = {
         // INPUT FIELDS WIN. GetSite spreads the onboarding_data row first, then overrides
         // title/property_title/description/property_intro with the user's edited field values.
@@ -151,7 +154,7 @@ Deno.serve(async (req: Request) => {
       if (scrapedFields[k] === undefined || scrapedFields[k] === null) delete scrapedFields[k];
     });
 
-    console.log(`[migrate-property] Copying fields: ${Object.keys(scrapedFields).join(', ')}`);
+    console.log(logPrefix, `[migrate-property] Copying fields: ${Object.keys(scrapedFields).join(', ')}`);
 
     const { error: updateError } = await supabase
       .from("properties")
@@ -161,7 +164,7 @@ Deno.serve(async (req: Request) => {
     if (updateError) throw new Error(`Failed to update target property: ${updateError.message}`);
 
     if (sourceImages && sourceImages.length > 0) {
-      console.log(`[migrate-property] Replacing ${sourceImages.length} images from ${sourceLabel}...`);
+      console.log(logPrefix, `[migrate-property] Replacing ${sourceImages.length} images from ${sourceLabel}...`);
       const newImageRows = sourceImages.map((img: any, i: number) => ({
         property_id: targetPropertyId,
         url: img.url,
@@ -171,19 +174,19 @@ Deno.serve(async (req: Request) => {
       await supabase.from("property_images").delete().eq("property_id", targetPropertyId);
       const { error: insertError } = await supabase.from("property_images").insert(newImageRows);
       if (insertError) {
-        console.warn(`[migrate-property] ⚠️ Image insert failed: ${insertError.message}`);
+        console.warn(logPrefix, `[migrate-property] ⚠️ Image insert failed: ${insertError.message}`);
       } else {
-        console.log(`[migrate-property] ✅ Copied ${newImageRows.length} images`);
+        console.log(logPrefix, `[migrate-property] ✅ Copied ${newImageRows.length} images`);
       }
     } else {
-      console.log(`[migrate-property] No onboarding images — preserving existing property_images (from save-site-records)`);
+      console.log(logPrefix, `[migrate-property] No onboarding images — preserving existing property_images (from save-site-records)`);
     }
 
     if (!hasOnboardingData) {
       await supabase.from("properties").update({ status: "migrated" }).eq("id", SOURCE_PROPERTY_ID);
     }
 
-    console.log(`[migrate-property] ✅ Migration complete for property ${targetPropertyId}`);
+    console.log(logPrefix, `[migrate-property] ✅ Migration complete for property ${targetPropertyId}`);
 
     return new Response(
       JSON.stringify({

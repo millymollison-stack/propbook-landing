@@ -19,6 +19,43 @@
 import { supabase } from '../lib/supabase';
 import { createSlug } from './slugService';
 
+// ─────────────────────────────────────────────
+// PUBLISH ATTEMPT CORRELATION ID
+// ─────────────────────────────────────────────
+// David 2026-09-22: diagnosing the ravenswortha14 "delayed placeholder overwrite"
+// bug meant reading raw timestamped edge-function logs and inferring what must
+// have run, minutes of archaeology for a single incident. One ID per publish
+// attempt, threaded through every client call and every edge function log line
+// it touches (save-site-records, deploy-site, migrate-property), turns the next
+// "it didn't save" report into a log grep instead. See
+// claude/stability-plan-2026-09-22.md, item 4.
+const PUBLISH_ATTEMPT_ID_KEY = 'publish_attempt_id';
+
+export function getOrCreatePublishAttemptId(): string {
+  try {
+    let id = sessionStorage.getItem(PUBLISH_ATTEMPT_ID_KEY);
+    if (!id) {
+      id = crypto.randomUUID();
+      sessionStorage.setItem(PUBLISH_ATTEMPT_ID_KEY, id);
+    }
+    return id;
+  } catch {
+    // sessionStorage unavailable (private mode, etc.) — fall back to a
+    // per-call id rather than failing the publish over a tracing nicety.
+    return crypto.randomUUID();
+  }
+}
+
+// Call this once a publish attempt fully completes (success or failure) so the
+// *next* attempt gets a fresh ID instead of being lumped into the same trace.
+export function clearPublishAttemptId(): void {
+  try {
+    sessionStorage.removeItem(PUBLISH_ATTEMPT_ID_KEY);
+  } catch {
+    // ignore
+  }
+}
+
 // Embedded SPA template — avoids CORS issues when deploying from the browser
 const SPA_TEMPLATE = `<!DOCTYPE html>
 <html lang="en">
@@ -398,9 +435,10 @@ export async function createNewSiteRecords(data: NewSiteData): Promise<{
   const slug = data.slug || createSlug(data.websiteName);
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
   const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-  console.log('[createNewSiteRecords] INPUT slug:', data.slug, '-> final slug:', slug);
-  console.log('[createNewSiteRecords] INPUT websiteName:', data.websiteName);
-  console.log('[createNewSiteRecords] INPUT scrapedData.title:', data.scrapedData?.title);
+  const publishAttemptId = getOrCreatePublishAttemptId();
+  console.log(`[${publishAttemptId}] [createNewSiteRecords] INPUT slug:`, data.slug, '-> final slug:', slug);
+  console.log(`[${publishAttemptId}] [createNewSiteRecords] INPUT websiteName:`, data.websiteName);
+  console.log(`[${publishAttemptId}] [createNewSiteRecords] INPUT scrapedData.title:`, data.scrapedData?.title);
   if (!supabaseUrl || !supabaseAnonKey) {
     throw new Error(`Supabase env not configured: VITE_SUPABASE_URL=${supabaseUrl}, VITE_SUPABASE_ANON_KEY=${supabaseAnonKey}`);
   }
@@ -416,6 +454,10 @@ export async function createNewSiteRecords(data: NewSiteData): Promise<{
         'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`, // was the service_role key -- save-site-records does its own privileged writes server-side, this header only needs to satisfy Supabase's verify_jwt gate
       },
       body: JSON.stringify({
+        // publishAttemptId: correlation id for tracing this publish attempt across
+        // save-site-records / deploy-site / migrate-property logs — see the
+        // getOrCreatePublishAttemptId() comment above.
+        publishAttemptId,
         // title: user's typed Website Name field — NOT scraped raw title
         title: data.websiteName,
         // propertyTitle: user's Property Headline field — the sentence they typed or saw in preview
@@ -457,7 +499,7 @@ export async function createNewSiteRecords(data: NewSiteData): Promise<{
     const { propertyId } = result;
     return { propertyId, siteUrl: `https://www.propbook.pro/props/${slug}`, slug };
   } catch (err) {
-    console.error('[createNewSiteRecords] Error:', err);
+    console.error(`[${publishAttemptId}] [createNewSiteRecords] Error:`, err);
     throw err;
   }
 }
@@ -476,8 +518,12 @@ export async function duplicateSiteAfterPayment(
 ): Promise<{ slug: string; propertyId: string; deployUrl: string }> {
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
   const siteUrl = `https://www.propbook.pro/props/${slug}`;
+  // Same correlation id as createNewSiteRecords -- carried in sessionStorage across the
+  // "Save Site" -> "Go Live" step (and across the Stripe redirect in between) so both
+  // halves of one publish attempt show up under the same id in the logs.
+  const publishAttemptId = getOrCreatePublishAttemptId();
 
-  console.log('[duplicateSiteAfterPayment] 🚀 Deploying clean SPA for slug:', slug);
+  console.log(`[${publishAttemptId}] [duplicateSiteAfterPayment] 🚀 Deploying clean SPA for slug:`, slug);
 
   // Step 1: Get property data from Supabase
   const { data: prop } = await supabase
@@ -605,6 +651,7 @@ export async function duplicateSiteAfterPayment(
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
     body: JSON.stringify({
+      publishAttemptId,
       propertyId,
       slug,
       prebuiltHtml: encodeBase64(spaHtml),
@@ -620,7 +667,10 @@ export async function duplicateSiteAfterPayment(
   const deployData = await deployRes.json();
   if (!deployData.success) throw new Error(`Deploy failed: ${deployData.error || 'unknown'}`);
 
-  console.log(`[duplicateSiteAfterPayment] ✅ Deployed via ${deployData.deployed_via} — ${deployData.siteUrl}`);
+  console.log(`[${publishAttemptId}] [duplicateSiteAfterPayment] ✅ Deployed via ${deployData.deployed_via} — ${deployData.siteUrl}`);
+  // This publish attempt is done (deploy succeeded) -- clear the id so the *next*
+  // publish attempt (e.g. editing this same site again later) starts a fresh trace.
+  clearPublishAttemptId();
   return { slug, propertyId, deployUrl: deployData.siteUrl || siteUrl };
 }
 

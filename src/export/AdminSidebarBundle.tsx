@@ -1292,7 +1292,12 @@ export function AdminSidebar({ isOpen, onClose, mockMode = false, onPropertyLoad
   };
 
   useEffect(() => {
-    if (user) setContactFields({ full_name: user.full_name || '', email: user.email || '', phone_number: user.phone_number || '' });
+    // Same isEditingRef guard as loadData()'s propFields/seoFields (see comment near
+    // isEditingRef's declaration) -- this effect's dep is the whole `user` object, so if
+    // useAuth() ever returns a new reference on an unrelated re-render while the admin is
+    // mid-edit on the Contact section, this would silently overwrite their typed name/
+    // email/phone with the last-saved profile values.
+    if (user && !isEditingRef.current) setContactFields({ full_name: user.full_name || '', email: user.email || '', phone_number: user.phone_number || '' });
   }, [user]);
 
   const saveServices = async (updated: Record<ServiceKey, boolean>) => {
