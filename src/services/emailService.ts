@@ -23,8 +23,10 @@ interface BookingEmailData {
 export class EmailNotificationService {
   private static async getAdminProfile() {
     try {
+      // Public view — see David 2026-09-22 RLS lockdown, the full `profiles`
+      // table is no longer publicly readable.
       const { data: adminProfile, error } = await supabase
-        .from('profiles')
+        .from('host_contact')
         .select('*')
         .eq('role', 'admin')
         .limit(1)

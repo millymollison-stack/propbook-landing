@@ -70,7 +70,7 @@ export function Casablanca1() {
 
           const [imgResult, bkgResult, blkResult] = await Promise.all([
             supabase.from('property_images').select('*').eq('property_id', propData.id).order('position'),
-            supabase.from('bookings').select('*').eq('property_id', propData.id).in('status', ['approved', 'pending']),
+            supabase.from('booking_dates_public').select('*').eq('property_id', propData.id).in('status', ['approved', 'pending']),
             supabase.from('blocked_dates').select('*').eq('property_id', propData.id),
           ]);
 

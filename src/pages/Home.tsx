@@ -208,7 +208,7 @@ export function Home({ isEditing: externalIsEditing, onHasChanges, registerSaveA
       // Fetch latest data from Supabase to overlay dynamic content (bookings, blocked dates)
       try {
         const [{ data: bkgData, error: bkgError }, { data: blkData, error: blkError }] = await Promise.all([
-          supabase.from('bookings').select('*').eq('property_id', propertyId).in('status', ['approved', 'pending']),
+          supabase.from('booking_dates_public').select('*').eq('property_id', propertyId).in('status', ['approved', 'pending']),
           supabase.from('blocked_dates').select('*').eq('property_id', propertyId),
         ]);
         if (bkgError) throw bkgError;
@@ -276,8 +276,11 @@ export function Home({ isEditing: externalIsEditing, onHasChanges, registerSaveA
       } catch (e) { bgImages = []; }
       setBackgroundImages(bgImages);
 
+      // Public view: only date-range fields needed for calendar coloring — see
+      // David 2026-09-22 RLS lockdown, the full `bookings` table is no longer
+      // publicly readable.
       const { data: bkgData, error: bkgError } = await supabase
-        .from('bookings')
+        .from('booking_dates_public')
         .select('*')
         .eq('property_id', propertyId)
         .in('status', ['approved', 'pending']);

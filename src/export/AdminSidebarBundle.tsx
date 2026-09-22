@@ -119,7 +119,7 @@ const UserBookings = memo(function UserBookings({ bookings, onUpdateStatus, onRe
 
   const loadAdminProfile = async () => {
     try {
-      const { data } = await supabase.from('profiles').select('*').eq('role', 'admin').limit(1).single();
+      const { data } = await supabase.from('host_contact').select('*').eq('role', 'admin').limit(1).single(); // David 2026-09-22: public view, profiles table is locked down now
       if (data) setAdminProfile(data);
     } catch { /* silent */ }
   };

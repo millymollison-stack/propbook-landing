@@ -327,7 +327,7 @@ export function CustomerSite({ onSiteNameChange, isEditing: externalIsEditing, r
           setLoading(false);
           console.log('[CustomerSite loadProperty] Fast-path SUCCESS, property set');
           // Fetch bookings/blocked dates in background — don't block render
-          supabase.from('bookings').select('*').eq('property_id', cached.id).in('status', ['approved', 'pending'])
+          supabase.from('booking_dates_public').select('*').eq('property_id', cached.id).in('status', ['approved', 'pending'])
             .then(bkgRes => { if (!bkgRes.error) setBookings(bkgRes.data || []); })
             .catch(() => {});
           supabase.from('blocked_dates').select('*').eq('property_id', cached.id)
@@ -399,9 +399,11 @@ export function CustomerSite({ onSiteNameChange, isEditing: externalIsEditing, r
         } catch (e) { bgImages = []; }
         setBackgroundImages(bgImages);
 
-        // Load bookings
+        // Load bookings (public view: only date-range fields needed for calendar
+        // coloring — see David 2026-09-22 RLS lockdown, the full `bookings` table is
+        // no longer publicly readable)
         const { data: bkgData } = await supabase
-          .from('bookings')
+          .from('booking_dates_public')
           .select('*')
           .eq('property_id', propData.id)
           .in('status', ['approved', 'pending']);

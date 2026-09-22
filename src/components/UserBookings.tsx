@@ -30,8 +30,10 @@ const UserBookings = memo(function UserBookings({ bookings, onUpdateStatus, onRe
 
   const loadAdminProfile = async () => {
     try {
+      // Public view — see David 2026-09-22 RLS lockdown, the full `profiles`
+      // table is no longer publicly readable.
       const { data: adminUsers, error } = await supabase
-        .from('profiles')
+        .from('host_contact')
         .select('*')
         .eq('role', 'admin')
         .limit(1)
