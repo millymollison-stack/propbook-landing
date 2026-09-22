@@ -42,6 +42,12 @@ export function Layout({ children, isEditing, onToggleEdit, hasChanges, onSaveCh
   // (which was already correct).
   const [showSharePopup, setShowSharePopup] = useState(false);
   const [sharePopupClosing, setSharePopupClosing] = useState(false);
+  // David 2026-09-22: onboarding modal shown once, right after a first-time
+  // publish returns from Stripe (see AdminSidebarBundle.tsx's
+  // auto-publish-after-subscribe effect, which sets the sessionStorage flag this
+  // reads below) -- restores the "Welcome to <site>" guidance that used to show
+  // from GetSite.tsx before checkout moved to the sidebar's Publish button.
+  const [showPublishWelcome, setShowPublishWelcome] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
   const siteUrl = activeProperty?.site_url || (activeProperty?.slug ? `https://www.propbook.pro/props/${activeProperty.slug}` : window.location.href);
   // Display-only: David -- "Remove the https://www. from the url" -- the
@@ -73,6 +79,12 @@ export function Layout({ children, isEditing, onToggleEdit, hasChanges, onSaveCh
     const params = new URLSearchParams(window.location.search);
     if (params.get('published') === '1') {
       window.history.replaceState({}, '', window.location.pathname);
+      const cameFromStripe = sessionStorage.getItem('show_publish_welcome') === '1';
+      sessionStorage.removeItem('show_publish_welcome');
+      if (cameFromStripe) {
+        setShowPublishWelcome(true);
+        return;
+      }
       setShowSharePopup(true);
       const timer = setTimeout(() => closeSharePopup(), 3000);
       return () => clearTimeout(timer);
@@ -200,6 +212,24 @@ export function Layout({ children, isEditing, onToggleEdit, hasChanges, onSaveCh
       </footer>
 
       {/* ── Share popup ─────────────────────────────────────────────────────────── */}
+      {/* Publish-welcome modal -- first time back from Stripe after publishing */}
+      {showPublishWelcome && (
+        <div className="popup-backdrop" style={{ background: 'rgba(0,0,0,0.85)', zIndex: 99999 }} onClick={(e) => { if (e.target === e.currentTarget) setShowPublishWelcome(false); }}>
+          <div className="popup-modal" style={{ maxWidth: 420, alignItems: 'center', textAlign: 'center', padding: '36px 40px' }} onClick={e => e.stopPropagation()}>
+            <h1 style={{ fontSize: '1.4rem', fontWeight: 700, marginBottom: 14, color: '#fff', textTransform: 'none', letterSpacing: 0 }}>
+              Welcome to {siteName || 'your site'}
+            </h1>
+            <p style={{ color: 'rgba(255,255,255,0.65)', fontSize: '0.9rem', marginBottom: 24, lineHeight: 1.5 }}>
+              Continue designing your site via the Edit button in the top nav, and add your site details in the sidebar — where you can also publish your site and republish it with updates.
+            </p>
+            <button
+              onClick={() => setShowPublishWelcome(false)}
+              style={{ background: 'var(--brand, #C47756)', color: '#fff', border: 'none', borderRadius: 8, padding: '12px 32px', fontSize: '1rem', fontWeight: 600, cursor: 'pointer' }}
+            >Got it</button>
+          </div>
+        </div>
+      )}
+
       {showSharePopup && (
         <div
           className={`cs-share-overlay${sharePopupClosing ? ' closing' : ''}`}

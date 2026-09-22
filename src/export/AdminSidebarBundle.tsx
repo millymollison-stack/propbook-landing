@@ -1705,6 +1705,15 @@ export function AdminSidebar({ isOpen, onClose, mockMode = false, onPropertyLoad
         sessionStorage.removeItem('stripe_paid_returning');
         setPublishError(null);
         loadSubscriptionData();
+        // David 2026-09-22: the "Welcome to <site> — continue designing via the Edit
+        // button, publish/republish via the sidebar" onboarding modal used to show
+        // right after Stripe when checkout lived in GetSite.tsx. It got orphaned when
+        // checkout moved here (see stability-plan-2026-09-22.md item 5) — GetSite's
+        // modal only fires from its own "save as draft" path now, which this flow
+        // never touches. Flagging it here, read by Layout.tsx's ?published=1 handler
+        // (the redirect below survives as sessionStorage across the full-page nav),
+        // so first-time publishers see it again instead of just the share popup.
+        sessionStorage.setItem('show_publish_welcome', '1');
         handlePublishFromSidebar(true);
       } catch (err) {
         console.error('[auto-publish-after-subscribe] session verification failed:', err);
