@@ -18,6 +18,7 @@
 
 import { supabase } from '../lib/supabase';
 import { createSlug } from './slugService';
+import { fetchPropertyDataSnapshot, injectPropertyDataIntoHtml } from './propertySnapshot';
 
 // ─────────────────────────────────────────────
 // PUBLISH ATTEMPT CORRELATION ID
@@ -525,83 +526,25 @@ export async function duplicateSiteAfterPayment(
 
   console.log(`[${publishAttemptId}] [duplicateSiteAfterPayment] 🚀 Deploying clean SPA for slug:`, slug);
 
-  // Step 1: Get property data from Supabase
-  const { data: prop } = await supabase
-    .from('properties')
-    .select('*')
-    .eq('id', propertyId)
-    .single();
+  // Step 1: Get a complete, fresh snapshot of the property from the
+  // database. This is the ONLY function allowed to build the baked publish
+  // data -- see src/services/propertySnapshot.ts for exactly why (that file's
+  // header documents the property_headline and property_images/background-flag
+  // bugs that motivated pulling this logic out of here).
+  const snapshot = await fetchPropertyDataSnapshot(propertyId);
 
-  if (!prop) throw new Error('Property not found');
-
-  // Step 2: Use the embedded SPA template (avoids CORS when deploying from browser)
-  let spaHtml = SPA_TEMPLATE;
-
-  // Step 3: Replace SEO meta tag tokens in the template
-  const pageTitle = (prop as any).custom_page_title || prop.name || prop.title || slug;
-  const metaDesc = (prop as any).meta_description || (prop.description || '').slice(0, 160);
-  const ogTitle = (prop as any).custom_page_title || (prop as any).property_headline || prop.name || prop.title || '';
-  const ogDesc = (prop as any).meta_description || (prop.description || '').slice(0, 200);
-  const ogImage = (prop as any).og_image_url || prop.hero_image || '';
-  const canonicalUrl = siteUrl;
-  const noindexTag = (prop as any).robots_noindex
-    ? '<meta name="robots" content="noindex, nofollow" />'
-    : '';
-  const googleVerifyTag = (prop as any).google_verification
-    ? `<meta name="google-site-verification" content="${(prop as any).google_verification}" />`
-    : '';
-
-  spaHtml = spaHtml.replace(/\{\{PAGE_TITLE\}\}/g, pageTitle);
-  spaHtml = spaHtml.replace(/\{\{META_DESCRIPTION\}\}/g, metaDesc);
-  spaHtml = spaHtml.replace(/\{\{OG_TITLE\}\}/g, ogTitle);
-  spaHtml = spaHtml.replace(/\{\{OG_DESCRIPTION\}\}/g, ogDesc);
-  spaHtml = spaHtml.replace(/\{\{OG_IMAGE\}\}/g, ogImage);
-  spaHtml = spaHtml.replace(/\{\{CANONICAL_URL\}\}/g, canonicalUrl);
-  spaHtml = spaHtml.replace(/\{\{NOINDEX\}\}/g, noindexTag);
-  spaHtml = spaHtml.replace(/\{\{GOOGLE_VERIFY\}\}/g, googleVerifyTag);
-
-  // Step 4: Inject window.__PROPERTY_DATA__ for instant first render
-  // This gives CustomerSite.tsx the fast-path data without a Supabase round-trip
-  const propertyData = {
-    id: prop.id,
-    slug: prop.slug || slug,
-    title: prop.title || prop.name || slug,
-    name: prop.name || prop.title || '',
-    description: prop.description || '',
-    property_title: (prop as any).property_title || prop.title || null,
-    property_headline: (prop as any).property_headline || (prop as any).property_title || prop.title || null,
-    property_intro: (prop as any).property_intro || '',
-    hero_image: prop.hero_image || '',
-    images: prop.images || [],
-    address: prop.address || '',
-    location: prop.location || prop.address || '',
-    bedrooms: prop.bedrooms ?? null,
-    beds: prop.beds ?? null,
-    bathrooms: prop.bathrooms ?? null,
-    max_guests: prop.max_guests ?? null,
-    price_per_night: prop.price_per_night ?? null,
-    rating: prop.rating ?? null,
-    reviews: prop.reviews ?? null,
-    brand_color: (prop as any).brand_color || null,
-    font_accent: (prop as any).font_accent || null,
-    property_details: (prop as any).property_details || null,
-    activities: (prop as any).activities || null,
-    local_area: (prop as any).local_area || null,
-    getting_there: (prop as any).getting_there || null,
-    host_name: (prop as any).host_name || null,
-    email: prop.email || null,
-    owner_id: prop.owner_id || null,
-  };
-
-  const dataScript = `<script>window.__PROPERTY_DATA__ = ${JSON.stringify(propertyData)};<\/script>`;
-  // Inject before <head> so it executes before React module loads
-  // Inject after </head> so script executes before React module
-  spaHtml = spaHtml.replace('</head>', `${dataScript}</head>`);
-  // Remove any placeholder body script tag entirely — the real data is now in <head>
-  // This avoids double-assignment where the body script overwrites the <head> data with the string '__PROPERTY_DATA__'
-  spaHtml = spaHtml.replace(/<script>window\.__PROPERTY_DATA__\s*=\s*'__PROPERTY_DATA__';?<\/script>/g, '');
+  // Step 2: Bake the snapshot into the SPA template -- fills in the SEO meta
+  // tag tokens and injects window.__PROPERTY_DATA__ before </head> so
+  // CustomerSite.tsx's fast path has instant, fully-fresh data with no
+  // Supabase round-trip needed.
+  let spaHtml = injectPropertyDataIntoHtml(SPA_TEMPLATE, snapshot, siteUrl);
 
   // ── Build SEO files ─────────────────────────────────────────────────────
+  // Built from the SAME snapshot as the baked page data above -- one fetch,
+  // one source of truth. Previously this re-read fields off a separate `prop`
+  // object fetched a few lines up; now there is only one read, and the SEO
+  // files and the baked page can never disagree about the property's own
+  // title/description/images again.
   const encodeBase64 = (str: string) => btoa(unescape(encodeURIComponent(str)));
   const toggles: SeoFileToggles = {
     generate_robots_txt: true,
@@ -611,16 +554,24 @@ export async function duplicateSiteAfterPayment(
     ...seoFileToggles,
   };
   const seoFiles: Record<string, string> = {};
+  const seoData: PropertySeoData = {
+    title: snapshot.title || snapshot.name || slug,
+    description: snapshot.description || '',
+    address: snapshot.address || '',
+    location: snapshot.location || snapshot.address || '',
+    bedrooms: snapshot.bedrooms,
+    beds: snapshot.beds,
+    bathrooms: snapshot.bathrooms,
+    max_guests: snapshot.max_guests,
+    price_per_night: snapshot.price_per_night,
+    images: snapshot.images,
+    slug,
+    site_url: siteUrl,
+  };
   if (toggles.generate_robots_txt) { try { seoFiles['robots.txt'] = generateRobotsTxt(slug, siteUrl); } catch {} }
-  if (toggles.generate_sitemap_xml) {
-    try { const d: PropertySeoData = { title: prop.title||prop.name||slug, description: prop.description||'', address: prop.address||'', location: (prop as any).location||prop.address||'', bedrooms: prop.bedrooms??null, beds: prop.beds??null, bathrooms: prop.bathrooms??null, max_guests: prop.max_guests??null, price_per_night: prop.price_per_night??null, images: prop.images||[], slug, site_url: siteUrl }; seoFiles['sitemap.xml'] = generateSitemapXml(d); } catch {}
-  }
-  if (toggles.generate_llms_txt) {
-    try { const d: PropertySeoData = { title: prop.title||prop.name||slug, description: prop.description||'', address: prop.address||'', location: (prop as any).location||prop.address||'', bedrooms: prop.bedrooms??null, beds: prop.beds??null, bathrooms: prop.bathrooms??null, max_guests: prop.max_guests??null, price_per_night: prop.price_per_night??null, images: prop.images||[], slug, site_url: siteUrl }; seoFiles['llms.txt'] = generateLlmsTxt(d); } catch {}
-  }
-  if (toggles.generate_faq_ai_txt) {
-    try { const d: PropertySeoData = { title: prop.title||prop.name||slug, description: prop.description||'', address: prop.address||'', location: (prop as any).location||prop.address||'', bedrooms: prop.bedrooms??null, beds: prop.beds??null, bathrooms: prop.bathrooms??null, max_guests: prop.max_guests??null, price_per_night: prop.price_per_night??null, images: prop.images||[], slug, site_url: siteUrl }; seoFiles['faq-ai.txt'] = generateFaqAiTxt(d); } catch {}
-  }
+  if (toggles.generate_sitemap_xml) { try { seoFiles['sitemap.xml'] = generateSitemapXml(seoData); } catch {} }
+  if (toggles.generate_llms_txt) { try { seoFiles['llms.txt'] = generateLlmsTxt(seoData); } catch {} }
+  if (toggles.generate_faq_ai_txt) { try { seoFiles['faq-ai.txt'] = generateFaqAiTxt(seoData); } catch {} }
 
   // Always (re)write a SPA-fallback .htaccess alongside index.html. Without
   // this, any nested path under the property's own folder -- /auth/confirm
