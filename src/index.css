@@ -2448,56 +2448,33 @@ hr {
 
 .titleandpricebox {
   display: flex;
-  /* David: "the price number should be on the same baseline as the
-     property headline." Back to baseline (was flex-end, Round 7) -- safe
-     now because the thing Round 7 was actually compensating for (the
-     price h1's own bottom padding) is already pinned to 0 by the rule
-     right below this one. */
   align-items: baseline;
-  justify-content: space-between;
+  /* David 2026-09-22: "put the price and headline on the same line with
+     20px padding between them" -- was justify-content:space-between,
+     which pinned the price to the row's far right edge (its actual
+     position depended on the row's full width, not the headline's own
+     length). Switched to a fixed 20px gap sitting right after the
+     headline instead. flex-wrap so a long headline + price can still
+     drop the price to its own line rather than overflow/clip, same as
+     the edit-mode-only wrap rules below already do. */
+  justify-content: flex-start;
+  gap: 20px;
+  flex-wrap: wrap;
   width: 100%;
   padding: 0px;
 }
 
-/* Round 7: this 10px bottom padding (only ever visible on the price h1 --
-   .hero-title overrides its own padding to 0 !important) combined with
-   align-items:baseline above to add ~40px of invisible height under the
-   title/price row, pushing hero-subtitle way further down than the
-   title's own 10px margin-bottom alone. Dropped to 0 now that flex-end
-   handles the row's vertical alignment instead. */
 .titleandpricebox h1 {
   padding: 0px;
 }
 
-/* Round 7: at <768px the price sat ~20px short of the slider's right nav
-   arrow (David marked this with red lines) because this row inherits two
-   stacked paddings (.gallery-content-overlay + the max-w-7xl px-4 wrapper)
-   that the arrow, positioned independently, doesn't. Pulling just the
-   price side out compensates without touching the title's own left edge. */
-@media (max-width: 767px) {
-  .titleandpricebox > div:last-child {
-    margin-right: -20px;
-  }
+/* The headline can wrap/shrink; the price box next to it keeps its own
+   width so a long headline doesn't squeeze the price number. */
+.titleandpricebox > *:first-child {
+  min-width: 0;
 }
-@media (max-width: 410px) {
-  /* .gallery-content-overlay's own padding shrinks to 0.25rem below 410px,
-     so the excess to cancel out is smaller here than the -20px above. */
-  .titleandpricebox > div:last-child {
-    margin-right: -4px;
-  }
-}
-/* David: "at 480 viewport the price per night is going too far to the
-   right and falling off the page. Bring it in 16px." -- 480px falls
-   inside the max-width:767px tier above (-20px), which was calibrated for
-   wider phones; it's too aggressive once the viewport gets this narrow
-   (same reason the max-width:410px tier above dials it back further).
-   Placed last so it wins over the -20px rule for anything <=500px,
-   bringing the price in by 16px (-20px -> -4px) right where David saw it
-   clipping; matches the already-safe -4px value the narrower tier uses. */
-@media (max-width: 500px) {
-  .titleandpricebox > div:last-child {
-    margin-right: -4px;
-  }
+.titleandpricebox > *:last-child {
+  flex-shrink: 0;
 }
 
 .manage-images-heading {
