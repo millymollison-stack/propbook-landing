@@ -4306,25 +4306,16 @@ input[type="password"] {
 
 /* ---- .edit-intro-textarea ---- */
 .edit-intro-textarea {
-  /* Narrowed from 100% to match .edit-title-input's 60% so the
-     description box's right edge lines up with the price-per-night
-     box above it instead of running underneath it. */
-  width: 60% !important;
-  max-width: 60% !important;
+  /* David 2026-09-22: "make the text box full width with margin/padding,
+     the 1/2 grid makes no sense" -- was narrowed to 60% to line up with
+     the title/price row above, which no longer applies now that row is
+     a fixed 20px gap instead of a width-based split. Full width at every
+     size now (this used to only go full width below 480px). */
+  width: 100% !important;
+  max-width: 100% !important;
   color: #ffffff;
   height: 110px;
-}
-/* David: "at mobile view the text box expanded to 16px from the edge of
-   the page" -- the title/price row stacks vertically at this width
-   (there's no price box floating alongside it to stay clear of), so the
-   60% desktop width just cramps the box for no reason. Full width, with
-   the page's own 16px edge padding (the max-w-7xl px-4 wrapper this sits
-   inside) doing the rest. */
-@media (max-width: 480px) {
-  .edit-intro-textarea {
-    width: 100% !important;
-    max-width: 100% !important;
-  }
+  padding: 10px 12px !important;
 }
 
 /* David 2026-09-22: edit-mode title/price row + stat boxes didn't fit on
