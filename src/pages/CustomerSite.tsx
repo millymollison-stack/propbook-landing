@@ -333,6 +333,32 @@ export function CustomerSite({ onSiteNameChange, isEditing: externalIsEditing, r
           supabase.from('blocked_dates').select('*').eq('property_id', cached.id)
             .then(blkRes => { if (!blkRes.error) setBlockedDates(blkRes.data || []); })
             .catch(() => {});
+          // David 2026-09-22: window.__PROPERTY_DATA__ is baked into this property's
+          // HTML at PUBLISH time and never touched again -- every edit saved via
+          // handlePropertyUpdate (headline, description, price, bed/bath/guest counts)
+          // writes straight to the `properties` row, but this cached object -- what the
+          // fast path above renders from on every single page load -- keeps showing
+          // whatever was true when the page was last published. Confirmed live: DB had
+          // "West London House" while the baked headline still said "Welcome to your
+          // next Perfect" from an earlier publish. This is the actual root cause behind
+          // "I changed the headline and it didn't save" -- the save worked every time,
+          // the page just never re-checked. Fetch the live row in the background and
+          // correct the content fields once it lands (skipped if the admin is already
+          // editing, so an in-progress edit can't be clobbered by a slightly-stale
+          // correction landing mid-type).
+          supabase.from('properties')
+            .select('property_headline, property_title, title, name, description, price_per_night, bedrooms, beds, bathrooms, max_guests')
+            .eq('id', cached.id)
+            .single()
+            .then(({ data: freshProp, error: freshErr }) => {
+              if (freshErr || !freshProp || isEditing) return;
+              setProperty(prev => {
+                if (!prev) return prev;
+                const merged = { ...prev, ...freshProp };
+                useProperty.getState().setActiveProperty(merged);
+                return merged;
+              });
+            }).catch(() => {});
           // Fetch owner_id in background so isAdmin re-evaluates correctly
           if (!cached.owner_id) {
             supabase.from('properties').select('owner_id').eq('id', cached.id).limit(1).single()

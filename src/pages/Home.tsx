@@ -170,6 +170,12 @@ export function Home({ isEditing: externalIsEditing, onHasChanges, registerSaveA
             latitude: null,
             longitude: null,
             location_type: 'address',
+            // David 2026-09-22: this never read baked.property_headline at all, even
+            // though the baked payload has it -- resolveTitle() in ImageGallery.tsx
+            // reads property_headline first, so leaving it unset here meant this fast
+            // path always fell through to the @handle fallback regardless of what the
+            // owner had actually set as their headline.
+            property_headline: baked.property_headline || null,
             property_title: baked.title || null,
             property_intro: baked.description || null,
             custom_domain: null,
@@ -202,6 +208,23 @@ export function Home({ isEditing: externalIsEditing, onHasChanges, registerSaveA
               if (imgErr || !imgRows) return;
               const bg = imgRows.filter((img: PropertyImage) => (img as any).is_background).slice(0, 2);
               if (bg.length > 0) setBackgroundImages(bg);
+            }).catch(() => {});
+          // David 2026-09-22: window.__PROPERTY_DATA__ is baked into this property's
+          // HTML at PUBLISH time and never touched again -- every edit saved via
+          // handlePropertyUpdate writes straight to the `properties` row, but this
+          // cached object (what this fast path renders from on every page load) keeps
+          // showing whatever was true at last publish. Root cause of "I changed the
+          // headline and it didn't save" -- it saved, the page just never re-checked.
+          // Same fix as CustomerSite.tsx's fast path: fetch the live row in the
+          // background and correct the content fields once it lands (skipped while
+          // actively editing).
+          supabase.from('properties')
+            .select('property_headline, property_title, title, name, description, price_per_night, bedrooms, beds, bathrooms, max_guests')
+            .eq('id', targetPropertyId)
+            .single()
+            .then(({ data: freshProp, error: freshErr }) => {
+              if (freshErr || !freshProp || isEditing) return;
+              setProperty((prev: any) => prev ? { ...prev, ...freshProp } : prev);
             }).catch(() => {});
           // Still fetch live data (bookings, blocked dates) from Supabase in background
           fetchLiveData(targetPropertyId, bakedProp);
