@@ -1325,6 +1325,21 @@ html, body {
   transform: scaleY(1.2);
   transform-origin: bottom;
 }
+/* David 2026-09-22: "Property conflict" modal title (AdminSidebarBundle)
+   was rendering unreadable near-black-on-near-black -- it uses the shared
+   "hero-title hero-title-edit" classes (same combo the sidebar Profile /
+   Not Your Property headings use, correctly, as black-on-white there since
+   .sidebar-panel has a white background). .hero-title-edit's own
+   `color: #111 !important` beats the plain `.auth-modal h1 { color: #fff }`
+   above regardless of source order, because !important always beats a
+   non-important declaration. This compound selector's extra class gives it
+   higher specificity than .hero-title-edit alone, so its !important wins
+   instead -- fixes just the auth-modal (dark bg) case without touching any
+   of the other hero-title-edit uses (white sidebar panels, white booking
+   modals) that are already correct. */
+.auth-modal h1.hero-title-edit {
+  color: #fff !important;
+}
 
 .auth-modal {
   position: relative;
