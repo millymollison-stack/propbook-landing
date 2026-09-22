@@ -173,7 +173,15 @@ function CheckoutForm({
             onChange={(e) => addLog('info', `PaymentElement onChange: complete=${e.complete}, empty=${e.empty}`)}
             onLoadError={(e) => addLog('error', `PaymentElement onLoadError: ${JSON.stringify(e)}`)}
             options={{
-              layout: 'tabs',
+              // David 2026-09-22: "remove the boxes... I need it shorter" --
+              // 'tabs' renders every enabled payment method (Card/Bank/
+              // Crypto/Amazon Pay/Klarna) as its own bordered box in a grid,
+              // which is what he's calling "boxes." 'accordion' lists them
+              // as compact one-line rows instead, with only the selected
+              // method's fields expanded -- shorter and no box grid. Which
+              // methods show up at all is a Stripe Dashboard payment-methods
+              // setting, not something this options object controls.
+              layout: 'accordion',
               defaultValues: { billingDetails: { address: { country: 'US' } } },
             }}
           />
@@ -322,7 +330,7 @@ export function PaymentForm({
     <div className="sb-panel-bg rounded-lg space-y-5">
       {/* Booking summary */}
       <div>
-        <h3 className="h4-on-light mb-1">Complete payment</h3>
+        <h3 className="h4-on-light mb-1 payment-modal-title">Complete payment</h3>
         <p className="body-on-light text-sm mb-3">You're one step away from a confirmed booking.</p>
         <div className="bg-gray-50 rounded-lg p-4 text-sm space-y-2">
           <div className="flex justify-between gap-3">
@@ -370,7 +378,16 @@ export function PaymentForm({
               variables: {
                 colorPrimary: '#C47756',
                 borderRadius: '8px',
-                fontFamily: 'inherit',
+                // David 2026-09-22: "not Times Roman" -- PaymentElement
+                // renders in its own cross-origin iframe, so the CSS
+                // keyword 'inherit' had nothing of ours to inherit from;
+                // it fell back to the iframe's own default stylesheet,
+                // which is a generic serif in most browsers. Same sans
+                // stack the rest of the site uses (Tailwind's font-sans
+                // default -- there's no custom font-family set anywhere
+                // else in the app) instead of a CSS keyword Stripe's
+                // iframe can't resolve.
+                fontFamily: 'ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
               },
             },
           }}

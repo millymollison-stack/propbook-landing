@@ -77,7 +77,15 @@ Deno.serve(async (req: Request) => {
     const intentParams: Stripe.PaymentIntentCreateParams = {
       amount: amountInCents,
       currency: "usd",
-      automatic_payment_methods: { enabled: true },
+      // David 2026-09-22: automatic_payment_methods:{enabled:true} was
+      // surfacing every payment method enabled on the Stripe account --
+      // card, bank transfer, crypto, Amazon Pay, Klarna -- plus Link's
+      // "remember your details" prompt, as a grid of boxes above the
+      // actual card form. On a booking checkout with little vertical
+      // room, that pushed the Pay button below the fold. Restricted to
+      // card only so the form is just the card fields + Pay button, no
+      // method picker or Link prompt to scroll past.
+      payment_method_types: ["card"],
       metadata: {
         bookingId,
         userId: user.id,

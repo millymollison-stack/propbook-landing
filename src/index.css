@@ -126,6 +126,13 @@ html, body {
   font-weight: 600;
   color: #111827;
 }
+/* David 2026-09-22: "the title font as the heading" on the payment modal --
+   scoped to just this one heading rather than adding font-family to the
+   shared .h4-on-light (used across ~12 admin/list headings that should
+   stay on the plain body font, not the display font). */
+.payment-modal-title {
+  font-family: var(--font-accent, 'Playfair Display'), serif;
+}
 .label-on-light {
   display: block;
   font-size: 0.875rem;
