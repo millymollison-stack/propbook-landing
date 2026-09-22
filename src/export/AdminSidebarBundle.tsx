@@ -1870,6 +1870,25 @@ export function AdminSidebar({ isOpen, onClose, mockMode = false, onPropertyLoad
                 Stay here and keep editing this property
               </button>
             </p>
+            {/* David 2026-09-22: "I thought we were saying log out to visit
+                this site" -- his original ask ("go to the site you're
+                logged in on or log out of account, then they can visit")
+                applies here too, not just the hard-lock showLockedState
+                screen below. Admins still keep "stay and edit" (they need
+                uninterrupted access for migration work, see
+                showPropertyConflict above), but logging out is now offered
+                as a third way to just view ravenswortha14-type properties
+                as a guest instead of bouncing to their own site. */}
+            <p style={{ marginTop: '0.5rem' }}>
+              <button
+                type="button"
+                className="popup-link"
+                style={{ color: '#9ca3af' }}
+                onClick={async () => { await signOut(); setShowPropertyConflict(false); }}
+              >
+                Log out to view this site as a guest
+              </button>
+            </p>
           </div>
         </div>
       )}
