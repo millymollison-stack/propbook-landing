@@ -39,7 +39,7 @@ async function pollForSiteUrl(slug, maxAttempts = 20, intervalMs = 2000) {
   for (let i = 0; i < maxAttempts; i++) {
     try {
       const res = await fetch(`https://jtzagpbdrqfifdisxipr.supabase.co/rest/v1/properties?slug=eq.${encodeURIComponent(slug)}&select=site_url&limit=1`, {
-        headers: { 'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp0emFncGJkcnFmaWZkaXN4aXByIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDQ3MzUyODUsImV4cCI6MjA2MDMxMTI4NX0.uWqc82Hb-qnRq4H9kg5IPykUosm9VvU2s6e8mOalkR0' }
+        headers: { 'apikey': 'sb_publishable_iRloVWfWXpACJSYNIhNz0Q_vRbFdCRJ' }
       });
       if (res.ok) {
         const data = await res.json();
