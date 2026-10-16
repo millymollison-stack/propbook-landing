@@ -86,11 +86,18 @@ export const BUNDLE_VERSION = '${builtAt}';
           if (existsSync(sdsPath)) {
             let sds = readFileSync(sdsPath, 'utf8');
             sds = sds.replace(
-              /<link rel="stylesheet" href="[^ "]*index\.css" \/>/,
+              // Optional trailing ?v=... allowed -- without this, the regex only
+              // ever matched a pristine, never-yet-versioned tag, so once the first
+              // build baked in a ?v=, every later build silently failed to match and
+              // the version number went stale forever. Root-caused 2026-10-16: the
+              // live SPA_TEMPLATE was still pointing at a 2026-09-08 build weeks
+              // after multiple later deploys.
+              /<link rel="stylesheet" href="[^ "]*index\.css(\?[^"]*)?" \/>/,
               `<link rel="stylesheet" href="//propbook.pro/dev/assets/index.css?v=${builtAt}" />`
             );
             sds = sds.replace(
-              /<script type="module" src="[^ "]*index(\-[A-Za-z0-9]+)?\.js"><\/script>/,
+              // Same optional-?v=... fix as the CSS regex above.
+              /<script type="module" src="[^ "]*index(\-[A-Za-z0-9]+)?\.js(\?[^"]*)?"><\/script>/,
               `<script type="module" src="//propbook.pro/dev/assets/index.js?v=${builtAt}"></script>`
             );
             writeFileSync(sdsPath, sds);
