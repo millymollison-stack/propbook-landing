@@ -7,32 +7,22 @@
 import React, { useState, useEffect, useMemo, memo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { format, fromUnixTime, addDays } from 'date-fns';
-import { ChevronRight, ChevronDown, X, LogOut, ExternalLink, Check, CreditCard as Edit2, Clock, CreditCard, AlertCircle, XCircle, CheckCircle, MapPin, Eye, EyeOff, Mail, Phone, User, MessageSquare, Home, Image, Bed, Bath, Users } from 'lucide-react';
+import { ChevronRight, ChevronDown, X, LogOut, ExternalLink, Check, CreditCard as Edit2, Clock, CreditCard, AlertCircle, XCircle, CheckCircle, MapPin, Eye, EyeOff, Mail, Phone, User, MessageSquare, Home } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../store/auth';
 import { useProperty } from '../store/property';
 import type { Profile, Booking, Property } from '../types';
 import { duplicateSiteAfterPayment } from '../services/siteDuplicationService';
-import { SeoSection } from './SeoSection';
+import { EmailNotificationService } from '../services/emailService';
+import { describeInvokeError, errorMessage } from '../utils/bookingErrors';
+import { SeoSection, type SocialLinks } from './SeoSection';
 
 // ─────────────────────────────────────────────
 // SECTION 1 — Extended Profile (app type + services fields)
 // ─────────────────────────────────────────────
 
-type ServiceKey = 'aiSeo' | 'marketing' | 'advertising' | 'analytics' | 'influencers' | 'social';
-
 export type BookingStatus = 'pending' | 'approved' | 'denied' | 'cancelled';
-export type PaymentStatus = 'unpaid' | 'pending' | 'paid' | 'refunded' | 'failed';
-
-// Extend the app's Profile type to include services fields used by this sidebar
-export interface SidebarServicesProfile extends Profile {
-  services_ai_seo?: boolean;
-  services_marketing?: boolean;
-  services_advertising?: boolean;
-  services_analytics?: boolean;
-  services_influencers?: boolean;
-  services_social?: boolean;
-}
+export type PaymentStatus = 'unpaid' | 'pending' | 'authorized' | 'paid' | 'refunded' | 'failed' | 'canceled';
 
 // ─────────────────────────────────────────────
 // SECTION 2 — AuthProvider (no-op — app's auth already initialises)
@@ -46,18 +36,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 // ─────────────────────────────────────────────
 // SECTION 3 — Shared UI primitives
 // ─────────────────────────────────────────────
-
-function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
-  return (
-    <button
-      type="button"
-      onClick={() => onChange(!checked)}
-      className={`relative inline-flex h-5 w-9 flex-shrink-0 items-center rounded-full transition-colors duration-200 focus:outline-none ${checked ? 'bg-green-500' : 'bg-gray-300'}`}
-    >
-      <span className={`inline-block h-[17px] w-[17px] transform rounded-full bg-white shadow transition-transform duration-200 ${checked ? 'translate-x-[18px]' : 'translate-x-0.5'}`} />
-    </button>
-  );
-}
 
 function Loader() {
   return (
@@ -161,9 +139,13 @@ const UserBookings = memo(function UserBookings({ bookings, onUpdateStatus, onRe
     const cfg: Record<string, { icon: any; bg: string; text: string; label: string }> = {
       paid: { icon: Check, bg: 'bg-green-100', text: 'text-green-800', label: 'Paid' },
       pending: { icon: Clock, bg: 'bg-yellow-100', text: 'text-yellow-800', label: 'Payment Pending' },
+      // David 2026-10-18: card authorized/held under the auth-hold flow --
+      // not charged yet, awaiting the host's approve/deny decision.
+      authorized: { icon: Clock, bg: 'bg-yellow-100', text: 'text-yellow-800', label: 'Card Held' },
       unpaid: { icon: AlertCircle, bg: 'bg-gray-100', text: 'text-gray-800', label: 'Unpaid' },
       refunded: { icon: CreditCard, bg: 'bg-blue-100', text: 'text-blue-800', label: 'Refunded' },
       failed: { icon: X, bg: 'bg-red-100', text: 'text-red-800', label: 'Payment Failed' },
+      canceled: { icon: X, bg: 'bg-gray-100', text: 'text-gray-800', label: 'Hold Released' },
     };
     const { icon: Icon, bg, text, label } = cfg[ps] || cfg.unpaid;
     return <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${bg} ${text}`}><Icon className="w-3.5 h-3.5 mr-1" />{label}</span>;
@@ -191,9 +173,9 @@ const UserBookings = memo(function UserBookings({ bookings, onUpdateStatus, onRe
             </div>
             {canManage ? (
               <div className="space-y-2">
-                <div className="flex items-center"><User className="h-4 w-4 text-gray-400 mr-2" /><span className="font-medium">{booking.user?.full_name || 'Unknown User'}</span></div>
-                <div className="flex items-center body-on-light"><Mail className="h-4 w-4 text-gray-400 mr-2" />{booking.user?.email || 'No email'}</div>
-                <div className="flex items-center body-on-light"><Phone className="h-4 w-4 text-gray-400 mr-2" />{booking.user?.phone_number || 'No phone'}</div>
+                <div className="flex items-center"><User className="h-4 w-4 text-gray-400 mr-2 flex-shrink-0" /><span className="font-medium booking-guest-contact">{booking.user?.full_name || 'Unknown User'}</span></div>
+                <div className="flex items-center body-on-light booking-guest-contact"><Mail className="h-4 w-4 text-gray-400 mr-2 flex-shrink-0" />{booking.user?.email || 'No email'}</div>
+                <div className="flex items-center body-on-light booking-guest-contact"><Phone className="h-4 w-4 text-gray-400 mr-2 flex-shrink-0" />{booking.user?.phone_number || 'No phone'}</div>
               </div>
             ) : (
               <div className="space-y-2">
@@ -213,9 +195,66 @@ const UserBookings = memo(function UserBookings({ bookings, onUpdateStatus, onRe
               <div className="mt-4"><dt className="text-sm font-medium text-gray-500 flex items-center"><MessageSquare className="h-4 w-4 mr-1" />Special Requests</dt><dd className="mt-1 text-sm text-gray-900">{booking.special_requests}</dd></div>
             )}
             {canManage && booking.status === 'pending' && (
-              <div className="mt-4 flex justify-center space-x-3">
-                <button onClick={() => handleStatusUpdate(booking.id, 'approved')} disabled={isUpdating} className="inline-flex items-center px-4 py-2 rounded-md text-sm font-medium text-white bg-green-600 hover:bg-green-700 disabled:opacity-50"><Check className="h-4 w-4 mr-1" />{isUpdating ? 'Updating...' : 'Approve'}</button>
-                <button onClick={() => setShowDenialModal(booking.id)} disabled={isUpdating} className="inline-flex items-center px-4 py-2 rounded-md text-sm font-medium text-white bg-red-600 hover:bg-red-700 disabled:opacity-50"><X className="h-4 w-4 mr-1" />Deny</button>
+              <div className="mt-4">
+                {/* David 2026-10-19: Deny used to open a fixed inset-0 modal --
+                    this sidebar panel slides in/out with a CSS transform,
+                    and a transform on an ancestor makes it the containing
+                    block for any position:fixed descendant, so the "modal"
+                    was being boxed into the sidebar's own width/position
+                    instead of covering the screen -- it looked lost and
+                    half cut off, exactly what David reported. Replaced with
+                    an inline reveal right under the buttons instead: no
+                    fixed positioning at all, so there's no containing-block
+                    to fight, and it scrolls naturally with the rest of the
+                    long sidebar instead of needing to float above it. */}
+                {showDenialModal === booking.id ? (
+                  <div className="rounded-md border border-red-200 bg-red-50 p-2 space-y-1.5">
+                    {/* David 2026-10-19: dropped the separate label -- the
+                        placeholder now carries "Reason for denial?" directly,
+                        and David asked to keep this a small unit (less
+                        padding/spacing all round) rather than a labeled block.
+                        Was reusing the shared .edit-textarea class (meant for
+                        the dark-overlay property-intro editors elsewhere in
+                        this file) -- it forced color:#fff, invisible against
+                        this box's light red background -- dropped that for a
+                        plain light-themed input with its own scoped override
+                        (.denial-reason-input in index.css) since a bare
+                        input[type="text"] selector elsewhere also fights for
+                        this element's color. Single-line <input>, not a
+                        <textarea>, per David's earlier ask for something that
+                        reads as "give a short reason" rather than inviting a
+                        long one. */}
+                    <input
+                      type="text"
+                      autoFocus
+                      className="denial-reason-input block w-full rounded-md border border-gray-300 shadow-sm text-sm px-2 py-1"
+                      placeholder="Reason for denial?"
+                      value={denialReason}
+                      onChange={e => setDenialReason(e.target.value)}
+                    />
+                    <div className="flex justify-end gap-1.5">
+                      <button
+                        disabled={isUpdating}
+                        className="inline-flex items-center px-2 py-1 rounded-md border border-gray-300 bg-white text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                        onClick={() => { setShowDenialModal(null); setDenialReason(''); }}
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        disabled={isUpdating}
+                        className="inline-flex items-center px-2 py-1 rounded-md bg-red-600 text-white text-xs font-medium hover:bg-red-700 disabled:opacity-50"
+                        onClick={() => { handleStatusUpdate(booking.id, 'denied', denialReason); setShowDenialModal(null); setDenialReason(''); }}
+                      >
+                        {isUpdating ? 'Updating...' : 'Confirm Denial'}
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex justify-center space-x-3">
+                    <button onClick={() => handleStatusUpdate(booking.id, 'approved')} disabled={isUpdating} className="inline-flex items-center px-4 py-2 rounded-md text-sm font-medium text-white bg-green-600 hover:bg-green-700 disabled:opacity-50"><Check className="h-4 w-4 mr-1" />{isUpdating ? 'Updating...' : 'Approve'}</button>
+                    <button onClick={() => setShowDenialModal(booking.id)} disabled={isUpdating} className="inline-flex items-center px-4 py-2 rounded-md text-sm font-medium text-white bg-red-600 hover:bg-red-700 disabled:opacity-50"><X className="h-4 w-4 mr-1" />Deny</button>
+                  </div>
+                )}
               </div>
             )}
             {canManage && booking.status === 'denied' && booking.payment_status === 'paid' && (
@@ -226,21 +265,6 @@ const UserBookings = memo(function UserBookings({ bookings, onUpdateStatus, onRe
           </div>
         ))}
       </div>
-      {showDenialModal && (
-        <div className="fixed inset-0 z-50 overflow-y-auto" role="dialog">
-          <div className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:p-0">
-            <div className="fixed inset-0 bg-gray-500 bg-opacity-75" onClick={() => setShowDenialModal(null)} />
-            <div className="relative inline-block sb-panel-bg rounded-lg px-4 pt-5 pb-4 text-left shadow-xl sm:my-8 sm:max-w-lg sm:w-full sm:p-6">
-              <h3 className="h4-on-light text-center">Provide Reason for Denial</h3>
-              <textarea rows={4} className="mt-4 block w-full rounded-md border-gray-300 shadow-sm text-sm edit-textarea" placeholder="Enter reason for denying the booking..." value={denialReason} onChange={e => setDenialReason(e.target.value)} />
-              <div className="mt-5 sm:grid sm:grid-cols-2 sm:gap-3">
-                <button disabled={isUpdating} className="w-full inline-flex justify-center rounded-md px-4 py-2 bg-red-600 text-white text-sm font-medium hover:bg-red-700 sm:col-start-2" onClick={() => { if (showDenialModal) { handleStatusUpdate(showDenialModal, 'denied', denialReason); setShowDenialModal(null); setDenialReason(''); } }}>{isUpdating ? 'Updating...' : 'Confirm Denial'}</button>
-                <button disabled={isUpdating} className="mt-3 sm:mt-0 w-full inline-flex justify-center rounded-md border border-gray-300 px-4 py-2 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50" onClick={() => { setShowDenialModal(null); setDenialReason(''); }}>Cancel</button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 });
@@ -304,14 +328,12 @@ function PropertySection({ imageCount, isEditing, fields, onChange }: {
   onChange: React.Dispatch<React.SetStateAction<{ title: string; property_headline: string; property_intro: string; address: string; latitude: string; longitude: string; location_type: 'address' | 'coordinates'; bedrooms: string; beds: string; baths: string; max_guests: string }>>;
 }) {
   const mapsUrl = googleMapsUrl(fields.address, fields.latitude, fields.longitude);
+  // David 2026-10-23: location radios now drive which input shows beneath
+  // them (was: Address input always shown, radios + lat/long below it,
+  // regardless of which method was actually selected).
+  const usingCoordinates = fields.location_type === 'coordinates';
   return (
     <div>
-      <div className="sb-field-row">
-        <h4 className="sb-h4-grey">Property name</h4>
-        {isEditing
-          ? <input type="text" value={fields.title} onChange={e => onChange(p => ({ ...p, title: e.target.value }))} className="sb-input" />
-          : <p className="sb-field-value">{fields.title || '—'}</p>}
-      </div>
       <div className="sb-field-row">
         <h4 className="sb-h4-grey">Property headline</h4>
         {isEditing
@@ -322,13 +344,8 @@ function PropertySection({ imageCount, isEditing, fields, onChange }: {
         <h4 className="sb-h4-grey">Hero teaser</h4>
         {isEditing
           ? <textarea value={fields.property_intro} onChange={e => onChange(p => ({ ...p, property_intro: e.target.value }))} className="sb-input" rows={3} placeholder="Short intro text shown under the hero image..." />
-          : <p className="sb-field-value" style={{ whiteSpace: 'pre-wrap' }}>{fields.property_intro || '—'}</p>}
-      </div>
-      <div className="sb-field-row">
-        <h4 className="sb-h4-grey">Address</h4>
-        {isEditing
-          ? <input type="text" value={fields.address} onChange={e => onChange(p => ({ ...p, address: e.target.value }))} className="sb-input" />
-          : <p className="sb-field-value">{fields.address || '—'}</p>}
+          // Truncate to 3 lines in view mode -- full text is only in edit mode.
+          : <p className="sb-field-value" style={{ whiteSpace: 'pre-wrap', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden', textOverflow: 'ellipsis' }}>{fields.property_intro || '—'}</p>}
       </div>
       {isEditing ? (
         <>
@@ -345,7 +362,7 @@ function PropertySection({ imageCount, isEditing, fields, onChange }: {
               </label>
             </div>
           </div>
-          {fields.location_type === 'coordinates' && (
+          {usingCoordinates ? (
             <>
               <div className="sb-field-row">
                 <h4 className="sb-h4-grey">Latitude</h4>
@@ -356,6 +373,11 @@ function PropertySection({ imageCount, isEditing, fields, onChange }: {
                 <input type="text" value={fields.longitude} onChange={e => onChange(p => ({ ...p, longitude: e.target.value }))} className="sb-input" />
               </div>
             </>
+          ) : (
+            <div className="sb-field-row">
+              <h4 className="sb-h4-grey">Address</h4>
+              <input type="text" value={fields.address} onChange={e => onChange(p => ({ ...p, address: e.target.value }))} className="sb-input" placeholder="In your own words -- we'll verify it on Google Maps below" />
+            </div>
           )}
           {mapsUrl && (
             <div className="sb-field-row" style={{ borderBottom: 'none' }}>
@@ -365,7 +387,7 @@ function PropertySection({ imageCount, isEditing, fields, onChange }: {
             </div>
           )}
         </>
-      ) : (fields.latitude || fields.longitude) ? (
+      ) : usingCoordinates && (fields.latitude || fields.longitude) ? (
         <div className="sb-field-row">
           <h4 className="sb-h4-grey">Coordinates</h4>
           <div className="flex items-center justify-between">
@@ -373,8 +395,13 @@ function PropertySection({ imageCount, isEditing, fields, onChange }: {
             {mapsUrl && <a href={mapsUrl} target="_blank" rel="noopener noreferrer" className="sb-change-pw-btn" style={{ display: 'flex', alignItems: 'center', gap: 4 }}><MapPin className="h-3.5 w-3.5" />Maps</a>}
           </div>
         </div>
-      ) : null}
-      {!isEditing && !fields.latitude && fields.address && mapsUrl && (
+      ) : (
+        <div className="sb-field-row">
+          <h4 className="sb-h4-grey">Address</h4>
+          <p className="sb-field-value">{fields.address || '—'}</p>
+        </div>
+      )}
+      {!isEditing && !usingCoordinates && fields.address && mapsUrl && (
         <div className="sb-field-row" style={{ borderBottom: 'none' }}>
           <a href={mapsUrl} target="_blank" rel="noopener noreferrer" className="sb-change-pw-btn" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <MapPin className="h-4 w-4" />Open in Google Maps<ExternalLink className="h-3 w-3" />
@@ -383,35 +410,34 @@ function PropertySection({ imageCount, isEditing, fields, onChange }: {
       )}
       <div className="sb-field-row" style={{ borderBottom: 'none', flexDirection: 'column', alignItems: 'flex-start', gap: 8 }}>
         <h4 className="sb-h4-grey">Property stats</h4>
+        {/* David 2026-10-23: dropped the pill/icon styling here -- "work on
+            the page but not in the sidebar" -- kept the row layout
+            (.sb-stats-grid is flex-row now, see index.css) and enlarged the
+            digits since the icons no longer carry the meaning. */}
         <div className="sb-stats-grid">
           <span className="sb-stat-pill" title="Uploaded photos">
-            <Image className="h-3.5 w-3.5" />
             <span className="sb-stat-pill-value">{imageCount}</span>
             <span className="sb-stat-pill-label">Photos</span>
           </span>
           <span className="sb-stat-pill" title="Bedrooms">
-            <Bed className="h-3.5 w-3.5" />
             {isEditing
               ? <input type="number" min="0" value={fields.bedrooms} onChange={e => onChange(p => ({ ...p, bedrooms: e.target.value }))} className="sb-stat-pill-input" />
               : <span className="sb-stat-pill-value">{fields.bedrooms || 0}</span>}
             <span className="sb-stat-pill-label">Bedrooms</span>
           </span>
           <span className="sb-stat-pill" title="Beds">
-            <Bed className="h-3.5 w-3.5" />
             {isEditing
               ? <input type="number" min="0" value={fields.beds} onChange={e => onChange(p => ({ ...p, beds: e.target.value }))} className="sb-stat-pill-input" />
               : <span className="sb-stat-pill-value">{fields.beds || 0}</span>}
             <span className="sb-stat-pill-label">Beds</span>
           </span>
           <span className="sb-stat-pill" title="Baths">
-            <Bath className="h-3.5 w-3.5" />
             {isEditing
               ? <input type="number" min="0" step="0.5" value={fields.baths} onChange={e => onChange(p => ({ ...p, baths: e.target.value }))} className="sb-stat-pill-input" />
               : <span className="sb-stat-pill-value">{fields.baths || 0}</span>}
             <span className="sb-stat-pill-label">Baths</span>
           </span>
           <span className="sb-stat-pill" title="Max guests">
-            <Users className="h-3.5 w-3.5" />
             {isEditing
               ? <input type="number" min="1" value={fields.max_guests} onChange={e => onChange(p => ({ ...p, max_guests: e.target.value }))} className="sb-stat-pill-input" />
               : <span className="sb-stat-pill-value">{fields.max_guests || 0}</span>}
@@ -423,22 +449,21 @@ function PropertySection({ imageCount, isEditing, fields, onChange }: {
   );
 }
 
-function WebsiteSection({ devUpdates, setDevUpdates, siteUrl, websiteName, propertySlug, propertyId }: {
-  devUpdates: boolean; setDevUpdates: (v: boolean) => void;
+function WebsiteSection({ siteUrl, websiteName, propertySlug, propertyId, effectivePlan }: {
   serverIp?: string | null;
   siteUrl?: string | null;
   websiteName?: string;
   propertySlug?: string;
   propertyId?: string;
+  effectivePlan?: string;
 }) {
   // Resolve property slug: prop > sessionStorage > websiteName
   const slug = propertySlug || sessionStorage.getItem('popup_website_name') || '';
+  void slug; // kept for future use; the "Website hosting" row that read it was removed (David 2026-10-23)
 
   // Resolve current website URL: siteUrl prop > sessionStorage popup_site_url > window.location.origin (dev)
   const popupSiteUrl = sessionStorage.getItem('popup_site_url');
   const currentUrl = siteUrl || popupSiteUrl || (typeof window !== 'undefined' ? window.location.origin : null);
-
-  const isDeployed = !!siteUrl;
 
   // Domain search URL — use live sessionStorage value if available (reflects live edits in popup)
   const liveWebsiteName = sessionStorage.getItem('popup_website_name') || websiteName || '';
@@ -447,9 +472,24 @@ function WebsiteSection({ devUpdates, setDevUpdates, siteUrl, websiteName, prope
     ? `https://www.hostinger.com/domain-search?domain=${encodeURIComponent(domainName)}`
     : 'https://www.hostinger.com/domain-search';
 
-  // File path from siteUrl
-  const filePath = siteUrl || null;
-
+  // David 2026-10-23: custom domains are a Growth/Spotlight feature, not
+  // just "any paid plan" -- a Starter subscriber is still on the "first
+  // tier" and should see why to upgrade, not the live Hostinger link.
+  const hasCustomDomainAccess = effectivePlan === 'growth' || effectivePlan === 'spotlight';
+  // David 2026-10-23: dropped the explanatory paragraph -- "just have the
+  // buttons" -- and the DNS row below is now hidden entirely rather than
+  // showing this same button a second time until there's actually a
+  // Growth/Spotlight subscription to show DNS instructions for.
+  const upgradeButton = (
+    <button
+      type="button"
+      disabled
+      title="Plan upgrades aren't wired up yet"
+      style={{ fontSize: '0.85rem', fontWeight: 600, color: '#9ca3af', background: '#f3f4f6', border: '1px solid #e5e7eb', borderRadius: 8, padding: '8px 14px', cursor: 'not-allowed' }}
+    >
+      Upgrade to Growth
+    </button>
+  );
   return (
     <div style={{ paddingTop: 4 }}>
       {/* 0. Website Name */}
@@ -460,9 +500,9 @@ function WebsiteSection({ devUpdates, setDevUpdates, siteUrl, websiteName, prope
         </p>
       </div>
 
-      {/* 0b. Property Database ID */}
+      {/* 0b. Website Database ID (was "Property Database ID") */}
       <div style={{ marginBottom: 16 }}>
-        <h4 className="sb-h4-grey">Property Database ID</h4>
+        <h4 className="sb-h4-grey">Website Database ID</h4>
         {propertyId ? (
           <code style={{ fontSize: '0.75rem', color: '#111827', background: '#f3f4f6', padding: '2px 6px', borderRadius: 4, fontFamily: 'ui-monospace, monospace' }}>{propertyId}</code>
         ) : (
@@ -470,74 +510,41 @@ function WebsiteSection({ devUpdates, setDevUpdates, siteUrl, websiteName, prope
         )}
       </div>
 
-      {/* 1. Current website location */}
+      {/* 1. Website Files Location (was "Current website location" -- the
+          ExternalLink icon next to it didn't do anything, removed) */}
       <div style={{ marginBottom: 16 }}>
-        <h4 className="sb-h4-grey">Current website location</h4>
+        <h4 className="sb-h4-grey">Website Files Location</h4>
         {currentUrl ? (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <a href={currentUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: '0.85rem', color: '#111827', textDecoration: 'none', wordBreak: 'break-all', flex: 1 }}>{currentUrl}</a>
-            <ExternalLink className="h-3.5 w-3.5" style={{ color: '#6b7280', flexShrink: 0 }} />
-          </div>
+          <a href={currentUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: '0.85rem', color: '#111827', textDecoration: 'none', wordBreak: 'break-all' }}>{currentUrl}</a>
         ) : (
           <p style={{ fontSize: '0.85rem', color: '#9ca3af' }}>Not deployed yet</p>
         )}
       </div>
 
-      {/* 2. Website hosting */}
-      <div style={{ marginBottom: 16 }}>
-        <h4 className="sb-h4-grey">Website hosting</h4>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <span style={{ fontSize: '0.85rem', color: '#111827' }}>propbook.pro/props/{slug || 'yoursitename'}</span>
-          <span style={{
-            fontSize: '0.7rem',
-            fontWeight: 600,
-            padding: '2px 8px',
-            borderRadius: 9999,
-            background: isDeployed ? '#d1fae5' : '#f3f4f6',
-            color: isDeployed ? '#16a34a' : '#9ca3af',
-          }}>
-            {isDeployed ? 'Y' : 'N'}
-          </span>
-        </div>
-      </div>
+      {/* "Website hosting" (Y/N badge) and "File Path On Server" removed --
+          David 2026-10-23: redundant with Website Files Location above. */}
 
-      {/* 3. File Path On Server */}
-      <div style={{ marginBottom: 16 }}>
-        <h4 className="sb-h4-grey">File Path On Server</h4>
-        {filePath ? (
-          <p style={{ fontSize: '0.8rem', color: '#374151', wordBreak: 'break-all' }}>{filePath}</p>
-        ) : (
-          <p style={{ fontSize: '0.8rem', color: '#9ca3af' }}>File path will be shown after first deploy to Hostinger.</p>
-        )}
-      </div>
-
-      {/* 4. Get a custom domain */}
+      {/* 2. Get a custom domain */}
       <div style={{ marginBottom: 16 }}>
         <h4 className="sb-h4-grey">Get a custom domain</h4>
-        <a href={domainSearchUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: '0.85rem', color: '#2563eb', textDecoration: 'underline' }}>Hostinger</a>
+        {hasCustomDomainAccess
+          ? <a href={domainSearchUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: '0.85rem', color: '#2563eb', textDecoration: 'underline' }}>Hostinger</a>
+          : upgradeButton}
       </div>
 
-      {/* 5. Point your custom domain DNS here */}
-      <div style={{ marginBottom: 16 }}>
-        <h4 className="sb-h4-grey">Point your custom domain DNS here</h4>
-        <p style={{ fontSize: '0.8rem', color: '#374151', lineHeight: 1.5 }}>
-          Deploy to Hostinger first to get your server IP. Use cname.propbook.pro as a temporary CNAME target.
-        </p>
-      </div>
-
-      {/* 6. Site improvements */}
-      <div style={{ marginBottom: 16 }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <p style={{ fontSize: '0.85rem', color: '#111827' }}>Enable website developer updates</p>
-          <Toggle checked={devUpdates} onChange={setDevUpdates} />
+      {/* 3. Custom Domain DNS (was "Point your custom domain DNS here") --
+          David 2026-10-23: hidden entirely until there's a Growth/Spotlight
+          subscription to show instructions for, instead of repeating the
+          upgrade button a second time. */}
+      {hasCustomDomainAccess && (
+        <div style={{ marginBottom: 16 }}>
+          <h4 className="sb-h4-grey">Custom Domain DNS</h4>
+          <p style={{ fontSize: '0.8rem', color: '#374151', lineHeight: 1.5 }}>Deploy to Hostinger first to get your server IP. Use cname.propbook.pro as a temporary CNAME target.</p>
         </div>
-      </div>
+      )}
 
-      {/* 7. Dev Notifications */}
-      <div style={{ marginBottom: 0 }}>
-        <h4 className="sb-h4-grey">Dev Notifications</h4>
-        <p style={{ fontSize: '0.85rem', color: '#111827' }}>0</p>
-      </div>
+      {/* "Enable website developer updates" and "Dev Notifications" removed
+          -- David 2026-10-23: asked to drop both outright. */}
     </div>
   );
 }
@@ -604,13 +611,13 @@ function ContactSection({ user, isEditing, fields, onChange, userProperties, act
           ? <input type="tel" value={fields.phone_number} onChange={e => onChange(p => ({ ...p, phone_number: e.target.value }))} className="sb-input" />
           : <p className="sb-field-value">{fields.phone_number || '—'}</p>}
       </div>
-      <div className="py-3 last:border-0">
-        <div className="flex items-center justify-between mb-0.5">
+      <div className="sb-field-row">
+        <div className="flex items-center justify-between">
           <h4 className="sb-h4-grey">Password</h4>
           {isEditing && !showPasswordForm && <button onClick={() => setShowPasswordForm(true)} className="text-xs text-green-600 hover:text-green-700 font-semibold">Change</button>}
         </div>
         {!isEditing || !showPasswordForm ? (
-          <p className="text-base font-bold text-gray-900">••••••••</p>
+          <p className="sb-field-value">••••••••</p>
         ) : (
           <div className="mt-2 space-y-2">
             {pwSuccess ? (
@@ -636,8 +643,12 @@ function ContactSection({ user, isEditing, fields, onChange, userProperties, act
         )}
       </div>
       {/* Property switcher — moved to the bottom of Contact (David: was too
-          prominent sitting at the top) and given its own heading. */}
-      {userProperties.length >= 1 && (
+          prominent sitting at the top) and given its own heading.
+          David 2026-10-23: restricted to the davidmollison1@gmail.com admin
+          account only -- the request said "davidmollison1@admin@gmail.com"
+          (two @ signs, not a real address), so this assumes that was a typo
+          for the real account email. Flag if a different account was meant. */}
+      {userProperties.length >= 1 && user?.email === 'davidmollison1@gmail.com' && (
         <div className="py-3" style={{ borderTop: '1px solid #f3f4f6', marginTop: 4 }}>
           <h4 className="sb-h4-grey">Linked property</h4>
           <div style={{ position: 'relative' }}>
@@ -713,6 +724,11 @@ function BankingSection({ connectData, connectLoading, connectOnboarding, payout
   connectOnboarding: boolean; payoutLoading: boolean; payoutSuccess: boolean;
   onOnboard: () => void; onRequestPayout: () => void;
 }) {
+  // David 2026-10-20: this "Test mode" block below used to show unconditionally, so a
+  // live guest onboarding their real bank account would see "Use test card 4242..." --
+  // gated the same way StripeConnectSetup.tsx already does, off the publishable key's
+  // pk_test_/pk_live_ prefix, so it disappears on its own once live keys are swapped in.
+  const isTestMode = (import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || '').startsWith('pk_test_');
   const fmt = (cents: number) => `$${(cents / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   // The 2% platform fee is already collected at booking time (application_fee_amount on
   // the destination charge), so a connected account's available_balance here is already
@@ -772,8 +788,8 @@ function BankingSection({ connectData, connectLoading, connectOnboarding, payout
             {connectData.details_submitted && (
               <>
                 <div className="grid grid-cols-2 gap-2">
-                  <div className="bg-gray-50 rounded-lg p-2.5"><h4 className="sb-h4-grey">Available</h4><p className="text-base font-bold text-gray-900">{fmt(connectData.available_balance)}</p></div>
-                  <div className="bg-gray-50 rounded-lg p-2.5"><h4 className="sb-h4-grey">Pending</h4><p className="text-base font-bold text-gray-900">{fmt(connectData.pending_balance)}</p></div>
+                  <div className="bg-gray-50 rounded-lg p-2.5"><h4 className="sb-h4-grey">Available</h4><p className="sb-field-value">{fmt(connectData.available_balance)}</p></div>
+                  <div className="bg-gray-50 rounded-lg p-2.5"><h4 className="sb-h4-grey">Pending</h4><p className="sb-field-value">{fmt(connectData.pending_balance)}</p></div>
                 </div>
                 {connectData.available_balance > 0 && connectData.payouts_enabled && (
                   <div className="bg-white border border-gray-200 rounded-lg p-3 space-y-2">
@@ -794,43 +810,18 @@ function BankingSection({ connectData, connectLoading, connectOnboarding, payout
         ) : connectLoading ? <Loader /> : (
           <div className="space-y-3">
             <p className="text-sm text-gray-600">Connect a Stripe account to receive payouts when guests book your property. We take a 2% platform fee on each payout.</p>
-            <div className="bg-blue-50 rounded-lg p-3">
-              <p className="text-xs font-semibold text-gray-700 mb-1">Test mode</p>
-              <p className="text-xs text-gray-500">Use test card <span className="font-mono font-bold">4242 4242 4242 4242</span> during onboarding.</p>
-            </div>
+            {isTestMode && (
+              <div className="bg-blue-50 rounded-lg p-3">
+                <p className="text-xs font-semibold text-gray-700 mb-1">Test mode</p>
+                <p className="text-xs text-gray-500">Use test card <span className="font-mono font-bold">4242 4242 4242 4242</span> during onboarding.</p>
+              </div>
+            )}
             <button onClick={onOnboard} disabled={connectOnboarding} className="w-full bg-gray-900 hover:bg-gray-800 text-white text-sm font-semibold rounded-lg py-2.5 disabled:opacity-50 flex items-center justify-center gap-2">
               <CreditCard className="h-4 w-4" />{connectOnboarding ? 'Redirecting to Stripe...' : 'Set Up Payout Account'}
             </button>
           </div>
         )}
       </div>
-      <div className="py-3">
-        <h4 className="sb-h4-grey">Publishable Key</h4>
-        <p className="sb-mono">{import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY ? import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY.slice(0, 24) + '…' : 'Not configured'}</p>
-      </div>
-    </div>
-  );
-}
-
-const SERVICE_LIST: { key: ServiceKey; label: string; price: string }[] = [
-  { key: 'aiSeo', label: 'AI SEO', price: '$10 p/m' },
-  { key: 'marketing', label: 'Marketing', price: '$10 p/m' },
-  { key: 'advertising', label: 'Advertising', price: '$20 p/m' },
-  { key: 'analytics', label: 'Analytics', price: '$10 p/m' },
-  { key: 'influencers', label: 'Influencers', price: '$50 p/m' },
-  { key: 'social', label: 'Social', price: '$50 p/m' },
-];
-
-function ServicesSection({ services, onToggle }: { services: Record<ServiceKey, boolean>; onToggle: (key: ServiceKey, val: boolean) => void }) {
-  return (
-    <div>
-      <p className="sb-services-desc">Limited availability. Our team of experts work directly on your property marketing and services.</p>
-      {SERVICE_LIST.map(({ key, label, price }) => (
-        <div key={key} className="sb-service-row">
-          <div className="sb-service-info"><p id={`svc-name-${key}`} className="sb-service-name" style={{padding:0}}>{label}</p><p id={`svc-price-${key}`} className="sb-service-price" style={{padding:0}}>{price}</p></div>
-          <Toggle checked={services[key]} onChange={val => onToggle(key, val)} />
-        </div>
-      ))}
     </div>
   );
 }
@@ -840,20 +831,53 @@ function ServicesSection({ services, onToggle }: { services: Record<ServiceKey, 
 // any actual Stripe price (and would have silently billed the Starter $10 price
 // under a "Growth $79" label). Down to the one plan that's actually for sale,
 // with the exact copy from the pricing page (2026-09-22).
+// David 2026-10-22: "Add the third tier to subscription, disable the 2nd and
+// third tier [-- not disable, make the buttons unclickable --] and then delete
+// services section." Growth and the new Spotlight tier are shown (so the full
+// ladder is visible) but their action is an inert "Coming Soon" span, same
+// treatment the public landing page already uses for its own not-yet-sellable
+// tiers -- only Starter is a real, clickable Subscribe/Switch button. Spotlight's
+// content/price is the former Services section's third bundle, folded in here
+// now that that section is gone.
+// David 2026-10-22: revised prices/bullets to exactly what he specified in
+// chat -- Starter's real Stripe price changes too (it's the one live,
+// purchasable tier), see setup-revised-tier-prices + the STARTER_PRICE_ID /
+// GROWTH_PRICE_ID / SPOTLIGHT_PRICE_ID placeholders in stripe-subscription.
 const PLANS = [
   {
     key: 'starter' as const,
     name: 'Starter',
-    price: 10,
+    price: 14.99,
+    comingSoon: false,
     description: 'Get your property online with its own hosted, SEO-ready site.',
-    features: ['x1 property website', 'Hosting server', 'Software subscription', 'Basic AI optimized SEO'],
+    features: ['1 Website', 'Site Hosting', 'AI SEO', 'Analytics'],
+  },
+  {
+    key: 'growth' as const,
+    name: 'Growth',
+    price: 24.99,
+    comingSoon: true,
+    description: 'Manage more than one property from the same account.',
+    features: ['Starter +, 2nd Website', 'Own Domain', 'Marketing', 'Social'],
+  },
+  {
+    key: 'spotlight' as const,
+    name: 'Spotlight',
+    price: 99.99,
+    comingSoon: true,
+    description: 'Dedicated marketing and influencer outreach for your property.',
+    features: ['Growth +, 3rd Website', 'Influencer', 'Advertising', 'Videos'],
   },
 ];
 
 function SubscriptionSection({ subscription, loading, checkoutLoading, onSubscribe }: {
   subscription: SubscriptionData | null; loading: boolean;
-  checkoutLoading: string | null; onSubscribe: (plan: 'starter' | 'growth' | 'pro') => void;
+  checkoutLoading: string | null; onSubscribe: (plan: 'starter' | 'growth' | 'spotlight' | 'pro') => void;
 }) {
+  // David 2026-10-20: same fix as BankingSection above -- this "Test mode" block used to
+  // show unconditionally, so a real customer subscribing live would see "Use card
+  // 4242...". Gated off the publishable key prefix so it goes away on its own in live mode.
+  const isTestMode = (import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || '').startsWith('pk_test_');
   if (loading && !subscription) return <Loader />;
   if (subscription?.status === 'active' || subscription?.status === 'trialing') {
     const isTrialing = subscription.status === 'trialing';
@@ -862,8 +886,8 @@ function SubscriptionSection({ subscription, loading, checkoutLoading, onSubscri
         <div className="py-3">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-xs text-gray-500 mb-0.5">Plan</p>
-              <p className="text-base font-bold text-gray-900">
+              <h4 className="sb-h4-grey">Plan</h4>
+              <p className="sb-field-value">
                 {subscription.plan === 'starter' ? 'Prop Book Starter Plan' :
                  subscription.plan === 'pro' ? 'Pro' :
                  subscription.plan === 'agency' ? 'Agency' : subscription.plan}
@@ -873,19 +897,47 @@ function SubscriptionSection({ subscription, loading, checkoutLoading, onSubscri
           </div>
         </div>
         <div className="py-3 grid grid-cols-2 gap-4">
-          <div><h4 className="sb-h4-grey">Amount</h4><p className="text-base font-bold text-gray-900">${subscription.amount > 0 ? (subscription.amount / 100).toFixed(2) : '–'}<span className="text-sm font-normal text-gray-500">/{subscription.interval}</span></p></div>
-          <div><h4 className="sb-h4-grey">{isTrialing ? 'Trial Ends' : 'Next Payment'}</h4><p className="text-base font-bold text-gray-900">{formatPeriodEnd(subscription.current_period_end)}</p></div>
+          <div><h4 className="sb-h4-grey">Amount</h4><p className="sb-field-value">${subscription.amount > 0 ? (subscription.amount / 100).toFixed(2) : '–'}<span className="text-sm font-normal text-gray-500">/{subscription.interval}</span></p></div>
+          <div><h4 className="sb-h4-grey">{isTrialing ? 'Trial Ends' : 'Next Payment'}</h4><p className="sb-field-value">{formatPeriodEnd(subscription.current_period_end)}</p></div>
         </div>
         {subscription.cancel_at_period_end && <div className="py-3"><div className="flex items-center gap-2 text-yellow-700 bg-yellow-50 rounded-lg px-3 py-2"><AlertCircle className="h-4 w-4" /><p className="text-xs font-medium">Cancels at end of billing period</p></div></div>}
         <div className="py-3"><h4 className="sb-h4-grey">Subscription ID</h4><p className="sb-mono">{subscription.id}</p></div>
+        {/* David 2026-10-22: "Change Plan/Resubscribe takes me to Stripe and I'm
+            unable to choose the two other tiers." -- that button never opened a plan
+            picker at all, it called onSubscribe('starter') directly no matter what
+            plan you were already on, so "changing plan" silently re-checked-out
+            Starter every time. Reusing the same plan cards the no-subscription view
+            below uses, so switching tiers is an explicit choice here too, with the
+            plan you're already on shown as current instead of offered again. */}
         <div className="py-3" style={{ borderTop: '1px solid #f3f4f6', marginTop: 4 }}>
-          <button
-            onClick={() => onSubscribe('starter')}
-            disabled={!!checkoutLoading}
-            className="w-full border border-gray-300 hover:bg-gray-50 text-gray-700 text-sm font-semibold rounded-lg py-2 disabled:opacity-50"
-          >
-            {checkoutLoading ? 'Loading...' : 'Change Plan / Resubscribe'}
-          </button>
+          <h4 className="sb-h4-grey" style={{ marginBottom: 8 }}>Change Plan</h4>
+          <div>
+            {PLANS.map(plan => {
+              const isCurrent = subscription.plan === plan.key;
+              return (
+                <div key={plan.key} className={`sb-plan-card sb-plan-card--compact${isCurrent ? ' sb-plan-card--current' : ''}`} style={{ opacity: isCurrent ? 1 : 0.7 }}>
+                  <div className="sb-plan-row-top">
+                    <p className="sb-plan-name">{plan.name}</p>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <span className="sb-plan-price">${plan.price}/mo</span>
+                      {plan.comingSoon ? (
+                        <span className="sb-plan-btn sb-plan-btn--soon" aria-disabled="true">Coming Soon</span>
+                      ) : (
+                        <button
+                          onClick={() => onSubscribe(plan.key)}
+                          disabled={isCurrent || checkoutLoading === plan.key}
+                          className={`sb-plan-btn${isCurrent ? ' sb-plan-btn--current' : ''}`}
+                        >
+                          {isCurrent ? 'Current Plan' : checkoutLoading === plan.key ? 'Loading...' : `Switch to ${plan.name}`}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  <ul className="sb-plan-features sb-plan-features--grid">{plan.features.map(f => <li key={f}><Check className="h-3 w-3" />{f}</li>)}</ul>
+                </div>
+              );
+            })}
+          </div>
         </div>
       </div>
     );
@@ -893,20 +945,28 @@ function SubscriptionSection({ subscription, loading, checkoutLoading, onSubscri
   return (
     <div>
       <p className="sb-sub-desc">Choose a plan to go live with your property and unlock all platform features.</p>
-      <div className="bg-blue-50 rounded-lg p-3 mb-4">
-        <p className="text-xs font-semibold text-gray-700 mb-1">Test mode</p>
-        <p className="text-xs text-gray-500">Use card <span className="font-mono font-bold">4242 4242 4242 4242</span>, any future expiry, any 3-digit CVC. Checkout opens in a new tab in dev.</p>
-      </div>
-      <div className="space-y-3">
+      {isTestMode && (
+        <div className="bg-blue-50 rounded-lg p-3 mb-4">
+          <p className="text-xs font-semibold text-gray-700 mb-1">Test mode</p>
+          <p className="text-xs text-gray-500">Use card <span className="font-mono font-bold">4242 4242 4242 4242</span>, any future expiry, any 3-digit CVC. Checkout opens in a new tab in dev.</p>
+        </div>
+      )}
+      <div>
         {PLANS.map(plan => (
-          <div key={plan.key} className={`sb-plan-card${plan.popular ? ' is-popular' : ''}`}>
+          <div key={plan.key} className={`sb-plan-card sb-plan-card--compact${plan.popular ? ' is-popular' : ''}`}>
             {plan.popular && <span className="sb-plan-badge">Most Popular</span>}
-            <div className="sb-plan-header">
-              <div><p className="sb-plan-name">{plan.name}</p><p className="sb-plan-price">${plan.price}<span className="text-xs">/month</span></p></div>
-              <button onClick={() => onSubscribe(plan.key)} disabled={checkoutLoading === plan.key} className={`text-sm font-semibold px-4 py-1.5 rounded-lg transition-colors disabled:opacity-50 ${plan.popular ? 'bg-gray-900 hover:bg-gray-800 text-white' : 'border border-gray-300 hover:bg-gray-50 text-gray-700'}`}>{checkoutLoading === plan.key ? 'Loading...' : 'Subscribe'}</button>
+            <div className="sb-plan-row-top">
+              <p className="sb-plan-name">{plan.name}</p>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span className="sb-plan-price">${plan.price}/mo</span>
+                {plan.comingSoon ? (
+                  <span className="sb-plan-btn sb-plan-btn--soon" aria-disabled="true">Coming Soon</span>
+                ) : (
+                  <button onClick={() => onSubscribe(plan.key)} disabled={checkoutLoading === plan.key} className="sb-plan-btn">{checkoutLoading === plan.key ? 'Loading...' : 'Subscribe'}</button>
+                )}
+              </div>
             </div>
-            {plan.description && <p className="sb-sub-desc" style={{ margin: '4px 0 10px' }}>{plan.description}</p>}
-            <ul className="sb-plan-features">{plan.features.map(f => <li key={f}><Check className="h-3 w-3" />{f}</li>)}</ul>
+            <ul className="sb-plan-features sb-plan-features--grid">{plan.features.map(f => <li key={f}><Check className="h-3 w-3" />{f}</li>)}</ul>
           </div>
         ))}
       </div>
@@ -928,7 +988,7 @@ interface AdminSidebarProps {
   setShowGetSite?: (v: boolean) => void;
 }
 
-type Section = 'bookings' | 'property' | 'edit' | 'website' | 'seo' | 'contact' | 'banking' | 'services' | 'subscription';
+type Section = 'bookings' | 'property' | 'edit' | 'website' | 'seo' | 'contact' | 'banking' | 'subscription';
 
 interface NextBooking {
   guestName: string; location: string; guestCount: number; nights: number;
@@ -1073,12 +1133,11 @@ export function AdminSidebar({ isOpen, onClose, mockMode = false, onPropertyLoad
     generate_sitemap_xml: defaultSeoFields?.generate_sitemap_xml ?? true,
     generate_llms_txt: defaultSeoFields?.generate_llms_txt ?? true,
     generate_faq_ai_txt: defaultSeoFields?.generate_faq_ai_txt ?? true,
+    social_links: {} as SocialLinks,
   });
   const [publishLoading, setPublishLoading] = useState(false);
   const [publishError, setPublishError] = useState<string | null>(null);
   const [contactFields, setContactFields] = useState({ full_name: '', email: '', phone_number: '' });
-  const [devUpdates, setDevUpdates] = useState(true);
-  const [services, setServicesState] = useState<Record<ServiceKey, boolean>>({ aiSeo: false, marketing: false, advertising: false, analytics: false, influencers: false, social: false });
 
   // Fresh refs — always read current user without closure staleness
   const userRef = useRef(user);
@@ -1106,6 +1165,25 @@ export function AdminSidebar({ isOpen, onClose, mockMode = false, onPropertyLoad
 
   // User data is already set by App.tsx initialize() + onAuthStateChange listener.
   // No need to re-fetch on every user change — sidebar loads fresh data on [isOpen] anyway.
+
+  // David 2026-10-19: "add the booking to the sidebar... like it did
+  // before" -- loadData() (which fetches bookings) only ever ran when this
+  // sidebar was opened or userProperties changed. If it was already open
+  // when a guest completed a new booking elsewhere on the site, nothing
+  // told it to refetch, so the new pending booking just never showed up
+  // until a manual close/reopen. BookingCalendar now dispatches
+  // 'booking-created' right after a booking is authorized -- refetch here
+  // whenever that happens for the property this sidebar is showing.
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (!property?.id || detail?.propertyId !== property.id) return;
+      loadData();
+    };
+    window.addEventListener('booking-created', handler);
+    return () => window.removeEventListener('booking-created', handler);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [property?.id]);
 
   const loadData = async () => {
     // Skip if a loadData call is already in progress — prevents double-fire flicker
@@ -1237,6 +1315,7 @@ export function AdminSidebar({ isOpen, onClose, mockMode = false, onPropertyLoad
           generate_sitemap_xml: prev.generate_sitemap_xml,
           generate_llms_txt: prev.generate_llms_txt,
           generate_faq_ai_txt: prev.generate_faq_ai_txt,
+          social_links: pd.social_links || {},
         }));
         }
       } else {
@@ -1267,11 +1346,6 @@ export function AdminSidebar({ isOpen, onClose, mockMode = false, onPropertyLoad
               const nights = Math.ceil(Math.abs(endDate.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
               setNextBooking({ guestName: featured.user?.full_name || 'Guest', location: featured.property?.address || featured.property?.title || '', guestCount: featured.guest_count, nights, startDay: sd, endDay: ed, month: format(start, 'MMM').toUpperCase(), status: featured.status });
             } else setNextBooking(null);
-          }
-        });
-        supabase.from('profiles').select('services_ai_seo, services_marketing, services_advertising, services_analytics, services_influencers, services_social, stripe_account_id, stripe_account_status').eq('id', currentUser.id).maybeSingle().then((profileRes) => {
-          if (profileRes.data) {
-            setServicesState({ aiSeo: profileRes.data.services_ai_seo ?? false, marketing: profileRes.data.services_marketing ?? false, advertising: profileRes.data.services_advertising ?? false, analytics: profileRes.data.services_analytics ?? false, influencers: profileRes.data.services_influencers ?? false, social: profileRes.data.services_social ?? false });
           }
         });
       } else {
@@ -1316,17 +1390,6 @@ export function AdminSidebar({ isOpen, onClose, mockMode = false, onPropertyLoad
     // email/phone with the last-saved profile values.
     if (user && !isEditingRef.current) setContactFields({ full_name: user.full_name || '', email: user.email || '', phone_number: user.phone_number || '' });
   }, [user]);
-
-  const saveServices = async (updated: Record<ServiceKey, boolean>) => {
-    if (!user) return;
-    await supabase.from('profiles').update({ services_ai_seo: updated.aiSeo, services_marketing: updated.marketing, services_advertising: updated.advertising, services_analytics: updated.analytics, services_influencers: updated.influencers, services_social: updated.social }).eq('id', user.id);
-  };
-
-  const handleServiceToggle = (key: ServiceKey, val: boolean) => {
-    const updated = { ...services, [key]: val };
-    setServicesState(updated);
-    saveServices(updated);
-  };
 
   const getSession = async () => {
     const { data: { session } } = await supabase.auth.getSession();
@@ -1469,7 +1532,7 @@ export function AdminSidebar({ isOpen, onClose, mockMode = false, onPropertyLoad
     } catch { alert('Payout failed. Please try again.'); } finally { setPayoutLoading(false); }
   };
 
-  const handleSubscribeCheckout = async (plan: 'starter' | 'growth' | 'pro') => {
+  const handleSubscribeCheckout = async (plan: 'starter' | 'growth' | 'spotlight' | 'pro') => {
     setCheckoutLoading(plan);
     try {
       const session = await getSession();
@@ -1490,7 +1553,16 @@ export function AdminSidebar({ isOpen, onClose, mockMode = false, onPropertyLoad
       if (canManageProperty && propertyId) {
         // Call edge function for property updates — service role key bypasses RLS
         const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-        const { data: sessionData } = await supabase.auth.getSession();
+        let { data: sessionData } = await supabase.auth.getSession();
+        // David 2026-10-23: hit a 401 saving out of edit mode -- this edge
+        // function has verify_jwt on, so an expired/stale access token
+        // (e.g. the tab sat open a while) gets rejected before the
+        // function even runs. One refresh attempt here covers that common
+        // case instead of failing outright.
+        if (!sessionData?.session?.access_token) {
+          const { data: refreshed } = await supabase.auth.refreshSession();
+          if (refreshed?.session) sessionData = refreshed;
+        }
         // Resolve name/slug from sessionStorage (source of truth for user-edited website name)
         const liveWebsiteName = sessionStorage.getItem('popup_website_name') || propFields.title || '';
         const liveSlug = liveWebsiteName.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '').replace(/-+/g, '-');
@@ -1522,11 +1594,15 @@ export function AdminSidebar({ isOpen, onClose, mockMode = false, onPropertyLoad
             robots_noindex: seoFields.robots_noindex ?? false,
             custom_page_title: seoFields.custom_page_title || null,
             google_verification: seoFields.google_verification || null,
+            social_links: seoFields.social_links || null,
           }),
         });
         const updateResult = await updateRes.json();
         console.log('[AdminSidebar handleSave] Property update result:', updateResult);
         if (!updateRes.ok || updateResult.error) {
+          if (updateRes.status === 401) {
+            throw new Error('Your session expired — refresh the page, sign in again, and retry the save.');
+          }
           throw new Error(updateResult.error || `HTTP ${updateRes.status}`);
         }
 
@@ -1725,7 +1801,31 @@ export function AdminSidebar({ isOpen, onClose, mockMode = false, onPropertyLoad
   const handleUpdateBookingStatus = async (bookingId: string, status: 'approved' | 'denied', reason?: string) => {
     if (!user || user.role !== 'admin') return;
     setBookingsLoading(true);
+    setBookingError(null);
     try {
+      // David 2026-10-22: "the actual address of the property must be visible
+      // in the guest booking... We might have to make sure that the address
+      // has been entered for a booking to be accepted." Without a property
+      // address there's nothing to show the guest once approved, so refuse
+      // to approve (deny still goes through -- no address is needed to turn
+      // a booking down) until the admin adds one in the Website/Location section.
+      // David 2026-10-22 (same day): "Allow coordinates to work as an address
+      // in our system if needed as my vacation rental doesn't have an address
+      // as it's off grid." LocationMap.tsx already lets an owner save either
+      // a street address OR lat/long coordinates (location_type) -- either
+      // one counts as "has a location on file" here.
+      if (status === 'approved') {
+        const bookingToApprove = bookings.find(b => b.id === bookingId);
+        const bookingProperty = bookingToApprove?.property;
+        const hasAddress = !!bookingProperty?.address?.trim();
+        const hasCoordinates = bookingProperty?.location_type === 'coordinates'
+          && bookingProperty?.latitude != null && bookingProperty?.longitude != null;
+        if (!hasAddress && !hasCoordinates) {
+          setBookingsLoading(false);
+          setBookingError('This property has no address or coordinates on file yet -- add one in Website settings before approving bookings, so the guest can be told where to go.');
+          return;
+        }
+      }
       // Auth-hold flow: capture the guest's held payment on approval, or release it
       // on denial, before flipping the booking's status. A booking with no payment
       // intent yet (guest never reached payment) comes back as { skipped: true }
@@ -1733,13 +1833,44 @@ export function AdminSidebar({ isOpen, onClose, mockMode = false, onPropertyLoad
       const { data: paymentResult, error: fnError } = await supabase.functions.invoke('capture-booking-payment', {
         body: { bookingId, action: status === 'approved' ? 'capture' : 'cancel' },
       });
-      if (fnError) throw fnError;
-      if (paymentResult?.error) throw new Error(paymentResult.error);
+      if (fnError || paymentResult?.error) {
+        throw new Error((await describeInvokeError(fnError, paymentResult)) || 'Payment update failed');
+      }
 
       const { error } = await supabase.from('bookings').update({ status, updated_at: new Date().toISOString(), ...(reason ? { denial_reason: reason } : {}) }).eq('id', bookingId);
       if (error) throw error;
+
+      // David 2026-10-18: this approve/deny path captured or released the
+      // payment correctly but never told the guest -- the main /admin
+      // dashboard's approve/deny already emails the guest, this sidebar
+      // version (used on individual property sites) silently didn't.
+      // Brought it in line so both admin UIs behave the same way.
+      const booking = bookings.find(b => b.id === bookingId);
+      if (booking) {
+        const emailData = {
+          booking: {
+            start_date: booking.start_date,
+            end_date: booking.end_date,
+            guest_count: booking.guest_count,
+            total_price: booking.total_price,
+            special_requests: booking.special_requests,
+          },
+          user: booking.user,
+          property: booking.property,
+        };
+        if (status === 'approved') {
+          EmailNotificationService.sendBookingApprovedEmail(emailData).catch(err =>
+            console.error('Failed to send approval email:', err));
+          EmailNotificationService.sendIdRequestEmail(emailData).catch(err =>
+            console.error('Failed to send ID request email:', err));
+        } else {
+          EmailNotificationService.sendBookingDenialEmail({ ...emailData, denialReason: reason }).catch(err =>
+            console.error('Failed to send denial email:', err));
+        }
+      }
+
       await loadData();
-    } catch (err) { setBookingError(err instanceof Error ? err.message : 'Failed to update booking'); } finally { setBookingsLoading(false); }
+    } catch (err) { setBookingError(errorMessage(err, 'Failed to update booking')); } finally { setBookingsLoading(false); }
   };
 
   const handleRefund = async (bookingId: string) => {
@@ -1769,7 +1900,6 @@ export function AdminSidebar({ isOpen, onClose, mockMode = false, onPropertyLoad
         { key: 'seo', label: 'SEO' },
         { key: 'contact', label: 'Contact' },
         { key: 'banking', label: 'Banking' },
-        { key: 'services', label: 'Services' },
         { key: 'subscription', label: 'Subscription' },
       ]
     : [
@@ -1839,8 +1969,30 @@ export function AdminSidebar({ isOpen, onClose, mockMode = false, onPropertyLoad
   const hasSubscription = subscriptionData?.status === 'active' || profileSubStatus === 'active' || profileSubStatus === 'trialing';
   // Effective subscription plan: from Stripe API or profile
   const effectivePlan = subscriptionData?.plan || (user as any)?.stripe_subscription_plan;
+  // David 2026-10-23: "Launch Progress" card (was "Website Credentials") --
+  // all 4 items done = nothing left to launch. Drives the card's auto
+  // collapse/expand, its title ("Launch Progress" vs "Website Live"), and
+  // the Publish button's opacity below.
+  const allLaunchItemsComplete = hasStripeAccount && hasWebsite && hasEmail && hasSubscription;
+  // Auto-collapse the Launch Progress card once everything is done (and
+  // re-open it if something that was complete becomes incomplete again,
+  // e.g. a subscription lapses) -- the chevron below still lets the user
+  // toggle it manually at any time regardless of this.
+  useEffect(() => {
+    setShowCredentials(!allLaunchItemsComplete);
+  }, [allLaunchItemsComplete]);
 
   const myOwnProperty = userProperties[0];
+
+  // David: one-site-per-login limit (mirrors GetSite.tsx / GuestSidebar.tsx) --
+  // Growth plan allows 2 sites, Starter (default) allows 1.
+  const SITE_LIMIT_BY_PLAN: Record<string, number> = { starter: 1, growth: 2 };
+  const siteLimit = SITE_LIMIT_BY_PLAN[effectivePlan || 'starter'] ?? 1;
+  // David 2026-10-22: "I had reached my limit although I didn't actually
+  // publish a site. I just previewed one." userProperties includes drafts
+  // (status: 'draft') -- only a PUBLISHED one (status: 'active') should
+  // count against the plan limit, same fix as GetSite.tsx/GuestSidebar.tsx.
+  const atSiteLimit = userProperties.filter(p => p.status === 'active').length >= siteLimit;
 
   return (
     <>
@@ -1938,13 +2090,18 @@ export function AdminSidebar({ isOpen, onClose, mockMode = false, onPropertyLoad
                       </span>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2 flex-shrink-0">
+                  {/* David 2026-10-19: tightened the gap to the chevron (was gap-2)
+                      and dropped the chevron's own implicit padding (h-5 w-5 -> h-4
+                      w-4, no extra wrapper) so the date card can sit closer to it --
+                      frees up width for the guest/location text to its left, which
+                      was wrapping more than it needed to. */}
+                  <div className="flex items-center gap-0.5 flex-shrink-0">
                     <div className="booking-callout flex-shrink-0">
                       <div className="callout-top"><p className="callout-start-num">{displayBooking.startDay}</p></div>
                       <div className="callout-mid"><p className="callout-end-num">{displayBooking.endDay}</p></div>
                       <div className={`callout-month ${isPending ? 'is-pending' : 'is-approved'}`}><span>{displayBooking.month}</span></div>
                     </div>
-                    {bookingCardOpen ? <ChevronDown className="h-5 w-5 text-gray-500" /> : <ChevronRight className="h-5 w-5 text-gray-500" />}
+                    {bookingCardOpen ? <ChevronDown className="h-4 w-4 text-gray-500" /> : <ChevronRight className="h-4 w-4 text-gray-500" />}
                   </div>
                 </div>
               ) : (
@@ -1956,64 +2113,99 @@ export function AdminSidebar({ isOpen, onClose, mockMode = false, onPropertyLoad
             </button>
             {bookingCardOpen && (
               <div className="border-t border-gray-200">
-                {bookingError ? <p className="text-sm text-red-600 p-4">{bookingError}</p> : <UserBookings bookings={bookings} onUpdateStatus={handleUpdateBookingStatus} onRefund={handleRefund} canManageProperty={canManageProperty} />}
+                {/* David 2026-10-19: was `bookingError ? <error> : <UserBookings/>` --
+                    a failed approve/deny/refund on ONE booking hid every other
+                    booking in the list behind the error text instead of just
+                    reporting the failure. Now the error shows as a banner above
+                    the list, which always still renders. */}
+                {bookingError && <p className="text-sm text-red-600 p-4">{bookingError}</p>}
+                <UserBookings bookings={bookings} onUpdateStatus={handleUpdateBookingStatus} onRefund={handleRefund} canManageProperty={canManageProperty} />
               </div>
             )}
           </div>
 
-          {/* Credentials Card — admin only */}
-          {showCredentials && canManageProperty && (
+          {/* Launch Progress card — admin only. Was "Website Credentials" with
+              a permanent X-to-dismiss close; David 2026-10-23: renamed, made
+              a proper disclosure (chevron, not a dismiss), auto-collapses once
+              everything is done (allLaunchItemsComplete effect above), and the
+              Publish button now lives outside the collapsible body so it's
+              always visible even when the card above it is collapsed. */}
+          {canManageProperty && (
             <div className="sb-credentials">
-              <button onClick={() => setShowCredentials(false)} className="sb-btn-close" style={{ position: 'absolute', top: 12, right: 12 }}><X className="h-4 w-4" /></button>
-              <p className="text-center text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Website Credentials</p>
-              <div className="sb-credential-row">
-                <div className="sb-credential-label"><StatusDot ok={hasStripeAccount} /><p className="sb-credential-name">Stripe Payout Account</p></div>
-                {!hasStripeAccount && <p className="sb-credential-name" style={{ color: '#999', fontSize: '0.8rem' }}>No account added</p>}
-                {hasStripeAccount && connectData && !connectData.details_submitted && <p className="sb-credential-name" style={{ color: '#f59e0b', fontSize: '0.75rem' }}>Onboarding pending</p>}
-              </div>
-              <div className="sb-credential-row">
-                <div className="sb-credential-label"><StatusDot ok={hasWebsite} /><p className="sb-credential-name">{(property?.site_url || sidebarPropertyDataRef.current?.site_url) ? new URL(property?.site_url || sidebarPropertyDataRef.current?.site_url).pathname.slice(1) : 'No site published yet'}</p></div>
-              </div>
-              <div className="sb-credential-row">
-                <div className="sb-credential-label"><StatusDot ok={hasEmail} /><p className="sb-credential-name">{displayUser.email}</p></div>
-              </div>
-              <div className="sb-credential-row">
-                <div className="sb-credential-label"><StatusDot ok={hasSubscription} /><p className="sb-credential-name">Live Subscription</p></div>
-              </div>
+              <button
+                onClick={() => setShowCredentials(v => !v)}
+                // marginRight: -4px -- .sb-credentials already has 8px of its
+                // own padding (vs. the nav section chevrons below, which sit
+                // directly in .sidebar-content with only .sb-nav-btn's 4px) --
+                // this pulls the chevron back out those 4px so it lines up
+                // with the nav section arrows underneath it.
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', background: 'none', border: 'none', cursor: 'pointer', padding: 0, marginRight: -4, marginBottom: showCredentials ? 12 : 0 }}
+              >
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ margin: 0 }}>
+                  {allLaunchItemsComplete ? 'Website Live' : 'Launch Progress'}
+                </p>
+                {showCredentials ? <ChevronDown className="h-4 w-4 text-gray-400" /> : <ChevronRight className="h-4 w-4 text-gray-400" />}
+              </button>
 
-              {/* PUBLISH SITE button — gated behind all 4 credentials */}
-              {canManageProperty && (
-                <div style={{ marginTop: 16 }}>
-                  <button
-                    onClick={() => handlePublishFromSidebar()}
-                    disabled={publishLoading || !property?.id}
-                    style={{
-                      width: '100%',
-                      padding: '10px 16px',
-                      /* David: "make the green publish button val-col" -- val-color
-                         (brand color, see .val-color in index.css) instead of the
-                         filled green/amber states. */
-                      backgroundColor: 'transparent',
-                      color: publishLoading ? '#9ca3af' : 'var(--brand)',
-                      border: '1px solid var(--brand)',
-                      borderRadius: 8,
-                      fontWeight: 600,
-                      fontSize: '0.9rem',
-                      cursor: publishLoading || !property?.id ? 'not-allowed' : 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: 8,
-                      opacity: publishLoading ? 0.7 : 1,
-                    }}
-                  >
-                    {publishLoading ? 'Publishing...' : (!hasWebsite ? 'Publish Site' : 'Publish Now')}
-                  </button>
-                  {publishError && (
-                    <p style={{ fontSize: '0.75rem', color: '#dc2626', marginTop: 6 }}>{publishError}</p>
-                  )}
-                </div>
+              {showCredentials && (
+                <>
+                  <div className="sb-credential-row">
+                    <div className="sb-credential-label"><StatusDot ok={hasEmail} /><p className={hasEmail ? 'sb-credential-name font-bold text-green-500' : 'sb-credential-name'}>{displayUser.email}</p></div>
+                  </div>
+                  <div className="sb-credential-row">
+                    <div className="sb-credential-label"><StatusDot ok={hasWebsite} /><p className={hasWebsite ? 'sb-credential-name font-bold text-green-500' : 'sb-credential-name'}>{(property?.site_url || sidebarPropertyDataRef.current?.site_url) ? new URL(property?.site_url || sidebarPropertyDataRef.current?.site_url).pathname.slice(1) : 'No site published yet'}</p></div>
+                  </div>
+                  <div className="sb-credential-row">
+                    <div className="sb-credential-label"><StatusDot ok={hasSubscription} /><p className={hasSubscription ? 'sb-credential-name font-bold text-green-500' : 'sb-credential-name'}>Live Subscription</p></div>
+                  </div>
+                  <div className="sb-credential-row">
+                    <div className="sb-credential-label"><StatusDot ok={hasStripeAccount} /><p className={hasStripeAccount ? 'sb-credential-name font-bold text-green-500' : 'sb-credential-name'}>Add Payout Bank Account</p></div>
+                    {hasStripeAccount && connectData && !connectData.details_submitted && <p className="sb-credential-name" style={{ color: '#f59e0b', fontSize: '0.75rem' }}>Onboarding pending</p>}
+                  </div>
+                </>
               )}
+
+              {/* PUBLISH SITE button — stays visible at all times (David: "I like
+                  it to help the user track their progress"); opacity itself
+                  signals whether all 4 Launch Progress items are done yet.
+                  Side padding 12px on top of .sb-credentials' own 8px matches
+                  the "Get your own booking website" / site-limit button's
+                  total 20px+20px inset from the sidebar edge, so the two
+                  buttons read as the same width. */}
+              <div style={{ marginTop: showCredentials ? 16 : 0, paddingLeft: 12, paddingRight: 12 }}>
+                <button
+                  onClick={() => handlePublishFromSidebar()}
+                  disabled={publishLoading || !property?.id}
+                  style={{
+                    width: '100%',
+                    padding: '10px 16px',
+                    backgroundColor: '#16a34a',
+                    color: '#fff',
+                    border: 'none',
+                    borderRadius: 8,
+                    fontWeight: 600,
+                    fontSize: '0.9rem',
+                    cursor: publishLoading || !property?.id ? 'not-allowed' : 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 8,
+                    opacity: publishLoading ? 0.7 : (allLaunchItemsComplete ? 1 : 0.3),
+                    transition: 'opacity 0.2s ease',
+                  }}
+                >
+                  {publishLoading
+                    ? 'Publishing...'
+                    // David 2026-10-21: "Once you have paid a subscription, in the
+                    // sidebar your Publish Now button should turn to Re-publish Site."
+                    // hasSubscription already drives the "Live Subscription" credential
+                    // dot above -- same signal, reused here.
+                    : (!hasWebsite ? 'Publish Site' : (hasSubscription ? 'Re-publish Site' : 'Publish Now'))}
+                </button>
+                {publishError && (
+                  <p style={{ fontSize: '0.75rem', color: '#dc2626', marginTop: 6 }}>{publishError}</p>
+                )}
+              </div>
             </div>
           )}
 
@@ -2033,11 +2225,10 @@ export function AdminSidebar({ isOpen, onClose, mockMode = false, onPropertyLoad
                 {openSection === key && (
                   <div className="sb-section-body">
                     {key === 'property' && <PropertySection property={property ?? sidebarPropertyDataRef.current} imageCount={(property ?? sidebarPropertyDataRef.current)?.images?.length ?? propFields.bedrooms ? imageCount : 0} isEditing={isEditing} fields={propFields} onChange={setPropFields} />}
-                    {key === 'website' && <WebsiteSection devUpdates={devUpdates} setDevUpdates={setDevUpdates} serverIp={property?.server_ip ?? sidebarPropertyDataRef.current?.server_ip} siteUrl={property?.site_url ?? sidebarPropertyDataRef.current?.site_url} websiteName={property?.name ?? sidebarPropertyDataRef.current?.name ?? property?.title ?? sidebarPropertyDataRef.current?.title} propertySlug={property?.slug ?? sidebarPropertyDataRef.current?.slug} propertyId={property?.id ?? sidebarPropertyDataRef.current?.id} />}
-                    {key === 'seo' && <SeoSection fields={seoFields} onChange={setSeoFields} images={property?.images ?? sidebarPropertyDataRef.current?.images} />}
+                    {key === 'website' && <WebsiteSection serverIp={property?.server_ip ?? sidebarPropertyDataRef.current?.server_ip} siteUrl={property?.site_url ?? sidebarPropertyDataRef.current?.site_url} websiteName={property?.name ?? sidebarPropertyDataRef.current?.name ?? property?.title ?? sidebarPropertyDataRef.current?.title} propertySlug={property?.slug ?? sidebarPropertyDataRef.current?.slug} propertyId={property?.id ?? sidebarPropertyDataRef.current?.id} effectivePlan={effectivePlan} />}
+                    {key === 'seo' && <SeoSection fields={seoFields} onChange={setSeoFields} images={property?.images ?? sidebarPropertyDataRef.current?.images} isEditing={isEditing} />}
                     {key === 'contact' && <ContactSection user={displayUser} isEditing={isEditing} fields={contactFields} onChange={setContactFields} userProperties={userProperties} activeProperty={activeProperty} showPropertySwitcher={showPropertySwitcher} setShowPropertySwitcher={setShowPropertySwitcher} handleSwitchProperty={handleSwitchProperty} />}
                     {key === 'banking' && <BankingSection connectData={connectData} connectLoading={connectLoading} connectOnboarding={connectOnboarding} payoutLoading={payoutLoading} payoutSuccess={payoutSuccess} onOnboard={handleConnectOnboard} onRequestPayout={handleRequestPayout} />}
-                    {key === 'services' && <ServicesSection services={services} onToggle={handleServiceToggle} />}
                     {key === 'subscription' && <SubscriptionSection
                       subscription={subscriptionData || (hasSubscription ? { id: '', status: profileSubStatus as 'active' | 'trialing', plan: effectivePlan || 'starter', amount: 0, interval: '', current_period_end: null, cancel_at_period_end: false } : null)}
                       loading={subLoading} checkoutLoading={checkoutLoading} onSubscribe={handleSubscribeCheckout} />}
@@ -2050,7 +2241,8 @@ export function AdminSidebar({ isOpen, onClose, mockMode = false, onPropertyLoad
           {/* Get your own booking website — visible to all users */}
           <div style={{ padding: '12px 20px 5px' }}>
             <button
-              onClick={() => { console.log('[BUTTON CLICK]'); (window as any).__openGetSite?.(); window.setTimeout(() => onClose(), 0); }}
+              onClick={() => { (window as any).__openGetSite?.(); window.setTimeout(() => onClose(), 0); }}
+              aria-disabled={atSiteLimit}
               style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -2069,9 +2261,14 @@ export function AdminSidebar({ isOpen, onClose, mockMode = false, onPropertyLoad
                 fontSize: '0.9rem',
                 textDecoration: 'none',
                 cursor: 'pointer',
+                // David: "once you have one site you can't get another with the same
+                // login, the get site button should be disabled" -- stays clickable
+                // (it opens the upgrade-to-Growth offer in the popup) but reads as
+                // reached-limit rather than a plain CTA.
+                opacity: atSiteLimit ? 0.55 : 1,
               }}
             >
-              Get your own booking website →
+              {atSiteLimit ? 'Site limit reached — Upgrade →' : 'Get your own booking website →'}
             </button>
           </div>
 

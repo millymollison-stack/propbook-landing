@@ -17,6 +17,10 @@ interface BookingEmailData {
   property: {
     id: string;
     title: string;
+    address?: string | null;
+    latitude?: number | null;
+    longitude?: number | null;
+    location_type?: string | null;
   };
 }
 
@@ -80,6 +84,13 @@ export class EmailNotificationService {
     return response;
   }
 
+  // David 2026-10-20: used to also send a separate 'booking_pending' email
+  // to the guest here, right at submission -- but sendBookingPaymentHeldEmail
+  // (below) fires moments later once the card hold lands, and its template
+  // now carries that same "Booking Request Received" content (David: "I
+  // just did the test booking and got a few too many emails... Should we
+  // combine them?"). So this now only notifies the admin; the guest gets a
+  // single combined email at the payment-hold step instead of two.
   static async sendBookingRequestEmail(data: BookingEmailData) {
     try {
       console.log('=== EMAIL SERVICE: sendBookingRequestEmail called ===');
@@ -93,10 +104,7 @@ export class EmailNotificationService {
         adminEmail: adminProfile.email 
       });
       
-      // Also send confirmation to guest that their request is pending
-      await this.sendEmailViaEdgeFunction('booking_pending', data);
-      
-      console.log('Emails sent via edge function:', adminResult);
+      console.log('Admin email sent via edge function:', adminResult);
       return adminResult;
     } catch (error) {
       console.error('Email service error:', error);
@@ -108,6 +116,22 @@ export class EmailNotificationService {
   static async sendBookingConfirmationEmail(data: BookingEmailData) {
     try {
       const result = await this.sendEmailViaEdgeFunction('booking_confirmed', data);
+      return result;
+    } catch (error) {
+      console.error('Email service error:', error);
+      return null;
+    }
+  }
+
+  // David 2026-10-18: sent right after the guest's card is AUTHORIZED
+  // (held, not charged) under the manual-capture auth-hold flow -- tells
+  // them their host now has 24 hours to approve, and they won't be charged
+  // unless/until that happens. Replaces sendBookingConfirmationEmail at
+  // that moment in the flow; the real "you're confirmed" email is now
+  // sendBookingApprovedEmail, sent once the host actually approves.
+  static async sendBookingPaymentHeldEmail(data: BookingEmailData) {
+    try {
+      const result = await this.sendEmailViaEdgeFunction('booking_payment_held', data);
       return result;
     } catch (error) {
       console.error('Email service error:', error);

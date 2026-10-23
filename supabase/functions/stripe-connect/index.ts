@@ -108,6 +108,11 @@ Deno.serve(async (req: Request) => {
           pending_balance: pending,
           currency: "usd",
           bank_account: bankAccount,
+          // David 2026-10-20: raw Stripe requirement codes -- StripeConnectSetup.tsx
+          // maps these to plain English so the host can see exactly what's still
+          // needed without leaving PropBook or digging through the Stripe Dashboard.
+          requirements_past_due: account.requirements?.past_due || [],
+          requirements_currently_due: account.requirements?.currently_due || [],
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );

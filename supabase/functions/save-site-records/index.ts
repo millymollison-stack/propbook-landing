@@ -89,6 +89,33 @@ Deno.serve(async (req: Request) => {
 
     console.log(logPrefix, '[save-site-records] Property saved:', propertyRecord.id);
 
+    // David 2026-10-22: "They just set up a new property site but did not hit
+    // the subscribe button. They can now see their site but do not have an
+    // edit button... let them edit but if they want to publish they have to
+    // have subscribed." Edit-mode UI across the app (Layout's Edit button,
+    // ImageGallery/LocationMap/PropertyAmenities/ReviewsList's edit handlers,
+    // AdminSidebarBundle itself) all gate on profiles.role === 'admin' --
+    // "every property owner's account is role:'admin', not just platform
+    // staff" (see App.tsx's isViewingOwnProperty comment). That flip used to
+    // happen via the upgrade-user function, called right after Stripe
+    // checkout in the old pay-first flow -- but nothing calls upgrade-user
+    // any more now that payment moved to the sidebar's Publish step (see
+    // GetSite.tsx's handlePublish comment), so a brand-new user who saves a
+    // draft without subscribing was left on role:'user' indefinitely, with
+    // no edit access at all. Flip it here instead, at draft-creation time,
+    // independent of subscription -- publishing (going live) still has its
+    // own separate gate in AdminSidebarBundle's handlePublishFromSidebar.
+    // profiles.role is a 2-value Postgres enum (admin/user only) -- there is
+    // no third "saas_admin" DB value to guard against (that's a different,
+    // separate check elsewhere), so plain eq(id) is all this needs.
+    if (userId) {
+      const { error: roleError } = await supabase
+        .from("profiles")
+        .update({ role: "admin" })
+        .eq("id", userId);
+      if (roleError) console.warn(logPrefix, "[save-site-records] role upgrade warning:", roleError.message);
+    }
+
     if (images && images.length > 0) {
       // Last 2 scraped images become the site's background-layer images by
       // default (David: "auto assigned background image status at scrape

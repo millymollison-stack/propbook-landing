@@ -10,7 +10,7 @@
  */
 
 
-import React, { useState, useEffect, memo } from 'react';
+import React, { useState, useEffect, useCallback, memo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { format, addDays } from 'date-fns';
 import { ChevronRight, ChevronDown, X, LogOut, Check, CreditCard as Edit2, Clock, CreditCard, AlertCircle, Mail, MessageSquare, Home } from 'lucide-react';
@@ -20,7 +20,7 @@ import type { Profile, Booking, Property } from '../types';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-type PaymentStatus = 'unpaid' | 'pending' | 'paid' | 'refunded' | 'failed';
+type PaymentStatus = 'unpaid' | 'pending' | 'authorized' | 'paid' | 'refunded' | 'failed' | 'canceled';
 
 interface NextBooking {
   guestName: string; location: string; guestCount: number; nights: number;
@@ -54,11 +54,11 @@ interface UserBookingsProps {
 }
 
 const UserBookings = memo(function UserBookings({ bookings }: UserBookingsProps) {
-  const [statusFilter, setStatusFilter] = useState<string>('all');
-
-  const filteredBookings = statusFilter === 'all'
-    ? bookings
-    : bookings.filter((b: any) => b.status === statusFilter);
+  // David 2026-10-18: this status-filter dropdown was cloned over from the admin
+  // sidebar along with everything else in this file, but guests only ever have a
+  // handful of bookings for the one site they're on -- the filter is admin tooling
+  // for triaging many bookings across many guests, not something a guest needs.
+  // Removed rather than hidden: there's no case where a guest should see it.
 
   const statusBadge = (status: string) => {
     const cfg: Record<string, { bg: string; text: string }> = {
@@ -75,9 +75,13 @@ const UserBookings = memo(function UserBookings({ bookings }: UserBookingsProps)
     const cfg: Record<string, { icon: any; bg: string; text: string; label: string }> = {
       paid: { icon: Check, bg: 'bg-green-100', text: 'text-green-800', label: 'Paid' },
       pending: { icon: Clock, bg: 'bg-yellow-100', text: 'text-yellow-800', label: 'Pending' },
+      // David 2026-10-18: card authorized/held under the auth-hold flow --
+      // not charged yet, awaiting the host's approve/deny decision.
+      authorized: { icon: Clock, bg: 'bg-yellow-100', text: 'text-yellow-800', label: 'Card Held' },
       unpaid: { icon: AlertCircle, bg: 'bg-gray-100', text: 'text-gray-800', label: 'Unpaid' },
       refunded: { icon: CreditCard, bg: 'bg-blue-100', text: 'text-blue-800', label: 'Refunded' },
       failed: { icon: X, bg: 'bg-red-100', text: 'text-red-800', label: 'Failed' },
+      canceled: { icon: X, bg: 'bg-gray-100', text: 'text-gray-800', label: 'Hold Released' },
     };
     const { icon: Icon, bg, text, label } = cfg[ps] || cfg.unpaid;
     return <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${bg} ${text}`}><Icon className="w-3.5 h-3.5 mr-1" />{label}</span>;
@@ -89,21 +93,8 @@ const UserBookings = memo(function UserBookings({ bookings }: UserBookingsProps)
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-center pt-6">
-        <select
-          value={statusFilter}
-          onChange={e => setStatusFilter(e.target.value)}
-          className="w-48 text-base border-gray-300 rounded-md shadow-sm"
-        >
-          <option value="all">All Statuses</option>
-          <option value="pending">Pending</option>
-          <option value="approved">Approved</option>
-          <option value="denied">Denied</option>
-          <option value="cancelled">Cancelled</option>
-        </select>
-      </div>
       <div className="divide-y divide-gray-200">
-        {filteredBookings.map(booking => (
+        {bookings.map(booking => (
           <div key={booking.id} className="py-4">
             <div className="flex flex-wrap justify-center items-center gap-2 mb-4">
               {statusBadge(booking.status)}
@@ -117,7 +108,28 @@ const UserBookings = memo(function UserBookings({ bookings }: UserBookingsProps)
               </div>
               <div className="flex items-center body-on-light">
                 <Mail className="h-4 w-4 text-gray-400 mr-2" />
-                {booking.property?.address || '—'}
+                {booking.status === 'approved' ? (
+                  booking.property?.address ? (
+                    booking.property.address
+                  ) : booking.property?.location_type === 'coordinates' && booking.property?.latitude != null && booking.property?.longitude != null ? (
+                    // David 2026-10-22: "Allow coordinates to work as an address
+                    // in our system if needed as my vacation rental doesn't have
+                    // an address as it's off grid." A maps link is more useful to
+                    // a guest than raw numbers when there's no street address.
+                    <a
+                      href={`https://www.google.com/maps?q=${booking.property.latitude},${booking.property.longitude}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="underline"
+                    >
+                      {booking.property.latitude.toFixed(5)}, {booking.property.longitude.toFixed(5)} (view on map)
+                    </a>
+                  ) : (
+                    'Address not yet on file — contact your host'
+                  )
+                ) : (
+                  'Address provided once your booking is confirmed'
+                )}
               </div>
             </div>
             <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
@@ -247,11 +259,9 @@ function ContactSection({
       />
 
       {/* Role */}
-      <div className="py-3 border-b border-gray-100">
+      <div className="sb-field-row">
         <h4 className="sb-h4-grey">Role</h4>
-        <p className="text-base text-gray-900">
-          <span className="font-bold">Guest</span>
-        </p>
+        <p className="sb-field-value">Guest</p>
       </div>
 
       {/* Name */}
@@ -301,6 +311,21 @@ function ContactSection({
 export function GuestSidebar({ isOpen, onClose, currentSlug}: GuestSidebarProps) {
   const { user, signOut, updateProfile } = useAuth();
   const navigate = useNavigate();
+
+  // David: site-count limit check — mirrors the same logic in GetSite.tsx so the
+  // sidebar CTA reflects the limit before the popup even opens.
+  const [ownedSiteCount, setOwnedSiteCount] = useState<number | null>(null);
+  useEffect(() => {
+    if (!user) { setOwnedSiteCount(null); return; }
+    // David 2026-10-22: same fix as GetSite.tsx -- only a PUBLISHED site
+    // (status: 'active') should count against the plan limit, not a still
+    // -unpublished draft.
+    supabase.from('properties').select('id', { count: 'exact', head: true }).eq('owner_id', user.id).eq('status', 'active')
+      .then(({ count }) => setOwnedSiteCount(count ?? 0));
+  }, [user?.id]);
+  const SITE_LIMIT_BY_PLAN: Record<string, number> = { starter: 1, growth: 2 };
+  const siteLimit = SITE_LIMIT_BY_PLAN[user?.stripe_subscription_plan || 'starter'] ?? 1;
+  const atSiteLimit = ownedSiteCount !== null && ownedSiteCount >= siteLimit;
 
   // ── State ─────────────────────────────────────────────────────────────────
   const [openSection, setOpenSection] = useState<string | null>(null);
@@ -352,8 +377,14 @@ export function GuestSidebar({ isOpen, onClose, currentSlug}: GuestSidebarProps)
   }, [user]);
 
   // ── Load guest bookings (bookings WHERE user_id = current user) ────────────
-  useEffect(() => {
-    if (!user || !isOpen) return;
+  // David 2026-10-18: data leak -- this used to fetch EVERY booking this user
+  // has ever made, across every property on the platform, and show them all in
+  // whatever property's sidebar they happened to open (reported: a guest on
+  // ravenswortha14 could see their unrelated Isabela A12 booking). Guests should
+  // only see their booking(s) for the site they're currently on, so this now
+  // waits for activeProperty to resolve from the URL slug and filters by it.
+  const loadGuestBookings = useCallback(() => {
+    if (!user || !activeProperty) return;
     setBookingsLoading(true);
     setBookingError(null);
 
@@ -361,6 +392,7 @@ export function GuestSidebar({ isOpen, onClose, currentSlug}: GuestSidebarProps)
       .from('bookings')
       .select('*, property:properties(*), user:profiles(*)')
       .eq('user_id', user.id)
+      .eq('property_id', activeProperty.id)
       .order('created_at', { ascending: false })
       .then((bookingsRes) => {
         if (bookingsRes.data) {
@@ -396,7 +428,32 @@ export function GuestSidebar({ isOpen, onClose, currentSlug}: GuestSidebarProps)
         }
         setBookingsLoading(false);
       });
-  }, [user, isOpen]);
+  }, [user, activeProperty]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    loadGuestBookings();
+  }, [isOpen, loadGuestBookings]);
+
+  // David 2026-10-19: "add the booking to the sidebar... like it did
+  // before" -- there was no mechanism telling this sidebar a new booking
+  // had been made, so if it was already open (or had been opened earlier
+  // this visit) when the guest completed a booking, the list stayed
+  // exactly as it was at the last open and the new pending booking never
+  // appeared until a manual close/reopen. BookingCalendar now dispatches
+  // 'booking-created' right after a booking is authorized; refetch here
+  // whenever that happens for the property this sidebar is scoped to,
+  // whether or not the sidebar is currently open, so it's current the
+  // moment the guest does open it.
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (!activeProperty || detail?.propertyId !== activeProperty.id) return;
+      loadGuestBookings();
+    };
+    window.addEventListener('booking-created', handler);
+    return () => window.removeEventListener('booking-created', handler);
+  }, [activeProperty, loadGuestBookings]);
 
   // ── Close on outside click ───────────────────────────────────────────────
   useEffect(() => {
@@ -600,12 +657,16 @@ export function GuestSidebar({ isOpen, onClose, currentSlug}: GuestSidebarProps)
           <div className="gs-own-site-wrap">
             <button
               onClick={() => {
+                // David: at the plan's site limit — still opens the popup, which now
+                // shows the upgrade-to-Growth offer instead of the onboarding form.
                 (window as any).__openGetSite?.();
                 window.setTimeout(() => onClose(), 0);
               }}
               className="gs-own-site-btn"
+              aria-disabled={atSiteLimit}
+              style={atSiteLimit ? { opacity: 0.55, cursor: 'default' } : undefined}
             >
-              Get your own booking website →
+              {atSiteLimit ? 'Site limit reached — Upgrade →' : 'Get your own booking website →'}
             </button>
           </div>
 

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { DayPicker, DateRange } from 'react-day-picker';
 import { format, parseISO, addDays } from 'date-fns';
-import { Calendar, Lock, AlertCircle, Ban, Check, X } from 'lucide-react';
+import { Calendar, Lock, AlertCircle, Ban, Check, Clock, X } from 'lucide-react';
 import type { Booking, BlockedDate } from '../types';
 import { useAuth } from '../store/auth';
 
@@ -281,6 +281,14 @@ export function BookingCalendar({
   const handlePaymentSuccess = async () => {
     setShowPaymentForm(false);
 
+    // David 2026-10-19: "add the booking to the sidebar for both admin and
+    // guest ... like it did before" -- neither GuestSidebar nor
+    // AdminSidebarBundle had any way of knowing a new booking had just been
+    // made, so a sidebar that was already open kept showing its
+    // last-loaded list until manually closed and reopened. Both now listen
+    // for this and refetch when it's for the property they're showing.
+    window.dispatchEvent(new CustomEvent('booking-created', { detail: { propertyId: property.id } }));
+
     const bookingData = await supabase
       .from('bookings')
       .select('*')
@@ -300,19 +308,18 @@ export function BookingCalendar({
         property
       };
 
-      // Send confirmation email (non-blocking)
-      EmailNotificationService.sendBookingConfirmationEmail(confirmedBookingEmailData).then(() => {
-        console.log('Confirmation email sent successfully');
+      // David 2026-10-18: this used to fire the "Booking Confirmed" email and
+      // the ID-on-file follow-up right here -- but this fires the instant the
+      // guest's card is AUTHORIZED, not when the host approves. Now that
+      // create-payment-intent uses capture_method: "manual", a successful
+      // confirmCardPayment here only means the card is held, not charged.
+      // Tell the guest that, not that they're confirmed. The real
+      // "confirmed" email (and the ID-on-file follow-up) now fire from the
+      // host-approval path once the hold is actually captured.
+      EmailNotificationService.sendBookingPaymentHeldEmail(confirmedBookingEmailData).then(() => {
+        console.log('Payment-held email sent successfully');
       }).catch((emailError) => {
-        console.error('Failed to send confirmation email:', emailError);
-      });
-
-      // David (item 9): follow-up ID-on-file request, sent right after the
-      // booking confirmation email.
-      EmailNotificationService.sendIdRequestEmail(confirmedBookingEmailData).then(() => {
-        console.log('ID request email sent successfully');
-      }).catch((emailError) => {
-        console.error('Failed to send ID request email:', emailError);
+        console.error('Failed to send payment-held email:', emailError);
       });
     }
 
@@ -370,6 +377,12 @@ export function BookingCalendar({
     }
   };
 
+  // David: the admin toggle's "true" state means Blocking is the active
+  // follow-up flow; everyone else (and admins left in Booking mode) gets the
+  // normal booking follow-up. Single source of truth so the two popups
+  // (date-picker title + confirmation modal) can never disagree again.
+  const isBlockingFollowUp = isAdmin && !isBookingMode;
+
   return (
     <div className="space-y-6">
       <div className="p-2 sm:p-4 sb-panel-bg rounded-lg shadow booking-calendar-outer">
@@ -403,7 +416,7 @@ export function BookingCalendar({
             shared bottom edge actually sits on the title's real baseline. */}
         <div className="flex justify-between items-end mb-[6px] pt-4 pl-1">
           <h1 className="hero-title-edit booking-modal-title">
-            {isAdmin && !isBookingMode ? 'Block Dates' : 'Select your dates'}
+            {isBlockingFollowUp ? 'Block Dates' : 'Select your dates'}
           </h1>
           {isAdmin && (
             <button
@@ -556,24 +569,54 @@ export function BookingCalendar({
             <X className="h-5 w-5" />
           </button>
           <h2 id="booking-modal-title" className="hero-title-edit booking-modal-title">
-            {isAdmin && !isBookingMode ? 'Block These Dates' : 'Confirm Your Booking'}
+            {isBlockingFollowUp ? 'Block These Dates' : 'Confirm Your Booking'}
           </h2>
-          <div className="booking-modal-grid">
-            <div className="booking-modal-col-left">
-              <p className="booking-modal-checkin">Check-in: {format(selected.from, 'PPP')} at 3:00 PM</p>
-              <p className="booking-modal-checkout">Check-out: {format(addDays(selected.to, 1), 'PPP')} at 11:00 AM</p>
-              <div className="booking-modal-guest-row">
-                <label className="booking-modal-label">Guests</label>
-                <select id="guestCount" value={guestCount} onChange={(e) => setGuestCount(parseInt(e.target.value))} className="booking-modal-select">
-                  {Array.from({ length: maxGuests }, (_, i) => i + 1).map(num => (
-                    <option key={num} value={num}>{num}</option>
-                  ))}
-                </select>
+          {/* David: "blocking dates and booking dates have their follow up
+              popups mixed up" -- this modal used to always render the full
+              booking form (guest count, pricing, special requests, liability
+              waiver, Book Now button) no matter which mode was active, with
+              the block section just tacked on below it when blocking. Now
+              the booking-only content only renders in booking mode, and the
+              block-only content only renders in blocking mode -- never both. */}
+          {isBlockingFollowUp ? (
+            <div className="booking-modal-grid">
+              <div className="booking-modal-col-left">
+                <p className="booking-modal-checkin">Check-in: {format(selected.from, 'PPP')} at 3:00 PM</p>
+                <p className="booking-modal-checkout">Check-out: {format(addDays(selected.to, 1), 'PPP')} at 11:00 AM</p>
               </div>
-              {isBookingMode && (
+              <div className="booking-modal-col-right">
+                {error && (
+                  <div className="rounded-md bg-red-50 p-4">
+                    <div className="flex">
+                      <AlertCircle className="h-5 w-5 text-red-400" />
+                      <p className="ml-3 text-sm text-red-700">{error}</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="booking-modal-grid">
+              <div className="booking-modal-col-left">
+                <p className="booking-modal-checkin">Check-in: {format(selected.from, 'PPP')} at 3:00 PM</p>
+                <p className="booking-modal-checkout">Check-out: {format(addDays(selected.to, 1), 'PPP')} at 11:00 AM</p>
+                <div className="booking-modal-guest-row">
+                  <label className="booking-modal-label">Guests</label>
+                  <select id="guestCount" value={guestCount} onChange={(e) => setGuestCount(parseInt(e.target.value))} className="booking-modal-select">
+                    {Array.from({ length: maxGuests }, (_, i) => i + 1).map(num => (
+                      <option key={num} value={num}>{num}</option>
+                    ))}
+                  </select>
+                </div>
                 <div className="booking-modal-pricing">
                   <p className="booking-modal-detail">
-                    Base price: ${Math.ceil((selected.to.getTime() - selected.from.getTime()) / (1000 * 60 * 60 * 24)) + 1} nights × ${pricePerNight}
+                    {/* David 2026-10-18: was "Base price: $1 nights x $220" --
+                        the $ belongs on the per-night price, not the night
+                        count, and "1 nights" needed to say "night" singular. */}
+                    {(() => {
+                      const n = Math.ceil((selected.to.getTime() - selected.from.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+                      return `Base price: ${n} ${n === 1 ? 'night' : 'nights'} × $${pricePerNight}`;
+                    })()}
                   </p>
                   {guestCount > 2 && (
                     <p className="booking-modal-detail">
@@ -582,23 +625,21 @@ export function BookingCalendar({
                   )}
                   <p className="booking-modal-total">Total: ${calculateTotalPrice()}</p>
                 </div>
-              )}
-            </div>
-            <div className="booking-modal-col-right">
-              <div className="booking-modal-special-requests">
-                <label className="booking-modal-label">
-                  Special Requests (Optional)
-                </label>
-                <textarea
-                  id="specialRequests"
-                  value={specialRequests}
-                  onChange={(e) => setSpecialRequests(e.target.value)}
-                  rows={3}
-                  className="sb-input-light"
-                  placeholder="Any special requirements or requests?"
-                />
               </div>
-              {isBookingMode && (
+              <div className="booking-modal-col-right">
+                <div className="booking-modal-special-requests">
+                  <label className="booking-modal-label">
+                    Special Requests (Optional)
+                  </label>
+                  <textarea
+                    id="specialRequests"
+                    value={specialRequests}
+                    onChange={(e) => setSpecialRequests(e.target.value)}
+                    rows={3}
+                    className="sb-input-light"
+                    placeholder="Any special requirements or requests?"
+                  />
+                </div>
                 <label className="booking-liability-row">
                   <input
                     type="checkbox"
@@ -611,36 +652,36 @@ export function BookingCalendar({
                     I release the property owner from all liability in the event of injury while staying at the property.
                   </span>
                 </label>
-              )}
-              {error && (
-                <div className="rounded-md bg-red-50 p-4">
-                  <div className="flex">
-                    <AlertCircle className="h-5 w-5 text-red-400" />
-                    <p className="ml-3 text-sm text-red-700">{error}</p>
+                {error && (
+                  <div className="rounded-md bg-red-50 p-4">
+                    <div className="flex">
+                      <AlertCircle className="h-5 w-5 text-red-400" />
+                      <p className="ml-3 text-sm text-red-700">{error}</p>
+                    </div>
                   </div>
-                </div>
-              )}
-              {!user ? (
-                <button
-                  onClick={() => { const event = new CustomEvent('open-auth', { detail: { mode: 'signup' } }); window.dispatchEvent(event); }}
-                  className="booking-modal-submit-btn w-full"
-                >
-                  <Lock className="h-5 w-5" />
-                  <span>Sign in to Book</span>
-                </button>
-              ) : (
-                <button
-                  onClick={handleBookingSubmit}
-                  disabled={loading || (isBookingMode && !liabilityAccepted)}
-                  className="booking-modal-submit-btn"
-                >
-                  <Calendar className="h-5 w-5" />
-                  <span>{loading ? 'Processing...' : 'Book Now'}</span>
-                </button>
-              )}
+                )}
+                {!user ? (
+                  <button
+                    onClick={() => { const event = new CustomEvent('open-auth', { detail: { mode: 'signup' } }); window.dispatchEvent(event); }}
+                    className="booking-modal-submit-btn w-full"
+                  >
+                    <Lock className="h-5 w-5" />
+                    <span>Sign in to Book</span>
+                  </button>
+                ) : (
+                  <button
+                    onClick={handleBookingSubmit}
+                    disabled={loading || !liabilityAccepted}
+                    className="booking-modal-submit-btn"
+                  >
+                    <Calendar className="h-5 w-5" />
+                    <span>{loading ? 'Processing...' : 'Book Now'}</span>
+                  </button>
+                )}
+              </div>
             </div>
-          </div>
-          {!isBookingMode && (
+          )}
+          {isBlockingFollowUp && (
             <div className="booking-modal-block-section">
               <div>
                 <label htmlFor="blockReason" className="label-on-light">
@@ -687,7 +728,19 @@ export function BookingCalendar({
               }}
             />
             <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
-            <div className="inline-block align-bottom sb-panel-bg rounded-lg px-4 pt-5 pb-4 text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full sm:p-6">
+            {/* David 2026-10-18: "complete payment" was getting cut off on
+                short/mobile screens with no way to reach the submit button.
+                The outer portal wrapper already has overflow-y-auto for the
+                whole page, but on short viewports that still left the Pay
+                button below the fold with no visible scrollbar on the
+                panel itself. Giving the panel its own bounded height +
+                scroll (same pattern the old Booking Confirmed modal used)
+                guarantees a scrollbar appears and the bottom is reachable
+                regardless of how tall Stripe's PaymentElement renders. */}
+            <div
+              className="inline-block align-bottom sb-panel-bg rounded-lg px-4 pt-5 pb-4 text-left shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full sm:p-6"
+              style={{ maxHeight: '85vh', overflowY: 'auto', overflowX: 'hidden' }}
+            >
               <PaymentForm
                 bookingId={createdBookingId}
                 amount={bookingAmount}
@@ -735,9 +788,30 @@ export function BookingCalendar({
               aria-hidden="true"
               onClick={() => setShowConfirmation(false)}
             />
+            {/* David 2026-10-18: this panel used to scroll internally
+                (maxHeight + overflowY here), which meant the floating X --
+                position:absolute relative to THIS element -- scrolled away
+                with the content on tall confirmations and became
+                unreachable. The outer portal wrapper right above already
+                provides page-level scrolling (same as the Confirm Your
+                Booking modal), so the inner scroll was redundant AND the
+                thing stranding the close button. Dropped it so this modal
+                matches that already-working pattern -- same as every other
+                .popup-close modal, the X now just stays with the top of the
+                panel, which is always where you land when it opens. */}
+            {/* David 2026-10-19: "small text and add a scroll bar" -- the
+                .popup-close X is position:absolute, anchored to THIS panel
+                (modal-panel-light has position:relative for exactly that).
+                Scrolling the whole panel would carry the X along with it
+                and strand it off-screen once scrolled -- the same bug
+                fixed everywhere else in this file. So the panel itself
+                stays fixed-height (bounded only by maxHeight+flex column),
+                and only the inner content block below (the details card,
+                host card, bullet list) scrolls on its own -- the header
+                with the X and the "Got it, thanks!" button stay put. */}
             <div
               className="inline-block align-middle sb-panel-bg rounded-lg text-left overflow-hidden shadow-xl transform transition-all w-full max-w-[420px] modal-panel-light"
-              style={{ maxHeight: '88vh', overflowY: 'auto' }}
+              style={{ maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}
             >
               <button
                 type="button"
@@ -747,17 +821,14 @@ export function BookingCalendar({
               >
                 <X className="h-5 w-5" />
               </button>
-              <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-green-100">
-                <Check className="h-6 w-6 text-green-600" />
-              </div>
               <h2 id="confirmation-modal-title" className="hero-title-edit booking-modal-title text-center">
-                Booking Confirmed
+                Payment Authorized
               </h2>
               <p className="body-on-light text-center text-sm -mt-2 mb-1">
-                {property.title} · your stay is booked and paid for.
+                {property.title} · your host has 24 hours to review your request.
               </p>
 
-              <div className="text-left">
+              <div className="text-left" style={{ overflowY: 'auto', minHeight: 0, flex: '1 1 auto' }}>
                 <div className="bg-gray-50 rounded-lg p-3 space-y-1.5 text-sm">
                   <div className="flex justify-between">
                     <span className="body-on-light">Check-in</span>
@@ -778,12 +849,12 @@ export function BookingCalendar({
                     </div>
                   )}
                   <div className="flex justify-between items-center pt-1.5 border-t border-gray-200">
-                    <span className="font-semibold text-gray-900">Total paid</span>
+                    <span className="font-semibold text-gray-900">Total authorized</span>
                     <span className="font-bold text-[var(--brand)] text-base">${bookingConfirmation.totalPrice}</span>
                   </div>
-                  <div className="flex items-center gap-1.5 text-xs text-green-700">
-                    <Check className="h-3.5 w-3.5 flex-shrink-0" />
-                    Payment received · receipt sent to your email
+                  <div className="flex items-center gap-1.5 text-xs text-yellow-700">
+                    <Clock className="h-3.5 w-3.5 flex-shrink-0" />
+                    Card held, not charged · you won't be charged unless your host approves
                   </div>
                 </div>
 
@@ -800,12 +871,8 @@ export function BookingCalendar({
                   </div>
                 )}
 
-                <ul className="mt-2 space-y-1 text-sm body-on-light list-disc list-inside">
-                  <li>We'll email you the full confirmation and check-in details</li>
-                  <li>You can review this booking anytime from your profile</li>
-                </ul>
               </div>
-              <div className="mt-3">
+              <div className="mt-3" style={{ flexShrink: 0 }}>
                 <button
                   type="button"
                   onClick={() => setShowConfirmation(false)}

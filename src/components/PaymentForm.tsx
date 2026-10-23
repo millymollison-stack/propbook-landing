@@ -144,7 +144,18 @@ function CheckoutForm({
 
     addLog('ok', `paymentIntent status: ${paymentIntent?.status}`);
 
-    if (paymentIntent?.status === 'succeeded') {
+    // David 2026-10-19: under the auth-hold flow (create-payment-intent
+    // uses capture_method: "manual"), a successfully authorized card never
+    // reaches 'succeeded' here -- that only happens once a host later
+    // captures it. The real "card authorized, hold in place" result of
+    // confirmPayment() is 'requires_capture'. This previously only
+    // accepted 'succeeded' as success, so EVERY booking's authorization
+    // showed "Payment failed: Payment status: requires_capture" even
+    // though the hold had actually gone through -- guests saw a failure
+    // and retried, which is why duplicate PaymentIntents/bookings were
+    // piling up. 'succeeded' is still accepted too, in case Connect
+    // routing or a future automatic-capture path ever returns it directly.
+    if (paymentIntent?.status === 'succeeded' || paymentIntent?.status === 'requires_capture') {
       setSucceeded(true);
       onPaymentSuccess();
     } else {

@@ -109,6 +109,7 @@ export interface PropertyDataSnapshot {
   activities: string | null;
   local_area: string | null;
   getting_there: string | null;
+  amenities: string[] | null;
   host_name: string | null;
   email: string | null;
   owner_id: string | null;
@@ -198,6 +199,7 @@ export async function fetchPropertyDataSnapshot(propertyId: string): Promise<Pro
     activities: prop.activities ?? null,
     local_area: prop.local_area ?? null,
     getting_there: prop.getting_there ?? null,
+    amenities: prop.amenities ?? null,
     host_name: prop.host_name ?? null,
     email: prop.email ?? null,
     owner_id: prop.owner_id ?? null,

@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
-import { MapContainer, TileLayer, Marker, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, CircleMarker, useMap } from 'react-leaflet';
 import { CreditCard as Edit2, X, MapPin, Check, Search } from 'lucide-react';
 import { useAuth } from '../store/auth';
+import { supabase } from '../lib/supabase';
 import type { Property } from '../types';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
@@ -21,16 +22,20 @@ interface LocationMapProps {
   isOpen: boolean;
 }
 
-function MapUpdater({ center }: { center: [number, number] }) {
+function MapUpdater({ center, targetZoom }: { center: [number, number]; targetZoom: number }) {
   const map = useMap();
   useEffect(() => {
-    // Start at zoom 5 (~800mi radius around property), then fly in to street level (zoom 16)
+    // Start at zoom 5 (~800mi radius around property), then fly in. David
+    // 2026-10-23: targetZoom is only street-level (16) once the viewer can
+    // actually see the exact location (owner, or a guest with an approved
+    // booking) -- otherwise it stops at a general-area zoom (13) so an
+    // unbooked visitor gets the neighborhood, not the house.
     map.setView(center, 5, { animate: false });
     const timer = setTimeout(() => {
-      map.flyTo(center, 16, { duration: 4.0 });
+      map.flyTo(center, targetZoom, { duration: 4.0 });
     }, 1000);
     return () => clearTimeout(timer);
-  }, [center, map]);
+  }, [center, map, targetZoom]);
   return null;
 }
 
@@ -48,6 +53,28 @@ export function LocationMap({ property, onSave, onClose, isOpen }: LocationMapPr
   const [error, setError] = useState<string | null>(null);
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
+
+  // David 2026-10-23: "give a general area not the house number to users
+  // that have not booked... when they have made a booking they can see the
+  // actual full address." Self-contained check (same table/columns
+  // GuestSidebar's own booking list already reads) so PropertyDetails /
+  // PropertyAmenities don't need to thread booking state down just for this.
+  const [hasApprovedBooking, setHasApprovedBooking] = useState(false);
+  useEffect(() => {
+    if (!isOpen || !user?.id) { setHasApprovedBooking(false); return; }
+    let cancelled = false;
+    supabase
+      .from('bookings')
+      .select('id')
+      .eq('property_id', property.id)
+      .eq('user_id', user.id)
+      .eq('status', 'approved')
+      .limit(1)
+      .then(({ data }) => { if (!cancelled) setHasApprovedBooking(!!data && data.length > 0); });
+    return () => { cancelled = true; };
+  }, [isOpen, user?.id, property.id]);
+
+  const canSeeExactLocation = isAdmin || hasApprovedBooking;
 
   // Auto-search and save when map opens and has a location but no coordinates yet
   useEffect(() => {
@@ -311,34 +338,69 @@ export function LocationMap({ property, onSave, onClose, isOpen }: LocationMapPr
                   attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
                   url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                 />
-                <Marker position={coordinates} />
-                <MapUpdater center={coordinates} />
+                {canSeeExactLocation ? (
+                  <Marker position={coordinates} />
+                ) : (
+                  // "40px wide... don't know exactly where it is" -- a fuzzy
+                  // area blob instead of a pinpoint marker. CircleMarker's
+                  // radius is in screen pixels, so 20 = 40px across however
+                  // far the map is zoomed.
+                  <CircleMarker
+                    center={coordinates}
+                    radius={20}
+                    pathOptions={{ color: 'var(--brand, #C47756)', weight: 2, fillColor: 'var(--brand, #C47756)', fillOpacity: 0.35 }}
+                  />
+                )}
+                <MapUpdater center={coordinates} targetZoom={canSeeExactLocation ? 16 : 13} />
               </MapContainer>
             </div>
 
-            {!isEditing && (property.address || property.local_area) && (
-              <p className="location-address-text">{property.address || property.local_area || ''}</p>
-            )}
             {!isEditing && (() => {
               const lat = coordinates[0];
               const lng = coordinates[1];
-              const addr = property.address || property.local_area || '';
-              const mapsUrl = lat && lng
-                ? `https://www.google.com/maps?q=${lat},${lng}`
-                : addr
-                  ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addr)}`
-                  : null;
-              return mapsUrl ? (
-                <a
-                  href={mapsUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="edit-location-btn lm-maps-link"
-                >
-                  <MapPin className="h-4 w-4" />
-                  Open in Google Maps
-                </a>
-              ) : null;
+              const fullAddr = property.address || property.local_area || '';
+              if (!fullAddr) return null;
+
+              // David: "replace the first two words of the address with ..."
+              // -- drops the house number + street name for anyone who
+              // hasn't booked, leaving only the general area (city/region).
+              const obscureAddress = (addr: string) => {
+                const words = addr.trim().split(/\s+/).filter(Boolean);
+                if (words.length <= 2) return '...';
+                return '... ' + words.slice(2).join(' ');
+              };
+              const shownAddress = canSeeExactLocation ? fullAddr : obscureAddress(fullAddr);
+
+              const mapsUrl = canSeeExactLocation
+                ? (lat && lng
+                  ? `https://www.google.com/maps?q=${lat},${lng}`
+                  : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(fullAddr)}`)
+                : (shownAddress !== '...'
+                  ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(shownAddress.replace(/^\.\.\.\s*/, ''))}`
+                  : null);
+
+              return (
+                <>
+                  <div className="lm-address-row">
+                    <p className="location-address-text lm-address-row-text">{shownAddress}</p>
+                    {mapsUrl && (
+                      <a
+                        href={mapsUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="lm-tiny-map-btn"
+                        aria-label="Open in Google Maps"
+                        title="Open in Google Maps"
+                      >
+                        <MapPin className="h-3.5 w-3.5" />
+                      </a>
+                    )}
+                  </div>
+                  {!canSeeExactLocation && (
+                    <p className="lm-general-area-note">General area shown — the exact address is shared once your booking is confirmed.</p>
+                  )}
+                </>
+              );
             })()}
           </div>
         </div>

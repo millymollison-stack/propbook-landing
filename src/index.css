@@ -4,14 +4,41 @@
 
 body { background: #0f0f0f; }
 
-/* Lock the viewport so mobile Safari/Chrome can't pinch-zoom the layout
-   and get stuck in a larger viewport that then slides around. Paired
-   with the maximum-scale=1.0, user-scalable=no viewport meta tag in
-   index.html -- this is the CSS-side backup for browsers that still
-   allow gesture zoom despite the meta tag (notably iOS Safari). */
+/* David 2026-10-21: two things changed here together --
+   1) "keep the screen view at 100% unless zoomed in with fingers" -- pinch-
+      zoom needs to be allowed now (see index.html, user-scalable=no removed),
+      so this can no longer be pan-x pan-y, which was blocking it.
+   2) "it often takes two touches to be able to scroll... feels like an
+      android" -- that's the double-tap-to-zoom GESTURE ARENA: without an
+      explicit touch-action, or with one that still leaves double-tap-zoom on
+      the table, mobile Safari/Chrome holds the first tap for ~300ms waiting
+      to see if a second tap follows before committing to it as a plain touch,
+      which is exactly what reads as "needs two touches" / sluggish scroll
+      start. `manipulation` is the one touch-action value that keeps panning
+      AND pinch-zoom both available while explicitly dropping double-tap-zoom,
+      so there's nothing left for the browser to wait and disambiguate. */
 html, body {
-  touch-action: pan-x pan-y;
-  -ms-touch-action: pan-x pan-y;
+  touch-action: manipulation;
+  -ms-touch-action: manipulation;
+  /* David 2026-10-23: the double-scrollbar fix previously applied to
+     Layout.tsx's root div (.overflow-x-hidden.overflow-y-visible) never
+     actually worked -- confirmed live via devtools: that div's COMPUTED
+     overflow-y was "auto", not "visible". Per the CSS Overflow spec, when
+     overflow-x and overflow-y are set to different values on the SAME
+     element and one of them is `visible`, the UA is required to force
+     that one to `auto` too -- there's no way to keep an element's
+     overflow-x hidden and its own overflow-y genuinely `visible` at the
+     same time. That div has `min-h-screen` (min-height:100vh), so the
+     instant real content pushed it ~27px past that height, this forced
+     `auto` turned it into its own independent scroll box with its own
+     scrollbar -- right next to the real document scrollbar. Fix: split
+     the two concerns onto different elements. `overflow-x: hidden` lives
+     here, on html/body (the actual document scrolling element), where
+     forcing its own overflow-y to `auto` is harmless -- that's already
+     how the normal page scrollbar works. Layout.tsx's root div now sets
+     neither overflow-x nor overflow-y at all, so it can never become a
+     second, competing scroll container regardless of its content height. */
+  overflow-x: hidden;
 }
 
 /* ============================================
@@ -225,6 +252,46 @@ html, body {
   }
 }
 
+/* David 2026-10-20: "Payment Authorized" modal's fine-print bullet list
+   (BookingCalendar.tsx) -- it carries .body-on-light for color, but the
+   <=480px block above forces .body-on-light to 1.365625rem !important on
+   phones, which beats the text-[0.67rem] Tailwind class sized for it (same
+   specificity + !important: whichever rule comes LAST in the file wins --
+   that media query rule sits below Tailwind's generated utilities, so it
+   always won on mobile, which is exactly the width David was testing on).
+   This needs its own !important, placed after that block so it wins at
+   every width, mobile included. */
+.payment-authorized-fineprint {
+  font-size: 0.67rem !important;
+}
+
+/* David 2026-10-20: "the hero date graphic on my phone, the numbers are
+   tiny and need to not be effected by media queries" -- root cause is the
+   SAME pattern as payment-authorized-fineprint right above: the <=480px
+   block's bare `p { font-size: 1.1rem !important; }` fallback (meant for
+   plain paragraph body text) was matching callout-start-num/callout-end-num
+   too, since both are <p> tags -- it clobbered their 3.2rem/2.2rem straight
+   down to 1.1rem on any phone-width screen. Pinning these explicitly with
+   !important, placed after that block, makes them immune to it and to any
+   future similar bare-tag rule at any other width. */
+.booking-callout .callout-start-num {
+  font-size: 3.2rem !important;
+}
+.booking-callout .callout-end-num {
+  font-size: 2.2rem !important;
+}
+
+/* David 2026-10-20: admin's booking-list guest contact info (name/email/
+   phone shown to the host in UserBookings' canManage branch, AdminSidebar-
+   Bundle.tsx) -- the guest's email was running long enough to wrap onto a
+   second/third line at default text size. Shrunk with its own !important,
+   placed after the <=480px block above for the same reason as
+   payment-authorized-fineprint and booking-callout above: that block's
+   body-on-light override would otherwise win the cascade tie on phones. */
+.booking-guest-contact {
+  font-size: 0.75rem !important;
+}
+
 .hero-title-price {
   font-family: var(--font-accent, 'Playfair Display'), serif !important;
   font-size: calc(var(--title-font-size-base, clamp(1.49rem, 3.78vw, 2.16rem)) * var(--title-size-multiplier, 1)) !important;
@@ -348,6 +415,15 @@ html, body {
 .bg-dark-overlay {
   background: rgba(0, 0, 0, 0.3);
   backdrop-filter: blur(2px);
+  /* David 2026-10-22: "the page sticks the first time you scroll on mobile,
+     after load" -- this sits right at the bottom of the hero image, exactly
+     where a first scroll touch starts, and backdrop-filter is the classic
+     iOS Safari cause: it lazily promotes the element to its own compositor
+     layer the moment it's needed, and doing that mid-gesture is what reads
+     as a stick/hitch. Forcing that promotion at paint time (before any
+     scroll happens) instead of on first scroll fixes it the same way the
+     dropdown scrollIntoView fix did for a different trigger. */
+  transform: translateZ(0);
 }
 
 .bg-dark-overlay-light {
@@ -407,12 +483,22 @@ html, body {
   position: relative;
   margin-left: -1rem;
   margin-right: -1rem;
+  /* David 2026-10-22: "black space between the background images behind
+     Book your dates and What our guests say." The parent wrapper
+     (.section-mt-neg.bg-black.section-padding) pads all four sides,
+     including the bottom -- this breakout already cancels its left/right
+     padding, but left the bottom padding exposed as a band of the parent's
+     own bg-black showing through below this section's background image, as
+     a gap before the reviews section's own background begins right after.
+     Canceling the bottom padding too (same values as .section-padding) lets
+     the two sections' background images touch with no seam. */
+  margin-bottom: -1rem;
 }
 @media (min-width: 640px) {
-  .amenities-bg { margin-left: -2rem; margin-right: -2rem; }
+  .amenities-bg { margin-left: -2rem; margin-right: -2rem; margin-bottom: -2rem; }
 }
 @media (min-width: 768px) {
-  .amenities-bg { margin-left: -3rem; margin-right: -3rem; }
+  .amenities-bg { margin-left: -3rem; margin-right: -3rem; margin-bottom: -3rem; }
 }
 
 .amenities-bg-image {
@@ -496,6 +582,17 @@ html, body {
     padding-left: 0;
     padding-right: 0;
   }
+}
+
+/* David 2026-10-21: "the Amenities title needs to be left-aligned and lined
+   up with the icons below. The icons left alignment is correct." Scoped to
+   just this one h1 (not every .hero-title use elsewhere in the app) so it
+   can't shift any other heading -- forces the title flush to the same left
+   edge as .grid-2-cols below it, regardless of any inherited alignment or
+   margin. */
+.amenities-content > .glass-card > h1.hero-title {
+  text-align: left;
+  margin-left: 0;
 }
 
 /* ============================================
@@ -1280,8 +1377,12 @@ html, body {
 }
 .booking-modal-submit-btn:disabled:hover { background: var(--brand); }
 
-.booking-modal-block-btn { background: #6b7280; }
-.booking-modal-block-btn:hover { background: #4b5563; }
+/* David: "there are also block and book buttons in the same popup. Just
+   have block but change the button color as it's currently grayed out.
+   Make it val-col" -- was a flat gray (#6b7280), now uses the same brand
+   (val-color) treatment as every other primary action button. */
+.booking-modal-block-btn { background: var(--brand); }
+.booking-modal-block-btn:hover { background: var(--brand-hover); }
 
 /* ============================================
    SITE LOADED — no-op (formerly hid static template duplicates).
@@ -1548,6 +1649,23 @@ input[type="password"]:focus,
 input[type="tel"]:focus {
   border-color: var(--brand);
   box-shadow: 0 0 0 2px rgba(196,119,86,0.25);
+}
+
+/* David 2026-10-19: the booking-denial-reason input (AdminSidebarBundle.tsx)
+   is a plain type="text" field sitting in a light red box, not one of the
+   dark-overlay editing fields the rule above is for -- but it still matches
+   that bare input[type="text"] selector, so its !important background and
+   white text were winning over the Tailwind classes on the element itself.
+   Scoped override, needs !important to beat the background rule above. */
+input[type="text"].denial-reason-input {
+  background: #ffffff !important;
+  color: #111827 !important;
+}
+input[type="text"].denial-reason-input::placeholder {
+  /* the global ::placeholder rule further down this file sets
+     color: rgba(255,255,255,0.3) !important -- needs !important here too
+     to win, matching .sb-input-light's own note on the same issue. */
+  color: #9ca3af !important;
 }
 
 /* ────────────────────────────────────────────────────────────────────────
@@ -2419,6 +2537,10 @@ hr {
 .amenities-bg-layer,
 .reviews-bg-layer {
   background-image: var(--bg-image, none);
+  /* Same first-scroll-stick fix as .bg-dark-overlay above -- these are the
+     other two large background-image layers on a property page, pre-promoted
+     to their own compositor layer instead of on first scroll. */
+  transform: translateZ(0);
 }
 
 .reviews-bg-layer {
@@ -2624,6 +2746,39 @@ hr {
   display: inline-flex;
 }
 
+/* David 2026-10-23: tiny icon-only "open in maps" button next to the
+   (possibly obscured) address text, replacing the old full-width "Open in
+   Google Maps" link row. */
+.lm-address-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 0.75rem;
+}
+.lm-address-row-text {
+  margin-top: 0 !important;
+}
+.lm-tiny-map-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  border-radius: 999px;
+  color: var(--brand);
+  background: rgba(0,0,0,0.04);
+  border: 1px solid rgba(0,0,0,0.12);
+}
+.lm-tiny-map-btn:hover {
+  background: rgba(0,0,0,0.08);
+}
+.lm-general-area-note {
+  font-size: 0.75rem;
+  color: rgba(0,0,0,0.5);
+  margin-top: 4px;
+}
+
 /* ============================================
    SeoSection.tsx (admin SEO settings panel)
    Merged into index.css 2026-09-11 Round 4 (no selector
@@ -2762,6 +2917,181 @@ hr {
 }
 .seo-toggle-thumb.on {
   left: 20px;
+}
+
+/* Social accounts (SeoSection.tsx) -- David: "use icons not text... keep
+   it small" for the view-mode row; later redesigned the edit-mode inputs
+   to one text input + a platform dropdown + a "Verify & Link" step
+   instead of four always-visible boxes, since "that would take way too
+   much space" became "this is white text on white" with four of them.
+   View-mode icons link out when a URL is set (with a green "linked" dot),
+   dim when empty. */
+.seo-social-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.seo-social-icon-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+  border-radius: 8px;
+  background: #f3f4f6;
+  color: #374151;
+  border: 1px solid #e5e7eb;
+  transition: background 0.15s, color 0.15s;
+}
+.seo-social-icon-link:hover {
+  background: #e5e7eb;
+}
+.seo-social-icon-link--empty {
+  color: #d1d5db;
+  cursor: default;
+}
+.seo-social-icon-link--empty:hover {
+  background: #f3f4f6;
+}
+.seo-social-icon-link--linked {
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+  color: #15803d;
+}
+.seo-social-linked-dot {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #16a34a;
+  border: 1.5px solid #fff;
+}
+
+/* David reported the old 4-input layout rendering as white text on a
+   white/near-white background -- caused by a later, equal-specificity
+   global rule ([type='text'], select, [type='url'], ... { color: white })
+   winning the cascade over a bare class selector. These replacement
+   controls are type-qualified (input.foo / select.foo) specifically so
+   they out-rank that rule, with !important as a second guard against
+   whatever gets added below this block next. */
+.seo-social-linked-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+.seo-social-linked-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #f9fafb !important;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  padding: 6px 8px;
+}
+.seo-social-linked-icon {
+  color: #374151 !important;
+  flex-shrink: 0;
+}
+.seo-social-linked-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #374151 !important;
+  flex-shrink: 0;
+}
+.seo-social-linked-value {
+  font-size: 0.75rem;
+  color: #6b7280 !important;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.seo-social-linked-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #15803d !important;
+  background: #dcfce7 !important;
+  border-radius: 999px;
+  padding: 2px 8px;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.seo-social-linked-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #9ca3af !important;
+  background: none !important;
+  border: none;
+  cursor: pointer;
+  padding: 2px;
+  flex-shrink: 0;
+  border-radius: 4px;
+}
+.seo-social-linked-remove:hover {
+  color: #dc2626 !important;
+  background: #fef2f2 !important;
+}
+.seo-social-add-row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+select.seo-social-add-select {
+  font-size: 0.78rem;
+  padding: 6px 8px;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  background: #fff !important;
+  color: #111827 !important;
+  flex-shrink: 0;
+}
+input.seo-social-add-input {
+  flex: 1 1 140px;
+  min-width: 120px;
+  font-size: 0.78rem;
+  padding: 6px 8px;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  background: #fff !important;
+  color: #111827 !important;
+}
+input.seo-social-add-input:focus,
+select.seo-social-add-select:focus {
+  outline: none;
+  border-color: #9ca3af;
+}
+.seo-social-add-btn {
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 6px 14px;
+  border-radius: 6px;
+  background: var(--brand);
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.seo-social-add-btn:hover {
+  background: var(--brand-hover);
+}
+.seo-social-add-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.seo-social-add-error {
+  font-size: 0.7rem;
+  color: #dc2626;
+  margin-top: 4px;
 }
 
 /* ============================================
@@ -3333,6 +3663,39 @@ hr {
   color: var(--brand, #C47756);
   font-size: 0.8rem;
   font-weight: 500;
+}
+
+/* David 2026-10-21: floating "Copied to clipboard" toast replacing the
+   .cs-share-copied text line above (left in place in case anything else
+   still renders it) -- pinned to .cs-share-modal (position: relative
+   already), centered just above the URL box, so it reads like a system
+   copy notification rather than another line of static text. Fades in on
+   mount via the animation below; linkCopied's own setTimeout (2s, in
+   Layout.tsx) unmounts it, no separate fade-out needed. */
+.cs-share-toast {
+  position: absolute;
+  top: -14px;
+  left: 50%;
+  transform: translate(-50%, -100%);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(20, 20, 20, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #fff;
+  font-size: 0.82rem;
+  font-weight: 500;
+  padding: 8px 14px;
+  border-radius: 999px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  white-space: nowrap;
+  z-index: 10;
+  animation: cs-share-toast-in 0.18s ease-out;
+}
+.cs-share-toast svg { color: var(--brand, #C47756); flex-shrink: 0; }
+@keyframes cs-share-toast-in {
+  from { opacity: 0; transform: translate(-50%, -85%); }
+  to { opacity: 1; transform: translate(-50%, -100%); }
 }
 
 /* Shared bg-layer / review-modal-title rules now live in index.css
@@ -4694,22 +5057,27 @@ button.rdp-day.rdp-button[disabled]:not(.rdp-day_selected).rdp-day_selected,
   background: rgba(255, 255, 255, 0.92);
   box-shadow: -20px 0 40px rgba(0,0,0,0.15);
   z-index: 99999;
-  overflow-y: auto;
   display: flex;
   flex-direction: column;
-  /* David: phantom/extra vertical scrollbar showing on the page even while
-     this drawer is closed (translated fully offscreen via translate-x-full
-     in the second .sidebar-panel rule below). Root cause: this element is
-     always mounted in the DOM (GuestSidebar/AdminSidebarBundle only toggle
-     the translate-x-0/translate-x-full classes, never unmount it), and a
-     position:fixed + height:100dvh element that's also a CSS transform
-     target can still be counted by some engines' scrollable-overflow
-     calculation for the document, even though it's positioned out of the
-     visible viewport. `contain: layout` tells the browser this element's
-     internal layout is isolated from the rest of the page, so it can no
-     longer contribute to the ancestor/document scroll area -- fixes the
-     "always ~2 units taller than the window" scrollbar without touching
-     the actual open/close animation or visible sizing. */
+  /* David: phantom/extra vertical scrollbar on the page's right edge, next
+     to the real one -- still showing up both while the drawer is closed
+     AND while open with barely any content. Two earlier attempts
+     (contain: layout here, overflow:hidden on the closed/.translate-x-full
+     state below) narrowed it but didn't kill it, because the actual
+     scrolling element was always THIS node -- position:fixed, height:100dvh,
+     and a transform target (the open/close translateX). A fixed element
+     that's also a transform target is exactly the case some engines don't
+     fully exclude from the document's scrollable-overflow calculation, so
+     its own overflow-y:auto scrollbar track could paint at its untransformed
+     right:0 position -- flush against the page's real scrollbar -- even
+     while visually translated offscreen, and even a sub-pixel layout
+     rounding difference (100dvh flex column + header) was enough to trigger
+     it while open. Fix: this outer fixed/transformed box no longer scrolls
+     at all (overflow: hidden, unconditionally, open or closed) -- scrolling
+     moved to .sidebar-content below, a plain flex:1 child with no position/
+     transform of its own, which can't trigger this. contain: layout stays
+     as a second guard against the same ancestor-overflow quirk. */
+  overflow: hidden;
   contain: layout;
 }
 
@@ -4814,6 +5182,14 @@ button.rdp-day.rdp-button[disabled]:not(.rdp-day_selected).rdp-day_selected,
 .sidebar-content {
   padding: 8px 20px;
   flex: 1;
+  /* The actual scroll container now (see .sidebar-panel above) -- a plain
+     flex child with no position/transform of its own, so there's nothing
+     for the browser to mis-paint offscreen or over-count in the document's
+     overflow calculation. overflow-y:auto here only ever shows a scrollbar
+     when this element's own content genuinely exceeds the space the flex
+     column gives it below the fixed-height header. */
+  overflow-y: auto;
+  min-height: 0;
 }
 
 /* ============================================
@@ -5054,21 +5430,6 @@ input.sidebar-input::placeholder {
 
 .sidebar-panel.translate-x-full {
   transform: translateX(100%) !important;
-  /* David: "double scroll bar on the right side" even with the sidebar
-     closed, unaffected by contain:layout on the base .sidebar-panel rule
-     (that targeted the ancestor scrollable-overflow calculation, which
-     turned out not to be the actual cause here). This element still has
-     overflow-y:auto and content tall enough to need a scrollbar while
-     open -- some engines paint a native element's own scrollbar track at
-     its pre-transform layout position rather than its transformed
-     (offscreen) paint position, which would render right at this panel's
-     untransformed right:0 edge -- right next to the real page scrollbar,
-     producing exactly the double-scrollbar-while-closed symptom. Turning
-     its own scrolling off while closed removes that scrollbar entirely
-     until the panel actually opens and switches to .translate-x-0 (which
-     doesn't carry this override), regardless of which exact mechanism is
-     painting it. */
-  overflow: hidden !important;
 }
 
 /* Bookings section heading — small muted label */
@@ -5103,17 +5464,35 @@ input.sidebar-input::placeholder {
    ──────────────────────────────────────────── */
 
 .booking-callout {
+  /* David 2026-10-20: aspect-ratio is back (103 x 117.7, i.e. 1.75:2) --
+     the last revert dropped it because the FIRST attempt at it used
+     flex-grow proportions on all three sections to fill that height,
+     which squeezed callout-month down to a sliver. This time only
+     callout-top/callout-mid get tightened (via the line-height/margin
+     changes below -- the actual ask: shrink the gap by tightening the
+     numbers' line-height, not by compressing the month block), and
+     callout-month keeps flex-shrink: 0 plus margin-top: auto so it
+     always renders at its full natural size, pinned to the bottom of
+     whatever space is left over. */
   width: 103px;
+  /* David 2026-10-20: 1.75:2 was clipping the red month block -- actual
+     rendered text metrics for the two numbers needed more room than
+     estimated. Opened the ratio up a bit (David OK'd the ratio moving)
+     so callout-month always has its full height free. */
+  aspect-ratio: 1.75 / 2.25;
+  display: flex;
+  flex-direction: column;
   border-radius: 12px;
   border: 3px solid #111;
   overflow: hidden;
-  /* no padding here — content padding lives inside each section */
 }
 
 .booking-callout .callout-top {
   background: var(--sb-panel-bg);
-  /* padding inside white area — space between number and rounded container edge */
-  padding: 6px 4px 2px;
+  /* padding inside white area — space between number and rounded container edge.
+     Bottom padding dropped to 0 (was 2px) as part of tightening the gap to
+     callout-mid below it. */
+  padding: 6px 4px 0;
   text-align: left;
 }
 
@@ -5121,13 +5500,19 @@ input.sidebar-input::placeholder {
   font-size: 3.2rem;
   font-weight: 900;
   color: #111;
-  line-height: 1;
+  line-height: 0.85;
   padding: 0;
 }
 
 .booking-callout .callout-mid {
   background: var(--sb-panel-bg);
-  padding: 2px 4px;
+  /* David 2026-10-19: "bring the two numbers closer together via line
+     height" -- top padding dropped to 0 and a negative margin added to
+     pull "26" up under "25"; line-height on both numbers tightened too
+     (default line-height leaves visual gap above/below the glyphs even
+     at padding:0). */
+  padding: 0 4px 2px;
+  margin-top: -10px;
   text-align: right;
 }
 
@@ -5135,13 +5520,15 @@ input.sidebar-input::placeholder {
   font-size: 2.2rem;
   font-weight: 900;
   color: #aaa;
-  line-height: 1;
+  line-height: 0.85;
   padding: 0;
 }
 
 .booking-callout .callout-month {
   padding: 3px;
   text-align: center;
+  flex-shrink: 0;
+  margin-top: auto;
   /* bottom border-radius must match outer container */
   border-bottom-left-radius: 9px;
   border-bottom-right-radius: 9px;
@@ -5242,10 +5629,22 @@ input.sidebar-input::placeholder {
 /* ────────────────────────────────────────────
    14. SECTION FIELDS — row label + value pairs
    Used by PropertySection, WebsiteSection, ContactSection, etc.
+   David 2026-10-23: "Check the line height on every single sidebar title
+   and details underneath... title should be smaller than the details and
+   have a little extra line height between it and the next title and
+   details section... very consistent over all sections." Previously
+   .sb-field-row had only a 2px top pad (blocks nearly touching) and
+   neither .sb-h4-grey nor .sb-field-value set a line-height, so a few
+   call sites drifted into one-off text-base/font-bold values instead of
+   reusing these two classes. Fixed at both ends: symmetric 8px padding
+   here gives every block the same breathing room from the next one, and
+   a shared 1.3 line-height (unitless, so it scales with .sb-field-value's
+   clamp()) on both classes keeps the title-above/value-below rhythm
+   identical everywhere they're used.
    ──────────────────────────────────────────── */
 
 .sb-field-row {
-  padding: 2px 0 0 0;
+  padding: 8px 0;
 }
 .sb-field-row:last-child { border-bottom: none; }
 
@@ -5268,12 +5667,14 @@ input.sidebar-input::placeholder {
 .sb-field-value {
   font-size: clamp(0.9rem, 2vw, 1.1rem);
   font-weight: 400;
+  line-height: 1.3;
   color: #000;
 }
 
 .sb-field-value-muted {
   font-size: clamp(0.9rem, 2vw, 1.1rem);
   font-weight: 400;
+  line-height: 1.3;
   color: rgba(0,0,0,0.55);
 }
 
@@ -5283,7 +5684,14 @@ input.sidebar-input::placeholder {
   font-size: clamp(0.9rem, 2vw, 1.1rem) !important;
   font-weight: 400 !important;
   color: #000 !important;
-  background: rgba(0,0,0,0.10) !important;
+  /* David 2026-10-23: "Hero teaser input should have a white background,
+     the exact same values as the other text boxes" -- was a 10%-black
+     tint, which let the page behind the (semi-transparent) sidebar panel
+     show through much more obviously on the tall Hero Teaser textarea than
+     on the short single-line inputs, even though every .sb-input field
+     shared this same value. Solid white removes the bleed-through on all
+     of them, uniformly, via this one shared rule. */
+  background: #ffffff !important;
   border: 1px solid rgba(0,0,0,0.20) !important;
   border-radius: 6px !important;
   padding: 10px 14px !important;
@@ -5325,51 +5733,47 @@ textarea.sb-input {
    the image slider, so the sidebar stops burning a full field-row per
    stat. Grid instead of the old stacked rows so they sit side by side
    whenever there's room, per David's ask (Round 8). */
+/* David 2026-10-23: "remove the lozenges and icons. They work on the page
+   but not in the sidebar. It is OK to have them stacked in a row to save
+   space. Enlarge the numerical digits so we see them." -- switched from a
+   grid of pill chips to a plain flex row of label/value pairs, and bumped
+   the value font size since the icons no longer carry the meaning. */
 .sb-stats-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
-  gap: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 18px;
   width: 100%;
 }
 
 .sb-stat-pill {
   display: inline-flex;
-  align-items: center;
+  align-items: baseline;
   gap: 5px;
-  padding: 6px 10px;
-  background: rgba(0,0,0,0.04);
-  border: 1px solid rgba(0,0,0,0.12);
-  border-radius: 999px;
-  color: #374151;
-  font-size: 0.75rem;
-  font-weight: 500;
   white-space: nowrap;
 }
 
-.sb-stat-pill svg {
-  flex-shrink: 0;
-  opacity: 0.6;
-}
-
 .sb-stat-pill-value {
-  font-weight: 600;
+  font-weight: 400;
+  font-size: clamp(0.9rem, 2vw, 1.1rem);
   color: #000;
 }
 
 .sb-stat-pill-label {
   color: #6b7280;
   font-weight: 400;
+  font-size: 0.75rem;
 }
 
 .sb-stat-pill-input {
-  width: 25px;
-  max-width: 25px;
+  width: 34px;
+  max-width: 34px;
   background: transparent;
   border: none;
   border-bottom: 1px solid rgba(0,0,0,0.25);
   color: #000;
-  font-weight: 600;
-  font-size: 0.75rem;
+  font-weight: 400;
+  font-size: clamp(0.9rem, 2vw, 1.1rem);
   text-align: center;
   padding: 0;
   -webkit-appearance: none;
@@ -5582,6 +5986,24 @@ textarea.sb-input {
 }
 .sb-service-row:last-child { border-bottom: none; }
 
+/* David 2026-10-22: "title on the same line as price/toggle, features
+   underneath, smaller font, reduce the inline height between the lines" --
+   the 3-tier bundle rows (name + price + toggle on one line, feature list
+   below) stack instead of sitting side by side, and get their own tight
+   line-height/spacing rather than the flat single-line row above. */
+.sb-service-row--stacked {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 1px;
+  padding: 6px 0;
+}
+
+.sb-service-row-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
 .sb-service-info {
   display: flex;
   align-items: center;
@@ -5599,6 +6021,14 @@ textarea.sb-input {
   font-size: 13px;
   font-weight: 300;
   color: rgba(0,0,0,0.5);
+}
+
+.sb-service-features {
+  font-size: 11px;
+  line-height: 1.2;
+  color: rgba(0,0,0,0.5);
+  margin: 0;
+  padding: 0;
 }
 
 /* ────────────────────────────────────────────
@@ -5624,6 +6054,17 @@ textarea.sb-input {
   background: #f9f9f9;
 }
 
+/* David 2026-10-22: "these boxes are too big... put the points in two
+   columns... give the buttons some color" -- matches the compact,
+   same-line-title-and-action layout the Services bundles got right before
+   this. Dropped the per-plan description paragraph entirely (the Services
+   rows don't have one either) and the vertical feature list, in favor of
+   one header row + a tight 2-column feature grid. */
+.sb-plan-card--compact {
+  padding: 8px 10px;
+  margin-bottom: 6px;
+}
+
 .sb-plan-badge {
   position: absolute;
   top: -11px;
@@ -5636,45 +6077,96 @@ textarea.sb-input {
   border-radius: 20px;
 }
 
-.sb-plan-header {
+.sb-plan-row-top {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
-  margin-bottom: 12px;
+  gap: 10px;
 }
 
 .sb-plan-name {
   font-size: clamp(0.9rem, 2vw, 1.1rem);
   font-weight: 400;
   color: #000;
+  margin: 0;
 }
 
 .sb-plan-price {
   font-size: 13px;
   font-weight: 300;
   color: rgba(0,0,0,0.6);
+  white-space: nowrap;
+}
+
+.sb-plan-btn {
+  background: var(--brand);
+  color: #fff;
+  border: none;
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 6px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.15s;
+  white-space: nowrap;
+}
+.sb-plan-btn:hover { background: var(--brand-hover); }
+.sb-plan-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.sb-plan-btn--current {
+  background: var(--brand);
+  color: #fff;
+  border: 1px solid var(--brand);
+  opacity: 0.4;
+}
+/* David 2026-10-23: "Make the selected subscription val-col outline and
+   button although low opacity. The other tiers should be opacity 70%." --
+   the current plan's card gets a full-opacity brand-color outline (its
+   "although low opacity" button already dims via .sb-plan-btn--current
+   above); the card opacity split itself (1 vs 0.7) is applied inline per
+   card in the Change Plan loop since it depends on which plan is current. */
+.sb-plan-card--current {
+  border: 1px solid var(--brand);
+}
+
+/* "Not disable -- make the buttons unclickable": a normal-looking button,
+   not dimmed/translucent like a real :disabled control, that just has no
+   click handler -- same "Coming Soon" treatment the public landing page
+   already uses for Growth/Scale. */
+.sb-plan-btn--soon {
+  display: inline-block;
+  background: transparent;
+  color: rgba(0,0,0,0.6);
+  border: 1px solid #d1d5db;
+  cursor: default;
 }
 
 .sb-plan-features {
   list-style: none;
   padding: 0;
-  margin: 0;
+  margin: 4px 0 0;
 }
 
 .sb-plan-features li {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 300;
-  color: rgba(0,0,0,0.6);
-  margin-bottom: 4px;
+  line-height: 1.2;
+  color: rgba(0,0,0,0.5);
 }
 
 .sb-plan-features li svg {
   color: #16a34a;
   flex-shrink: 0;
 }
+
+.sb-plan-features--grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2px 10px;
+}
+.sb-plan-features--grid li { margin-bottom: 0; }
 
 /* ────────────────────────────────────────────
    22. BANKING SECTION
@@ -5914,10 +6406,10 @@ textarea.sb-input {
 
 .sb-h4-grey {
   font-size: 0.9rem;
-  line-height: 1rem;
+  line-height: 1.3;
   color: grey;
   font-weight: 300;
-  margin: 0;
+  margin: 0 0 2px 0;
 }
 
 
@@ -6298,4 +6790,31 @@ textarea#specialRequests.sb-input-light { max-width: 400px !important; }
   text-transform: capitalize;
   transform: scaleY(1.2);
   transform-origin: bottom;
+}
+
+
+/* ============================================
+   MOBILE INPUT ZOOM FIX
+   David 2026-10-21: "After sign in on a phone after the popup closes the
+   screen view of the page is 10% zoomed in so the layout looks off... Please
+   keep the screen view at 100% unless zoomed in with fingers on the screen."
+   Root cause: iOS Safari auto-zooms the whole page to fit a focused input
+   whenever that input's font-size is under 16px, and doesn't reliably zoom
+   back out once it loses focus / the modal closes -- it was the Login/Signup
+   auth-modal inputs, which inherit font-size: 0.9rem (14.4px) from the base
+   input[type="text"/"email"/"password"/"tel"] rule up in FORM ELEMENTS. Fixed
+   at the 16px threshold specifically on mobile, rather than changing the base
+   0.9rem everywhere (desktop isn't affected by this iOS behavior at all, and
+   0.9rem elsewhere was presumably sized intentionally).
+   ============================================ */
+@media (max-width: 480px) {
+  input[type="text"],
+  input[type="email"],
+  input[type="password"],
+  input[type="tel"],
+  input[type="number"],
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
 }

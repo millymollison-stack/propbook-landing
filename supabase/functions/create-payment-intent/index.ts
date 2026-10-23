@@ -62,21 +62,19 @@ Deno.serve(async (req: Request) => {
     // Build PaymentIntent params — if the property has a connected account,
     // route the payment through it so funds land directly in their balance.
     //
-    // NOTE (2026-09-21): capture_method is intentionally left as the default
-    // ("automatic") for now. This function is currently only called from
-    // PaymentPage.tsx, AFTER a host has already approved the booking -- so by
-    // the time a guest pays, the review decision is already made and there's
-    // nothing to hold. Manual capture only makes sense once card collection
-    // moves to booking-request time (before host review); that frontend change
-    // hasn't been built yet. Flipping capture_method to "manual" here without
-    // that change would leave every payment stuck in requires_capture forever
-    // (nothing in the app calls capture() on this flow), so don't re-enable it
-    // until the request-time payment step exists. See capture-booking-payment
-    // and stripe-webhook's payment_intent.canceled case, which are already
-    // built and waiting for that frontend piece.
+    // David 2026-10-20: capture_method: "manual" -- the guest's card is
+    // authorized (held) here at booking-request time, not charged. The
+    // host's approve/deny decision in AdminSidebarBundle.tsx is what
+    // actually moves money: capture-booking-payment captures the hold on
+    // approval or releases it on denial. Everything downstream of this flag
+    // (PaymentForm's requires_capture handling, the payment-held vs
+    // booking-confirmed emails, the "Card Held" badge, capture-booking-payment,
+    // stripe-webhook's payment_intent.canceled case) was already built and
+    // waiting on 2026-10-18/19 -- this was the one remaining piece.
     const intentParams: Stripe.PaymentIntentCreateParams = {
       amount: amountInCents,
       currency: "usd",
+      capture_method: "manual",
       // David 2026-09-22: automatic_payment_methods:{enabled:true} was
       // surfacing every payment method enabled on the Stripe account --
       // card, bank transfer, crypto, Amazon Pay, Klarna -- plus Link's

@@ -4,6 +4,26 @@ import { applyFontAccent } from '../lib/fontAccent';
 import type { PropertyImage, Property } from '../types';
 import { useAuth } from '../store/auth';
 
+// David 2026-10-21: "The intro copy should be limited to only be 12 words so it
+// works on Mobile... making sure it works as that info is brought into many
+// versions of the inputs as it moves through migration mode." The live-edit
+// textarea below already capped new edits at 12 words, but propertyIntro was
+// also seeded straight from property.description in three places with no cap
+// at all -- so a property migrated or imported from before this change (or
+// written by a path that bypasses the textarea) could still render a much
+// longer teaser on the actual live site. Capping right where it's read from
+// the property record, not just where it's edited, means it's correct no
+// matter which version of the data got it there.
+function capIntroWords(text: string | null | undefined): string {
+  if (!text) return '';
+  const words = text.trim().split(/\s+/);
+  if (words.length <= 12) return text;
+  // David 2026-10-22: add an ellipsis when the cut lands mid-sentence instead
+  // of leaving it hanging with no indication more text existed.
+  const truncated = words.slice(0, 12).join(' ');
+  return /[.!?]$/.test(truncated) ? truncated : `${truncated}…`;
+}
+
 interface ImageGalleryProps {
   images: PropertyImage[];
   property: Property;
@@ -46,7 +66,7 @@ export function ImageGallery({
     p?.property_headline || (p?.name?.startsWith('@') ? p.name : '@surfhousebaja');
 
   const [propertyTitle, setPropertyTitle] = useState(() => resolveTitle(property));
-  const [propertyIntro, setPropertyIntro] = useState(property?.description || '');
+  const [propertyIntro, setPropertyIntro] = useState(capIntroWords(property?.description));
 
   const [editPrice, setEditPrice] = useState(property?.price_per_night || 0);
   const [editBedrooms, setEditBedrooms] = useState(property?.bedrooms || 0);
@@ -61,7 +81,7 @@ export function ImageGallery({
   // Initialize state from property - only on mount or when property ID changes
   useEffect(() => {
     setPropertyTitle(resolveTitle(property));
-    setPropertyIntro(property?.description || '');
+    setPropertyIntro(capIntroWords(property?.description));
   }, [property?.id]);  // Only reinitialize when property ID changes, not when content changes
 
   // Sync title/intro from scraped property data arriving from Home (without DB write)
@@ -70,7 +90,7 @@ export function ImageGallery({
     // (no-op — just syncing state from prop)
     if (property?.property_headline) setPropertyTitle(property.property_headline);
     else if (property?.name?.startsWith('@')) setPropertyTitle(property.name);
-    if (property?.description) setPropertyIntro(property.description);
+    if (property?.description) setPropertyIntro(capIntroWords(property.description));
     if (property?.price_per_night) setEditPrice(property.price_per_night);
   }, [property?.name, property?.property_headline, property?.description, property?.price_per_night, property?.id]);
 
@@ -394,8 +414,15 @@ export function ImageGallery({
               <textarea
                 value={propertyIntro}
                 onChange={(e) => {
+                  // David 2026-10-21: "The intro copy should be limited to only be 12
+                  // words so it works on Mobile." Was 24 -- matches the same cap in
+                  // App.tsx's onImported handler and GetSite.tsx's extractFirst12Words.
                   const words = e.target.value.trim().split(/\s+/);
-                  const limited = words.length > 24 ? words.slice(0, 24).join(' ') : e.target.value;
+                  let limited = e.target.value;
+                  if (words.length > 12) {
+                    const truncated = words.slice(0, 12).join(' ');
+                    limited = /[.!?]$/.test(truncated) ? truncated : `${truncated}…`;
+                  }
                   setPropertyIntro(limited);
                 }}
                 onBlur={handlePropertyTextSave}

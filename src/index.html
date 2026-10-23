@@ -23,7 +23,15 @@
 <style>:root{--brand:#C47756;--brand-hover:#B5684A;--brand-disabled:#D4A393;--font-accent:'Playfair Display',serif}</style>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <!-- David 2026-10-21: "keep the screen view at 100% unless zoomed in with fingers on
+         the screen" -- user-scalable=no blocked pinch-zoom outright (the opposite of what
+         David wants: pinch should work, it's the *unwanted automatic* zoom after the
+         sign-in popup closes that's the bug -- see the 16px mobile input font-size fix in
+         index.css, the actual cause: iOS auto-zooms on focusing any input under 16px and
+         doesn't always zoom back out when the popup closes). Allowing user-scalable here
+         doesn't fix that by itself, but removing the block is still correct on its own:
+         it was taking away a pinch-zoom capability nobody asked to remove. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Surf House Baja - New Site Template</title>
   </head>
   <body>

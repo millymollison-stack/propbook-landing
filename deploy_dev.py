@@ -21,6 +21,7 @@ why /props/<slug> pages still crash with "useRef is not defined").
 """
 import subprocess, os, time
 from ftplib import FTP
+import requests
 
 def _load_env(path):
     if not os.path.exists(path):
@@ -77,6 +78,37 @@ def ftp_size(ftp, remote_path):
         return None
 
 
+# David 2026-10-17: Cloudflare sits in front of propbook.pro and keeps its own
+# edge cache independent of the server's files and of the .htaccess cache-control
+# headers below -- a redeploy can land cleanly on the origin server and Cloudflare
+# will keep serving the pre-deploy version for up to 7 days until purged. This was
+# the real cause behind repeated "I deployed and it's still broken" reports. Purge
+# everything on the zone after a verified-good upload so a deploy is actually live
+# immediately, with no manual Cloudflare dashboard step.
+def purge_cloudflare():
+    token = os.environ.get('CLOUDFLARE_API_TOKEN')
+    zone_id = os.environ.get('CLOUDFLARE_ZONE_ID')
+    if not token or not zone_id:
+        print("  Skipped -- CLOUDFLARE_API_TOKEN / CLOUDFLARE_ZONE_ID not set in src/.env.")
+        return False
+    try:
+        resp = requests.post(
+            f"https://api.cloudflare.com/client/v4/zones/{zone_id}/purge_cache",
+            headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+            json={"purge_everything": True},
+            timeout=30,
+        )
+        data = resp.json()
+        if resp.status_code == 200 and data.get("success"):
+            print("  Cloudflare cache purged -- this deploy is live immediately, no manual purge needed.")
+            return True
+        print(f"  Cloudflare purge FAILED ({resp.status_code}): {data.get('errors')}")
+        return False
+    except Exception as e:
+        print(f"  Cloudflare purge FAILED: {e}")
+        return False
+
+
 print(f"[0] Connecting to FTP {FTP_HOST}:{FTP_PORT}...")
 ftp = connect()
 print("  Connected.")
@@ -109,10 +141,26 @@ if not (os.path.exists(js_path) and os.path.exists(css_path)):
     exit(1)
 print(f"  Built OK — JS: {os.path.getsize(js_path)//1024}KB, CSS: {os.path.getsize(css_path)//1024}KB")
 
+# David 2026-10-17: step [1] above renames the live assets/ dir and creates a
+# brand-new EMPTY one every single deploy, so an .htaccess uploaded here has
+# to be re-uploaded on every run too, or it silently vanishes on the next
+# deploy. This one overrides Hostinger/LiteSpeed's default 7-day browser
+# cache on .js/.css -- without it, any property page whose baked HTML
+# references an old ?v=... (every property not republished since its last
+# edit) keeps serving a stale cached bundle to real visitors AND to your own
+# test browser for up to a week after their first visit, no matter how many
+# times this script runs or Cloudflare gets purged. See dev-assets.htaccess
+# for the full writeup.
+htaccess_path = f"{proj}/dev-assets.htaccess"
+
 uploads = [
     (js_path, f"{DEV_ASSETS_DIR}/index.js"),
     (css_path, f"{DEV_ASSETS_DIR}/index.css"),
 ]
+if os.path.exists(htaccess_path):
+    uploads.append((htaccess_path, f"{DEV_ASSETS_DIR}/.htaccess"))
+else:
+    print(f"  WARNING: {htaccess_path} not found -- .htaccess cache-control fix will NOT be uploaded this run.")
 
 print("\n[3] Uploading over FTP...")
 all_ok = True
@@ -136,10 +184,7 @@ ftp.quit()
 print()
 if all_ok:
     print("Done, and every file's size was verified byte-for-byte on the server.")
-    print("IMPORTANT: unlike /app/, individual property pages' HTML does NOT")
-    print("cache-bust /dev/assets/index.js with a fresh ?v=... on every deploy —")
-    print("existing sites reference whatever ?v= was baked in when they were built.")
-    print("Purge Cloudflare for propbook.pro/dev/assets/* (and propbook.pro/props/*")
-    print("if that doesn't clear it) before assuming a property page is still broken.")
+    print("\n[4] Purging Cloudflare cache...")
+    purge_cloudflare()
 else:
     print("One or more uploads did NOT verify — do not assume this deploy is live. Re-run.")

@@ -18,29 +18,22 @@ function extractFirst5Words(text: string): string {
   return (text || '').replace(/\s+/g, ' ').trim().split(/\s+/).slice(0, 5).join(' ');
 }
 
-// First 3 sentences, max 24 words total
-function extractFirst24Words(text: string): string {
+// David 2026-10-21: "The intro copy should be limited to only be 12 words so it
+// works on Mobile." Was 24 (first 3 sentences, max 12 words total) -- cut to 12
+// and renamed throughout so nothing still calls this "24 words" in a comment or
+// variable name once it isn't.
+// David 2026-10-22: "If reducing the word count ... cuts the scraped copy in the
+// property description mid sentence add ... after the last word." Dropped the old
+// "roll back to the previous sentence boundary" behavior (it silently dropped
+// content David wanted kept, e.g. ravenswortha14's "...Kensal Green! Our
+// thoughtfully designed") in favor of: keep the first 12 words as-is, and only
+// add the ellipsis when the cut didn't already land on a sentence end.
+function extractFirst12Words(text: string): string {
   if (!text) return '';
-  // Split on sentence-ending punctuation followed by space, or just on periods
-  const sentences = text.split(/(?<=[.!?])\s+/).filter(s => s.trim());
-  const result: string[] = [];
-  let wordCount = 0;
-  for (const sentence of sentences) {
-    const words = sentence.trim().split(/\s+/);
-    for (const word of words) {
-      if (wordCount >= 24) break;
-      result.push(word);
-      wordCount++;
-    }
-    if (wordCount >= 24) break;
-  }
-  let truncated = result.join(' ');
-  // Ensure it ends cleanly — if we cut mid-sentence, strip trailing incomplete clause
-  if (wordCount >= 24 && !/[.!?]$/.test(truncated)) {
-    const lastPunct = Math.max(truncated.lastIndexOf('.'), truncated.lastIndexOf('!'), truncated.lastIndexOf('?'));
-    if (lastPunct > 0) truncated = truncated.slice(0, lastPunct + 1);
-  }
-  return truncated.trim();
+  const words = text.trim().split(/\s+/);
+  if (words.length <= 12) return text.trim();
+  const truncated = words.slice(0, 12).join(' ');
+  return /[.!?]$/.test(truncated) ? truncated : `${truncated}…`;
 }
 
 // Remove all line breaks and extra whitespace (for full copy block display)
@@ -66,6 +59,18 @@ export interface OnboardingPopupProps {
  scrapedImages?: any[];
  onOpenSidebar?: () => void;
  onSiteCreated?: (propertyId: string, siteUrl: string) => void;
+ // David 2026-10-21: "I clicked admin account on the onboarding popup... went off to
+ // find an airbnb link... the signed in as <name> section was gone... needed to signup
+ // again and would have lost my site." Whatever the cause (mobile tab getting reloaded
+ // in the background is the likely trigger), GetSite had no way to get the user back to
+ // a login screen itself -- the "Signed in as" block just silently disappeared and
+ // handlePublish's only response to a missing user was an inert error string. There was
+ // no dead end that funneled someone toward Sign Up instead of Log In, but there was also
+ // no path back to being logged in at all without leaving the popup. Wired so GetSite can
+ // open the real Login modal (App.tsx) in place -- their draft is already preserved in
+ // sessionStorage (popup_scraped_data etc., see handleSaveSiteInPopup), so logging back in
+ // resumes the same draft instead of risking a second account.
+ onOpenLogin?: () => void;
 }
 
 // Persisted flag: survives across remounts (key changes) so user-closed state is not lost
@@ -79,11 +84,37 @@ const POPUP_CLOSED_KEY = 'onboarding_popup_closed';
 // redirect-based Checkout Session from the sidebar, not embedded Elements. See
 // claude/stability-plan-2026-09-22.md, item 1.
 
-export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scrapedImages, onSiteNameChange, onSiteCreated }: OnboardingPopupProps) {
+export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scrapedImages, onSiteNameChange, onSiteCreated, onOpenLogin }: OnboardingPopupProps) {
  const { user, refreshUser } = useAuth();
  const [isOpen, setIsOpen] = useState(true); // Always open when rendered (parent controls visibility)
+
+ // David 2026-10-21: "Once you have one site you can't get another with the same
+ // login. The get site button should be disabled and open subscription should let
+ // you choose 2nd tier that allows 2 sites." The data model already supports a user
+ // owning more than one property (AdminSidebarBundle.tsx's property switcher is
+ // built for it), so the limit is purely a plan entitlement, enforced here rather
+ // than in the data layer. Starter = 1 site, Growth = 2. Checked here (not earlier,
+ // e.g. the sidebar button) since this popup is the one place both trigger paths --
+ // the live /app sidebar, and the exported-site GuestSidebar's window.__openGetSite
+ // redirect -- both actually render.
+ const [ownedSiteCount, setOwnedSiteCount] = useState<number | null>(null);
+ useEffect(() => {
+   if (!user) { setOwnedSiteCount(null); return; }
+   // David 2026-10-22: "I went to the sidebar to get a new site but I had
+   // reached my limit although I didn't actually publish a site. I just
+   // previewed one." The limit is a plan entitlement on PUBLISHED sites --
+   // a still-unpublished draft (status: 'draft', set by save-site-records,
+   // only flips to 'active' once deploy-site actually publishes it) must
+   // not count against it, or creating/re-editing your one draft before
+   // you ever publish locks you out of your own onboarding flow.
+   supabase.from('properties').select('id', { count: 'exact', head: true }).eq('owner_id', user.id).eq('status', 'active')
+     .then(({ count }) => setOwnedSiteCount(count ?? 0));
+ }, [user?.id]);
+ const SITE_LIMIT_BY_PLAN: Record<string, number> = { starter: 1, growth: 2 };
+ const siteLimit = SITE_LIMIT_BY_PLAN[user?.stripe_subscription_plan || 'starter'] ?? 1;
+ const atSiteLimit = ownedSiteCount !== null && ownedSiteCount >= siteLimit;
  const [brandColor, setBrandColor] = useState('#C47756');
- // Full unedited scraped description — independent from the 24-word description textarea
+ // Full unedited scraped description — independent from the 12-word description textarea
  const [propertyIntroFull, setPropertyIntroFull] = useState('');
 
  // Sync brandColor to CSS accent-color so checkboxes/radios inherit it
@@ -256,21 +287,21 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
  const descText = scrapedProperty.property_intro || scrapedProperty.description || '';
  setPropertyHeadline(extractFirst5Words(descText));
  sessionStorage.setItem('popup_property_headline', extractFirst5Words(descText));
- // Property description: first 3 sentences, max 24 words
- setWebsiteDesc(extractFirst24Words(descText));
+ // Property description: first 3 sentences, max 12 words
+ setWebsiteDesc(extractFirst12Words(descText));
  // Store FULL untruncated description for the "Full description (unedited)" text box
  const fullDesc = scrapedProperty.property_intro || scrapedProperty.description || '';
  sessionStorage.setItem('popup_property_intro', fullDesc);
  // Populate the independent full-description state
  setPropertyIntroFull(fullDesc);
- // Store the 24-word version explicitly too (popup_website_desc is set by handleDescChange but we need it here too)
- sessionStorage.setItem('popup_website_desc', extractFirst24Words(descText));
+ // Store the 12-word version explicitly too (popup_website_desc is set by handleDescChange but we need it here too)
+ sessionStorage.setItem('popup_website_desc', extractFirst12Words(descText));
  setScrapedData({
  title: resolvedTitle.slice(0, 16),
  location: scrapedProperty.location || '',
- // Store the 24-word truncated description — what the user edits in the textarea.
+ // Store the 12-word truncated description — what the user edits in the textarea.
  // Storing the full text here causes save to overwrite user edits with raw scrape copy.
- description: extractFirst24Words(descText),
+ description: extractFirst12Words(descText),
  hero_image: imgs[0] || '',
  images: imgs,
  guests: scrapedProperty.max_guests || null,
@@ -304,7 +335,7 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
               setPropertyHeadline(h);
               sessionStorage.setItem('popup_property_headline', h);
             }
-            if (parsed.description) setWebsiteDesc(extractFirst24Words(parsed.description));
+            if (parsed.description) setWebsiteDesc(extractFirst12Words(parsed.description));
           } catch { /* ignore corrupt JSON */ }
         }
 
@@ -359,7 +390,7 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
  if (data.property_name) setWebsiteName(data.property_name.slice(0, 16));
  if (data.property_headline) setPropertyHeadline(data.property_headline);
  if (data.property_desc) {
-   const truncated = extractFirst24Words(data.property_desc);
+   const truncated = extractFirst12Words(data.property_desc);
    setWebsiteDesc(truncated);
    sessionStorage.setItem('popup_website_desc', truncated);
  }
@@ -485,8 +516,8 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
  }, 500);
  };
  const handleDescChange = (val: string) => {
- // Enforce 24-word limit at input time — textarea can never exceed 24 words
- const truncated = extractFirst24Words(val);
+ // Enforce 12-word limit at input time — textarea can never exceed 24 words
+ const truncated = extractFirst12Words(val);
  setWebsiteDesc(truncated);
  // Write to sessionStorage IMMEDIATELY so Create Draft Site always reads fresh data
  sessionStorage.setItem('popup_website_desc', truncated);
@@ -498,7 +529,7 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
  if (onImported) {
  const latestHeadline = sessionStorage.getItem('popup_property_headline') || propertyHeadline || 'surfhousebaja';
  const latestName = sessionStorage.getItem('popup_website_name') || websiteName;
- // Read from popup_property_intro (full text) not popup_website_desc (24-word truncated)
+ // Read from popup_property_intro (full text) not popup_website_desc (12-word truncated)
  const latestDesc = sessionStorage.getItem('popup_property_intro') || sessionStorage.getItem('popup_website_desc') || val;
  onImported({ title: latestName, property_headline: latestHeadline, description: latestDesc });
  }
@@ -688,30 +719,30 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
  const h = extractFirst5Words(data.description || scrapedTitle);
  setPropertyHeadline(h);
  sessionStorage.setItem('popup_property_headline', h);
- // Property description: first 3 sentences, max 24 words (for textarea display only)
- const desc24 = extractFirst24Words(data.description || '');
- setWebsiteDesc(desc24);
+ // Property description: first 3 sentences, max 12 words (for textarea display only)
+ const desc12 = extractFirst12Words(data.description || '');
+ setWebsiteDesc(desc12);
  // Persist sessionStorage with correctly split values
  sessionStorage.setItem('popup_website_name', websiteName16);
  sessionStorage.setItem('popup_property_headline', extractFirst5Words(data.description || scrapedTitle));
  // Store EXACTLY what the textarea shows (24 words). The input field is the source of
  // truth, so storage must match it — otherwise an untouched field deploys the raw scrape.
  // The full original stays available under popup_scraped_data.description.
- sessionStorage.setItem('popup_website_desc', desc24);
+ sessionStorage.setItem('popup_website_desc', desc12);
  // Store the FULL original description for the independent "Full description" textarea
  sessionStorage.setItem('popup_property_intro', data.description || '');
  setPropertyIntroFull(data.description || '');
  // [C2] sessionStorage written
- console.log('[C2] SS desc="' + desc24.slice(0,50) + '"');
- // Notify parent with the 24-word truncated version so the preview stays consistent
+ console.log('[C2] SS desc="' + desc12.slice(0,50) + '"');
+ // Notify parent with the 12-word truncated version so the preview stays consistent
  if (onSiteNameChange) onSiteNameChange('@' + websiteName16);
  if (onImported) {
  const previewData = {
  ...data,
  title: websiteName16,
  property_headline: extractFirst5Words(data.description || scrapedTitle),
- // Pass the 24-word version so preview matches what the user edits in the textarea
- description: desc24,
+ // Pass the 12-word version so preview matches what the user edits in the textarea
+ description: desc12,
  hero_image: data.images?.[1] || data.hero_image,
  images: data.images,
  };
@@ -776,7 +807,7 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
    // which gates on an active subscription and redirects to Stripe checkout itself.
    // (David, 2026-09-21: "rewire stripe to be triggered from the publish button in the
    // sidebar not GetSite.tsx so users get to see their site first before paying.")
-   if (!user) { setStripeError('Please sign in or create an account first.'); return; }
+   if (!user) { setStripeError('Please sign in or create an account first.'); onOpenLogin?.(); return; }
    if (!websiteName.trim()) { setStripeError('Please enter a website name first.'); return; }
    setStripeError('');
    setStripeProcessing(true);
@@ -906,7 +937,7 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
          .maybeSingle();
        const ssWebsiteName = sessionStorage.getItem('popup_user_website_name') || sessionStorage.getItem('popup_website_name') || websiteName || '';
        const ssHeadline = sessionStorage.getItem('popup_property_headline') || propertyHeadline || od?.property_headline || '';
-       // ssDesc: user's 24-word edited description. Falls back to DB if sessionStorage was cleared (Stripe redirect).
+       // ssDesc: user's 12-word edited description. Falls back to DB if sessionStorage was cleared (Stripe redirect).
        const ssDesc = sessionStorage.getItem('popup_website_desc') || websiteDesc || od?.property_desc || '';
        // Get FULL original description — priority:
        // 1. resolvedScrapedData (already loaded from DB above)
@@ -928,7 +959,7 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
        }
        // The description we deploy = user's edited text (from popup_website_desc) if they edited it,
        // otherwise fall back to the full original scrape text.
-       // INPUT FIELD WINS: always deploy the user's edited 24-word description.
+       // INPUT FIELD WINS: always deploy the user's edited 12-word description.
        // fullOriginalDesc is only a last resort for when the field was left empty.
        const deployedDesc = ssDesc || fullOriginalDesc;
        // [C3] Migration data build
@@ -1087,6 +1118,13 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
      setCongratsUrl(constructedSiteUrl);
      setDeployUrl(deployUrl);
      setSavingSite(false);
+     // David 2026-10-22: save-site-records just flipped this user's profile
+     // role to 'admin' server-side (so they get edit access without having
+     // subscribed) -- but the in-memory `user` from the auth store is stale
+     // until something refetches the profile, and nothing else here does a
+     // full page reload. Without this, the Edit button and every edit-mode
+     // handler gated on role==='admin' stay dark until an unrelated reload.
+     refreshUser().catch(err => console.warn('[handleSaveSiteInPopup] refreshUser after site creation failed:', err));
      if (!migrationMode) setIsOpen(false);
      if (!migrationMode) setShowWelcomeModal(true);
 
@@ -1128,6 +1166,27 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
      </div>
    )}
 
+   {/* Welcome modal — shown once the draft is saved (no payment yet). Lives
+       here, outside {isOpen && (...)}, so it still renders even though
+       handlePublish's success tail closes the main popup (setIsOpen(false))
+       right before showing this. */}
+   {showWelcomeModal && (
+     <div className="popup-backdrop" style={{ background: 'rgba(0,0,0,0.85)', zIndex: 99999 }} onClick={(e) => { if (e.target === e.currentTarget) { setShowWelcomeModal(false); if (onClose) onClose(); } }}>
+       <div className="popup-modal" style={{ maxWidth: 420, alignItems: 'center', textAlign: 'center', padding: '36px 40px' }} onClick={e => e.stopPropagation()}>
+         <h1 style={{ marginBottom: 14 }}>
+           Your Draft Site!
+         </h1>
+         <p style={{ color: 'rgba(255,255,255,0.65)', fontSize: '0.9rem', marginBottom: 24, lineHeight: 1.5 }}>
+           Click the Edit button in the nav and enter text, descriptions and additional photos before subscribing and publishing.
+         </p>
+         <button
+           onClick={() => { setShowWelcomeModal(false); if (onClose) onClose(); }}
+           style={{ background: 'var(--brand, #C47756)', color: '#fff', border: 'none', borderRadius: 8, padding: '12px 32px', fontSize: '1rem', fontWeight: 600, cursor: 'pointer' }}
+         >Got it</button>
+       </div>
+     </div>
+   )}
+
    {/* ── Finish building popup ── */}
    {showFinishPopup && (
      <div className="popup-backdrop" style={{ background: 'rgba(0,0,0,0.75)', zIndex: 9999, pointerEvents: 'auto' }} onClick={(e) => { if (e.target === e.currentTarget) setShowFinishPopup(false); }}>
@@ -1156,6 +1215,24 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
  <div className="popup-modal" onClick={(e) => e.stopPropagation()}>
  <button onClick={handleClose} className="popup-close"><X className="h-5 w-5" /></button>
 
+ {/* David 2026-10-21: upgrade gate -- replaces the whole onboarding form when the
+     signed-in user is already at their plan's site limit, instead of letting them
+     fill out the form and only failing at save time. */}
+ {atSiteLimit ? (
+   <div style={{ padding: '8px 0 4px' }}>
+     <h1>You're at your plan limit</h1>
+     <p>
+       Your {user?.stripe_subscription_plan === 'growth' ? 'Growth' : 'Starter'} plan includes {siteLimit} property site{siteLimit === 1 ? '' : 's'}, and you already have {ownedSiteCount}.
+       {user?.stripe_subscription_plan !== 'growth' && ' Upgrade to Growth ($25/mo) to add a second site.'}
+     </p>
+     <p style={{ color: '#999', fontSize: '0.85rem' }}>
+       {user?.stripe_subscription_plan === 'growth'
+         ? 'Contact us if you need more than 2 sites.'
+         : 'You can upgrade from the Subscription section in your sidebar.'}
+     </p>
+   </div>
+ ) : (
+ <>
  {/* Intro */}
  <h1>Create your site</h1>
  <p>Set up your own property booking site now. You can continue editing the site once published.</p>
@@ -1177,6 +1254,22 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
      Switch to an Admin account
    </div>
  </label>
+ )}
+ {/* David 2026-10-21: signed-out fallback for the block above -- previously this whole
+     section just vanished with nothing in its place, and the only other feedback was
+     handlePublish's inert "Please sign in..." error text with no way to act on it from
+     here. Your draft (Airbnb link, scraped photos/text) is already kept in sessionStorage
+     and restored automatically on remount, so logging back in from right here picks up
+     exactly where you left off -- no need to sign up again or risk a duplicate account. */}
+ {!user && (
+ <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '10px 12px', background: 'rgba(240,180,60,0.12)', border: '1px solid rgba(240,180,60,0.35)', borderRadius: 8, margin: '10px 0' }}>
+   <span style={{ color: '#f0b43c', fontSize: 'clamp(0.8rem, 1.4vw, 0.95rem)' }}>You're signed out — your progress is saved, log back in to continue.</span>
+   <button
+     type="button"
+     onClick={(e) => { e.stopPropagation(); onOpenLogin?.(); }}
+     style={{ flexShrink: 0, background: 'var(--brand, #C47756)', color: '#fff', border: 'none', borderRadius: 6, padding: '8px 16px', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer' }}
+   >Log In</button>
+ </div>
  )}
 
 
@@ -1500,77 +1593,17 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
  Hosting options — that's the "phantom preview window" reported; removed. */}
  <div style={{ marginBottom: 24 }} />
 
+ {/* David 2026-10-21: "Remove subscription & Hosting options from the onboarding
+     popup before you even see the site. We handle the subscription one step later
+     now anyway." Both sections removed outright -- the "Create your draft" copy
+     right below already says the real publish-and-pay step happens later, from
+     the sidebar (AdminSidebarBundle.tsx -> handlePublishFromSidebar), so asking
+     for a plan/hosting choice here was already vestigial, not just redundant.
+     planChoice/hostingChoice state is left in place (still read by
+     handleSaveSiteInPopup/migration below) rather than ripped out, since removing
+     the inputs that set them is enough on its own and touching the save payload
+     isn't part of this ask. */}
  <hr />
-
- {/* Hosting */}
- <h1>Hosting options</h1>
- <ul>
- <li>
- <input type="radio" name="hosting" id="4-1" checked={hostingChoice === 'own'} onChange={() => setHostingChoice('own')} style={{ accentColor: brandColor }} />
- <label htmlFor="4-1">Export to your own server - Free</label>
- </li>
- <li>
- <input type="radio" name="hosting" id="4-2" checked={hostingChoice === 'our'} onChange={() => setHostingChoice('our')} style={{ accentColor: brandColor }} />
- <label htmlFor="4-2">Publish to our server - $10 p/m</label>
- </li>
- </ul>
- <br /><hr />
-
- {/* Subscription */}
- <h1>Subscription</h1>
- {(user?.stripe_subscription_status === 'active' || user?.stripe_subscription_status === 'trialing') ? (
- <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', padding: '12px 16px', background: 'rgba(80,180,100,0.12)', border: '1px solid rgba(80,180,100,0.35)', borderRadius: 8, fontSize: '0.95rem', color: '#a8d8b0', marginBottom: 8 }}>
- <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
- <span>✓</span>
- <span>You have the {user?.stripe_subscription_plan || planChoice || 'starter'} plan</span>
- </div>
- <button
- onClick={async () => {
- try {
- const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
- const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
- const { data: { session } } = await supabase.auth.getSession();
- const res = await fetch(`${supabaseUrl}/functions/v1/stripe-subscription`, {
- method: 'POST',
- headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session?.access_token}`, 'Apikey': supabaseAnonKey },
- body: JSON.stringify({ action: 'create_portal', return_url: window.location.href }),
- });
- const data = await res.json();
- if (data.url) { window.location.href = data.url; }
- else { alert('Could not open subscription management. Please contact support.'); }
- } catch { alert('Failed to open subscription management.'); }
- }}
- style={{
- fontSize: '0.75rem',
- padding: '4px 10px',
- background: 'rgba(80,180,100,0.2)',
- border: '1px solid rgba(80,180,100,0.4)',
- borderRadius: 6,
- color: '#a8d8b0',
- cursor: 'pointer',
- flexShrink: 0,
- }}
- >Edit</button>
- </div>
- ) : (
- <>
- <ul>
- <li>
- <input type="radio" name="plan" id="5-1" checked={planChoice === 'starter'} onChange={() => setPlanChoice('starter')} style={{ accentColor: brandColor }} />
- <label htmlFor="5-1">Starter - Free 1st month then $10/mo</label>
- </li>
- <li>
- <input type="radio" name="plan" id="5-2" checked={planChoice === 'pro'} onChange={() => setPlanChoice('pro')} style={{ accentColor: brandColor }} />
- <label htmlFor="5-2">Pro - $30/mo</label>
- </li>
- <li>
- <input type="radio" name="plan" id="5-3" checked={planChoice === 'agency'} onChange={() => setPlanChoice('agency')} style={{ accentColor: brandColor }} />
- <label htmlFor="5-3">Agency - $150/mo</label>
- </li>
- </ul>
- </>
- )}
- <br /><hr />
 
  {/* Payment */}
  <h1>Create your draft</h1>
@@ -1583,8 +1616,12 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
  >
    {stripeProcessing ? 'SAVING...' : 'CREATE DRAFT SITE'}
  </button>
-
- {/* Fixed bottom total banner */}
+ {/* David 2026-10-22: moved out of the removed "Total due today" banner
+     (that banner always showed a fictional charge -- Create Draft Site
+     never actually charges anything, payment happens later from the
+     sidebar) -- this is the only place handlePublish's validation errors
+     ("Please sign in", "Please enter a website name first") were shown. */}
+ {stripeError && <div className="popup-stripe-error">{stripeError}</div>}
 
  {/* David 2026-09-22: REMOVED (was here) — the embedded Stripe Payment Modal
      (showStripeModal / stripeClientSecret / stripePayMethod / <CheckoutForm>).
@@ -1609,42 +1646,8 @@ export function GetSite({ onComplete, onImported, onClose, scrapedProperty, scra
  </div>
  )}
 
- {/* Welcome modal — shown once the draft is saved (no payment yet) */}
- {showWelcomeModal && (
- <div className="popup-backdrop" style={{ background: 'rgba(0,0,0,0.85)', zIndex: 99999 }} onClick={(e) => { if (e.target === e.currentTarget) { setShowWelcomeModal(false); if (onClose) onClose(); } }}>
- <div className="popup-modal" style={{ maxWidth: 420, alignItems: 'center', textAlign: 'center', padding: '36px 40px' }} onClick={e => e.stopPropagation()}>
- <h1 style={{ fontSize: '1.4rem', fontWeight: 700, marginBottom: 14, color: '#fff', textTransform: 'none', letterSpacing: 0 }}>
- Welcome to {websiteName || 'your site'}
- </h1>
- <p style={{ color: 'rgba(255,255,255,0.65)', fontSize: '0.9rem', marginBottom: 24, lineHeight: 1.5 }}>
- Continue designing your site via the Edit button in the top nav, and add your site details in the sidebar — where you can also publish your site and republish it with updates.
- </p>
- <button
- onClick={() => { setShowWelcomeModal(false); if (onClose) onClose(); }}
- style={{ background: 'var(--brand, #C47756)', color: '#fff', border: 'none', borderRadius: 8, padding: '12px 32px', fontSize: '1rem', fontWeight: 600, cursor: 'pointer' }}
- >Got it</button>
- </div>
- </div>
+ </>
  )}
-
- <div className="popup-total-banner">
- <div className="popup-total-left">
- <div className="popup-total-label">Total due today</div>
- <div className="popup-total-subline">
- {hasScrape && <span className="popup-total-tag">+${scrapeFee} Airbnb scrape</span>}
- {hasScrape && hasPlan && <span className="popup-total-sep"> · </span>}
- {!hasPlan && <span className="popup-total-sep"> · Select a plan</span>}
- {hasPlan && `+$${monthlyTotal}/mo subscription`}
- </div>
- </div>
- <div className="popup-total-right">
- <div className="popup-total-amount">{displayedTotal === 0 ? 'Free today' : `$${displayedTotal}`}</div>
- <div className="popup-total-period">
- {monthlyTotal > 0 && TRIAL_CREDIT > 0 ? `+$${monthlyTotal}/mo after free month` : (monthlyTotal > 0 ? `+$${monthlyTotal}/mo` : (hasScrape ? 'due today' : ''))}
- </div>
- </div>
- {stripeError && <div className="popup-stripe-error">{stripeError}</div>}
- </div>
  </div>
  </div>
  )}

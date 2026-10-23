@@ -5,6 +5,7 @@ import { BarChart, Calendar, Users, DollarSign, ArrowUp, ArrowDown, Filter, Star
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../store/auth';
 import { EmailNotificationService } from '../services/emailService';
+import { describeInvokeError, errorMessage } from '../utils/bookingErrors';
 import AdminReviewManagement from '../components/AdminReviewManagement';
 import type { Booking, Property, Profile } from '../types';
 
@@ -140,23 +141,53 @@ export function AdminDashboard() {
         return;
       }
 
+      // David 2026-10-22: a booking can't be approved unless its property has
+      // an address on file -- that's what gets shown to the guest once
+      // confirmed, in the sidebar and the approval email. Denying still goes
+      // through for these (no address needed to turn a booking down); only
+      // approval is blocked, and the admin is told which ones were skipped.
+      // David 2026-10-22 (same day): "Allow coordinates to work as an address
+      // in our system if needed as my vacation rental doesn't have an address
+      // as it's off grid." A saved lat/long (location_type: 'coordinates')
+      // counts the same as a street address here.
+      let bookingIdsToProcess = selectedBookings;
+      if (status === 'approved') {
+        const missingAddress: string[] = [];
+        bookingIdsToProcess = selectedBookings.filter(id => {
+          const b = bookings.find(bk => bk.id === id);
+          const hasAddress = !!b?.property?.address?.trim();
+          const hasCoordinates = b?.property?.location_type === 'coordinates'
+            && b?.property?.latitude != null && b?.property?.longitude != null;
+          if (!hasAddress && !hasCoordinates) {
+            missingAddress.push(b?.property?.title || id);
+            return false;
+          }
+          return true;
+        });
+        if (missingAddress.length > 0) {
+          window.alert(`Can't approve: ${missingAddress.join(', ')} ${missingAddress.length === 1 ? 'has' : 'have'} no property address or coordinates on file yet. Add one in Website settings first.`);
+        }
+        if (bookingIdsToProcess.length === 0) return;
+      }
+
       // Auth-hold flow: capture (approve) or cancel (deny) each booking's held
       // payment before flipping its status. A booking with no payment intent yet
       // (guest never reached that step) comes back as { skipped: true } and still
       // proceeds. A booking whose hold genuinely can't be captured/canceled is
       // excluded from the status update below rather than silently marked approved/denied.
       const actionableBookingIds: string[] = [];
-      for (const bookingId of selectedBookings) {
+      for (const bookingId of bookingIdsToProcess) {
         try {
           const { data, error: fnError } = await supabase.functions.invoke('capture-booking-payment', {
             body: { bookingId, action: status === 'approved' ? 'capture' : 'cancel' },
           });
-          if (fnError) throw fnError;
-          if (data?.error) throw new Error(data.error);
+          if (fnError || data?.error) {
+            throw new Error((await describeInvokeError(fnError, data)) || 'Payment update failed');
+          }
           actionableBookingIds.push(bookingId);
         } catch (err) {
           console.error(`❌ Payment ${status === 'approved' ? 'capture' : 'cancel'} failed for booking ${bookingId}:`, err);
-          window.alert(`Couldn't ${status === 'approved' ? 'approve' : 'deny'} booking ${bookingId}: ${err instanceof Error ? err.message : 'payment action failed'}`);
+          window.alert(`Couldn't ${status === 'approved' ? 'approve' : 'deny'} booking ${bookingId}: ${errorMessage(err, 'payment action failed')}`);
         }
       }
       if (actionableBookingIds.length === 0) {
@@ -192,7 +223,7 @@ export function AdminDashboard() {
             
             if (status === 'approved') {
               console.log('Calling sendBookingApprovedEmail...');
-              await EmailNotificationService.sendBookingApprovedEmail({
+              const approvedEmailData = {
                 booking: {
                   start_date: booking.start_date,
                   end_date: booking.end_date,
@@ -202,8 +233,18 @@ export function AdminDashboard() {
                 },
                 user: booking.user,
                 property: booking.property
-              });
+              };
+              await EmailNotificationService.sendBookingApprovedEmail(approvedEmailData);
               console.log('✅ Approval email sent successfully');
+
+              // David 2026-10-18: ID-on-file follow-up now fires here --
+              // this is the point the booking is actually confirmed (card
+              // captured), not when the guest merely authorized it.
+              EmailNotificationService.sendIdRequestEmail(approvedEmailData).then(() => {
+                console.log('✅ ID request email sent successfully');
+              }).catch((idErr) => {
+                console.error('❌ Failed to send ID request email:', idErr);
+              });
             } else if (status === 'denied') {
               console.log('Calling sendBookingDenialEmail with reason:', denialReason);
               await EmailNotificationService.sendBookingDenialEmail({

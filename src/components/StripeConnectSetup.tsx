@@ -12,6 +12,48 @@ interface ConnectAccount {
   available_balance: number;
   pending_balance: number;
   currency: string;
+  requirements_past_due?: string[];
+  requirements_currently_due?: string[];
+}
+
+// David 2026-10-20: "build out the request for document uploads and automate
+// pass along" -- Stripe's own requirement codes (e.g.
+// "individual.verification.document") aren't something a host can read, and
+// up to now the only way to see them was David going into the Stripe
+// Dashboard directly (see the "Provide an identity document" screenshot).
+// This maps the common ones to plain English so they're visible right here,
+// with a fallback for anything unmapped so an unrecognized code still shows
+// something readable instead of breaking. Mirrors the same map in
+// supabase/functions/stripe-webhook/index.ts (duplicated, not shared --
+// different runtimes, short list).
+const REQUIREMENT_LABELS: Record<string, string> = {
+  'individual.verification.document': "A photo ID (driver's license, passport, or state ID)",
+  'individual.verification.additional_document': 'A second form of ID',
+  'individual.id_number': 'Your SSN or ID number',
+  'individual.dob.day': 'Your date of birth',
+  'individual.dob.month': 'Your date of birth',
+  'individual.dob.year': 'Your date of birth',
+  'individual.address.line1': 'Your home address',
+  'individual.address.city': 'Your home address',
+  'individual.address.state': 'Your home address',
+  'individual.address.postal_code': 'Your home address',
+  'individual.phone': 'Your phone number',
+  'individual.email': 'Your email address',
+  'individual.first_name': 'Your legal first name',
+  'individual.last_name': 'Your legal last name',
+  external_account: 'A bank account to receive payouts',
+  'tos_acceptance.date': "Accepting Stripe's terms of service",
+  'business_profile.url': 'A website or description of your rental business',
+  'business_profile.mcc': 'Your business category',
+  'company.tax_id': 'Your business tax ID (EIN)',
+  'company.verification.document': 'A business verification document',
+};
+
+function friendlyRequirement(code: string): string {
+  if (REQUIREMENT_LABELS[code]) return REQUIREMENT_LABELS[code];
+  const last = code.split('.').pop() || code;
+  const words = last.replace(/_/g, ' ');
+  return words.charAt(0).toUpperCase() + words.slice(1);
 }
 
 interface StripeConnectSetupProps {
@@ -29,6 +71,19 @@ async function getSession() {
 
 function fmt(cents: number) {
   return `$${(cents / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+function RequirementsList({ codes, dark }: { codes: string[]; dark: boolean }) {
+  if (codes.length === 0) return null;
+  const items = [...new Set(codes.map(friendlyRequirement))];
+  return (
+    <div className={`rounded-lg p-3 text-xs space-y-1.5 ${dark ? 'bg-red-950/40 border border-red-900 text-red-200' : 'bg-red-50 border border-red-200 text-red-700'}`}>
+      <p className="font-semibold">Stripe still needs:</p>
+      <ul className="list-disc list-inside space-y-0.5">
+        {items.map(item => <li key={item}>{item}</li>)}
+      </ul>
+    </div>
+  );
 }
 
 function StatusPill({ ok, label }: { ok: boolean; label: string }) {
@@ -280,13 +335,22 @@ export function StripeConnectSetup({ variant = 'sidebar', onAccountLinked }: Str
           </div>
         </div>
 
-        {!isFullySetup && (
+        <RequirementsList codes={account.requirements_past_due || []} dark={true} />
+
+        {/* David 2026-10-20: was gated on !isFullySetup alone -- an already-active
+            account that Stripe later asks for MORE from (the risk/volume-based
+            re-ask, not just initial onboarding) would show the requirements list
+            above with no button to act on it. Shows whenever there's something
+            outstanding, not just during initial setup. */}
+        {(!isFullySetup || (account.requirements_past_due?.length ?? 0) > 0) && (
           <button
             onClick={handleOnboard}
             disabled={onboarding}
             className="w-full border border-gray-600 hover:bg-gray-800 text-gray-300 text-sm font-semibold rounded-lg py-2.5 transition-colors disabled:opacity-50"
           >
-            {onboarding ? 'Redirecting...' : 'Complete Account Setup'}
+            {onboarding
+              ? 'Redirecting...'
+              : (account.requirements_past_due?.length ? 'Finish Verification' : 'Complete Account Setup')}
           </button>
         )}
 
@@ -369,13 +433,17 @@ export function StripeConnectSetup({ variant = 'sidebar', onAccountLinked }: Str
         </div>
       )}
 
-      {!isFullySetup && (
+      <RequirementsList codes={account.requirements_past_due || []} dark={false} />
+
+      {(!isFullySetup || (account.requirements_past_due?.length ?? 0) > 0) && (
         <button
           onClick={handleOnboard}
           disabled={onboarding}
           className="w-full border border-gray-300 hover:bg-gray-50 text-gray-700 text-sm font-semibold rounded-lg py-2 transition-colors disabled:opacity-50"
         >
-          {onboarding ? 'Redirecting...' : 'Complete Account Setup'}
+          {onboarding
+            ? 'Redirecting...'
+            : (account.requirements_past_due?.length ? 'Finish Verification' : 'Complete Account Setup')}
         </button>
       )}
 

@@ -150,10 +150,37 @@ Deno.serve(async (req: Request) => {
       const stripeKey = Deno.env.get("STRIPE_SECRET_KEY");
       if (!stripeKey) throw new Error("STRIPE_SECRET_KEY not configured");
 
+      // David 2026-10-21: "Once you have one site you can't get another with the same
+      // login... open subscription should let you choose 2nd tier that allows 2 sites."
+      // Dropped the old 'pro'/'agency' tiers -- PLANS (AdminSidebarBundle.tsx) never
+      // offered them (pruned to Starter-only back on 2026-09-22, since they were
+      // placeholder prices with no real Stripe Price behind them), so those branches
+      // were unreachable dead code. 'growth' replaces them: $25/mo, up to 2 sites.
+      //
+      // GROWTH_PRICE_ID is a placeholder -- run setup-growth-price ONCE (a one-time
+      // function, same pattern as sync-stripe-account-statuses), and paste the priceId
+      // it returns in here before deploying this file, or every Growth checkout will
+      // fail with an invalid-price error from Stripe.
+      //
+      // David 2026-10-22: Spotlight added the same way, $124.99/mo -- it's "Coming
+      // Soon" (an inert, unclickable button) in both the app and the landing page, so
+      // nothing calls this with plan: 'spotlight' yet. Wiring the real price now so
+      // flipping Spotlight on later is just a UI change, not another round-trip here.
+      //
+      // David 2026-10-22 (later same day): prices revised again -- Starter $10->$14.99,
+      // Growth $25->$24.99, Spotlight $124.99->$99.99. Starter is the one LIVE,
+      // purchasable tier, so its real price has to move too or checkout would still
+      // charge the old $10 while the UI shows $14.99. All three below are placeholders
+      // -- run setup-revised-tier-prices ONCE and paste its three priceIds in here.
+      // Existing Starter subscribers keep their original $10 price; this only affects
+      // new checkouts.
       const plan = body.plan || 'starter';
-      const priceId = plan === 'pro' ? 'price_1TfPfEK5ECFjIqP3XR3pnWBk'
-        : plan === 'agency' ? 'price_1TfPi0K5ECFjIqP3vq3VucLv'
-        : 'price_1TfPVpK5ECFjIqP3YR6XPpEG'; // starter default
+      const STARTER_PRICE_ID = 'price_1UTSahK5ECFjIqP3rfWlWju9';
+      const GROWTH_PRICE_ID = 'price_1UTSahK5ECFjIqP3FTtGEfxd';
+      const SPOTLIGHT_PRICE_ID = 'price_1UTSahK5ECFjIqP3wjKsYFSa';
+      const priceId = plan === 'growth' ? GROWTH_PRICE_ID
+        : plan === 'spotlight' ? SPOTLIGHT_PRICE_ID
+        : STARTER_PRICE_ID; // starter default
 
       // Use the return_url from the frontend if provided, otherwise fall back to propbook.pro.
       // Stripe will redirect the browser to this URL after payment.

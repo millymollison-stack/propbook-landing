@@ -775,7 +775,8 @@ export function Home({ isEditing: externalIsEditing, onHasChanges, registerSaveA
               dropped the separate white sticky header bar, floating close X
               via the shared .popup-close class, and the shared
               .modal-panel-light padding (same class the booking modal uses). */}
-          <div className="sb-panel-bg rounded-xl shadow-2xl max-w-[400px] w-full max-h-[90vh] overflow-y-auto modal-panel-light">
+          {/* David 2026-10-18: dropped max-h-[90vh] overflow-y-auto here -- same fix as the Booking Confirmed modal. This panel scrolling internally stranded the floating .popup-close X above the fold once review text pushed the form past the viewport; the surrounding fixed overlay already scrolls the whole modal, so the inner scroll was redundant and the actual cause. */}
+          <div className="sb-panel-bg rounded-xl shadow-2xl max-w-[400px] w-full modal-panel-light">
             <button
               onClick={() => setShowReviewModal(false)}
               aria-label="Close"

@@ -1,0 +1,26 @@
+# David 2026-10-17: Hostinger/LiteSpeed's default static-asset caching sends
+# "Cache-Control: public, max-age=604800" (7 days) for .js/.css under
+# /dev/assets/ -- the SHARED bundle every /props/<slug> property page loads.
+# Every property's published HTML bakes in a FROZEN ?v=... query string at
+# publish time and never updates it on later deploys (see deploy_dev.py's
+# own closing note), so once any browser (David's own test browser
+# included) has loaded a given property's exact script URL once, it will
+# keep serving that now-stale cached JS for up to 7 days -- completely
+# independent of Cloudflare purges and regardless of how many times
+# deploy_dev.py uploads fresh code to the server. This is the real root
+# cause behind the repeated "I deployed the fix and it's still not working"
+# reports today (amenities, dropdown text, image gallery). Fix: force every
+# load of these two files to revalidate with the server (a cheap 304 when
+# unchanged, the real fresh file when it's not) instead of trusting a
+# week-old local cache.
+<IfModule mod_headers.c>
+  <FilesMatch "\.(js|css)$">
+    Header set Cache-Control "no-cache, must-revalidate"
+  </FilesMatch>
+</IfModule>
+<IfModule mod_expires.c>
+  <FilesMatch "\.(js|css)$">
+    ExpiresActive On
+    ExpiresDefault "access"
+  </FilesMatch>
+</IfModule>

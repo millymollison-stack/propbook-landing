@@ -108,6 +108,14 @@ const UserBookings = memo(function UserBookings({ bookings, onUpdateStatus, onRe
     const statusConfig = {
       paid: { icon: Check, bg: 'bg-green-100', text: 'text-green-800', label: 'Paid' },
       pending: { icon: Clock, bg: 'bg-yellow-100', text: 'text-yellow-800', label: 'Payment Pending' },
+      // David 2026-10-19: these two were missing -- PaymentStatus gained
+      // 'authorized'/'canceled' with the auth-hold flow (card held, not
+      // charged, pending host approval / hold released), but this badge's
+      // own config was never updated to match, so both silently fell
+      // through to the generic "Unknown" badge below. That's what made a
+      // perfectly normal pending/authorized booking look broken here.
+      authorized: { icon: Clock, bg: 'bg-yellow-100', text: 'text-yellow-800', label: 'Card Held' },
+      canceled: { icon: X, bg: 'bg-gray-100', text: 'text-gray-800', label: 'Hold Released' },
       unpaid: { icon: AlertCircle, bg: 'bg-gray-100', text: 'text-gray-800', label: 'Unpaid' },
       refunded: { icon: CreditCard, bg: 'bg-blue-100', text: 'text-blue-800', label: 'Refunded' },
       failed: { icon: X, bg: 'bg-red-100', text: 'text-red-800', label: 'Payment Failed' }
@@ -240,24 +248,62 @@ const UserBookings = memo(function UserBookings({ bookings, onUpdateStatus, onRe
             )}
 
             {isAdmin && booking.status === 'pending' && (
-              <div className="mt-4 flex justify-center space-x-3">
-                <button
-                  onClick={() => handleStatusUpdate(booking.id, 'approved')}
-                  disabled={isUpdating}
-                  className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 disabled:bg-green-400"
-                >
-                  <Check className="h-4 w-4 mr-1" />
-                  {isUpdating ? 'Updating...' : 'Approve'}
-                </button>
-                <button
-                  onClick={() => setShowDenialModal(booking.id)}
-                  disabled={isUpdating}
-                  className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-red-600 hover:bg-red-700 disabled:bg-red-400"
-                >
-                  <X className="h-4 w-4 mr-1" />
-                  Deny
-                </button>
-              </div>
+              showDenialModal === booking.id ? (
+                <div className="mt-4 rounded-md border border-red-200 bg-red-50 p-3 space-y-2">
+                  <label className="block text-xs font-medium text-gray-700">
+                    Reason for denial (included in the guest's email)
+                  </label>
+                  <textarea
+                    rows={2}
+                    autoFocus
+                    className="shadow-sm focus:ring-[var(--brand)] focus:border-[#C47756] block w-full sm:text-sm border-gray-300 rounded-md"
+                    placeholder="Optional -- e.g. dates no longer available"
+                    value={denialReason}
+                    onChange={(e) => setDenialReason(e.target.value)}
+                  />
+                  <div className="flex justify-end gap-2">
+                    <button
+                      type="button"
+                      disabled={isUpdating}
+                      className="inline-flex items-center px-3 py-1.5 rounded-md border border-gray-300 bg-white text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                      onClick={() => { setShowDenialModal(null); setDenialReason(''); }}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isUpdating}
+                      className="inline-flex items-center px-3 py-1.5 rounded-md bg-red-600 text-white text-xs font-medium hover:bg-red-700 disabled:opacity-50"
+                      onClick={() => {
+                        handleStatusUpdate(booking.id, 'denied', denialReason);
+                        setShowDenialModal(null);
+                        setDenialReason('');
+                      }}
+                    >
+                      {isUpdating ? 'Updating...' : 'Confirm Denial'}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="mt-4 flex justify-center space-x-3">
+                  <button
+                    onClick={() => handleStatusUpdate(booking.id, 'approved')}
+                    disabled={isUpdating}
+                    className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 disabled:bg-green-400"
+                  >
+                    <Check className="h-4 w-4 mr-1" />
+                    {isUpdating ? 'Updating...' : 'Approve'}
+                  </button>
+                  <button
+                    onClick={() => setShowDenialModal(booking.id)}
+                    disabled={isUpdating}
+                    className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-red-600 hover:bg-red-700 disabled:bg-red-400"
+                  >
+                    <X className="h-4 w-4 mr-1" />
+                    Deny
+                  </button>
+                </div>
+              )
             )}
 
             {isAdmin && booking.status === 'denied' && booking.payment_status === 'paid' && (
@@ -276,64 +322,6 @@ const UserBookings = memo(function UserBookings({ bookings, onUpdateStatus, onRe
         ))}
       </div>
 
-      {/* Denial Reason Modal */}
-      {showDenialModal && (
-        <div className="fixed inset-0 z-50 overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
-          <div className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-            <div
-              className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity"
-              aria-hidden="true"
-              onClick={() => { setShowDenialModal(null); setDenialReason(''); }}
-            ></div>
-            <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
-            <div className="inline-block align-bottom sb-panel-bg rounded-lg px-4 pt-5 pb-4 text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full sm:p-6">
-              <div>
-                <div className="mt-3 text-center sm:mt-5">
-                  <h3 className="h4-on-light leading-6" id="modal-title">
-                    Provide Reason for Denial
-                  </h3>
-                  <div className="mt-2">
-                    <textarea
-                      rows={4}
-                      className="shadow-sm focus:ring-[var(--brand)] focus:border-[#C47756] block w-full sm:text-sm border-gray-300 rounded-md"
-                      placeholder="Enter reason for denying the booking..."
-                      value={denialReason}
-                      onChange={(e) => setDenialReason(e.target.value)}
-                    />
-                  </div>
-                </div>
-              </div>
-              <div className="mt-5 sm:mt-6 sm:grid sm:grid-cols-2 sm:gap-3 sm:grid-flow-row-dense">
-                <button
-                  type="button"
-                  disabled={isUpdating}
-                  className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 sm:col-start-2 sm:text-sm"
-                  onClick={() => {
-                    if (showDenialModal) {
-                      handleStatusUpdate(showDenialModal, 'denied', denialReason);
-                      setShowDenialModal(null);
-                      setDenialReason('');
-                    }
-                  }}
-                >
-                  {isUpdating ? 'Updating...' : 'Confirm Denial'}
-                </button>
-                <button
-                  type="button"
-                  disabled={isUpdating}
-                  className="mt-3 sm:mt-0 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[var(--brand)] sm:col-start-1 sm:text-sm"
-                  onClick={() => {
-                    setShowDenialModal(null);
-                    setDenialReason('');
-                  }}
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 });

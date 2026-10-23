@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../store/auth';
 import { supabase } from '../lib/supabase';
 import { EmailNotificationService } from '../services/emailService';
+import { describeInvokeError, errorMessage } from '../utils/bookingErrors';
 import UserBookings from './UserBookings';
 import type { Booking, Property, Profile } from '../types';
 
@@ -168,8 +169,9 @@ export function UserMenu() {
       const { data: paymentResult, error: fnError } = await supabase.functions.invoke('capture-booking-payment', {
         body: { bookingId, action: status === 'approved' ? 'capture' : 'cancel' },
       });
-      if (fnError) throw fnError;
-      if (paymentResult?.error) throw new Error(paymentResult.error);
+      if (fnError || paymentResult?.error) {
+        throw new Error((await describeInvokeError(fnError, paymentResult)) || 'Payment update failed');
+      }
 
       const { error } = await supabase
         .from('bookings')
@@ -223,7 +225,7 @@ export function UserMenu() {
 
       await loadBookings();
     } catch (err) {
-      setBookingError(err instanceof Error ? err.message : 'Failed to update booking status');
+      setBookingError(errorMessage(err, 'Failed to update booking status'));
     } finally {
       setBookingsLoading(false);
     }

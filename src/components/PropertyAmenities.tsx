@@ -102,10 +102,28 @@ function CollapsibleSection({ title, content, isEditing, isOpen, onToggle, onHas
           // the button first stops it from taking over, then we drive the
           // scroll ourselves once the new content has rendered, pinning the
           // section's own top edge instead of guessing at a middle.
+          //
+          // David 2026-10-21 follow-up: "click near, not necessarily on a
+          // dropdown menu [and] the scroll effect is temporarily locked from
+          // moving until you touch the screen in a different quadrant" -- a
+          // `behavior: 'smooth'` scrollIntoView runs as its own animation
+          // over several frames, and on mobile a touch-scroll gesture
+          // started in that same region while the animation is still
+          // running fights the browser's own programmatic scroll instead of
+          // taking over, which reads as "locked" until you touch somewhere
+          // the animation isn't actively fighting you. Two changes: skip the
+          // correction entirely when the section's top is already close
+          // enough to the viewport top (most taps don't need correcting at
+          // all), and use an instant jump instead of an animated one when a
+          // correction genuinely is needed, so there's no multi-frame window
+          // left for a touch-scroll to collide with.
           e.currentTarget.blur();
           onToggle();
           requestAnimationFrame(() => {
-            sectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            const rect = sectionRef.current?.getBoundingClientRect();
+            if (rect && Math.abs(rect.top) > 24) {
+              sectionRef.current?.scrollIntoView({ behavior: 'auto', block: 'start' });
+            }
           });
         }}
         className="dropdown-header"
@@ -161,22 +179,45 @@ export function PropertyAmenities({ property, isEditing, onHasChanges, onUpdate,
     Array.isArray(property.amenities) && property.amenities.length ? property.amenities : defaultAmenities
   );
 
+  // David 2026-10-17: surfhousebaja was showing the generic 8-item default
+  // list instead of the real 10 amenities saved in the DB. Root cause: the
+  // useState above only runs its initializer on this component's FIRST
+  // mount -- it never re-runs when the `property` prop changes later. On a
+  // public page load, CustomerSite first renders from the baked, possibly
+  // stale window.__PROPERTY_DATA__ snapshot (amenities often [] at publish
+  // time), then corrects `property` a moment later from a live DB fetch.
+  // That correction lands in the prop just fine, but selectedAmenities had
+  // already locked onto `defaultAmenities` at mount and never picked it up.
+  // This effect re-syncs selectedAmenities whenever the incoming amenities
+  // actually change, skipped while actively editing so it can't clobber an
+  // in-progress selection (same isEditing guard already used elsewhere for
+  // this exact class of bug -- see stability-plan-2026-09-22.md).
+  const amenitiesKey = JSON.stringify(property.amenities ?? []);
+  useEffect(() => {
+    if (isEditing) return;
+    const incoming = Array.isArray(property.amenities) && property.amenities.length ? property.amenities : defaultAmenities;
+    setSelectedAmenities(incoming);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [amenitiesKey, isEditing]);
+
   // In edit mode: show selector directly, no display below
   // In view mode: show only selected amenities
   const displayAmenities = ALL_AMENITIES.filter(a => selectedAmenities.includes(a.name));
 
   const toggleAmenity = (name: string) => {
-    setSelectedAmenities(prev => {
-      if (prev.includes(name)) {
-        return prev.filter(a => a !== name);
-      }
-      // Allow up to 12
-      if (prev.length >= 12) {
-        return prev;
-      }
-      return [...prev, name];
-    });
+    const isSelected = selectedAmenities.includes(name);
+    // Allow up to 12
+    if (!isSelected && selectedAmenities.length >= 12) return;
+    const next = isSelected ? selectedAmenities.filter(a => a !== name) : [...selectedAmenities, name];
+    setSelectedAmenities(next);
     onHasChanges?.(true);
+    // Save immediately -- same already-working onUpdate() save path used by
+    // the Property Details/Activities/Local Area/Getting There sections and
+    // LocationMap below. Previously this only updated local state, so
+    // amenity selections never reached the database (David reported
+    // selections not sticking after Save/republish -- the DB's `amenities`
+    // column was stuck at [] since September).
+    onUpdate?.({ amenities: next })?.catch(err => console.error('Failed to save amenities:', err));
   };
 
   // Save to database when called (from Save Now button)

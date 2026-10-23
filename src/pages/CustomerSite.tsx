@@ -5,7 +5,7 @@
  * No onboarding popup — this is the public-facing published site
  */
 
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { X } from 'lucide-react';
 import { useParams } from 'react-router-dom';
 import { Login } from './Login';
@@ -15,6 +15,7 @@ import { useAuth } from '../store/auth';
 import { useProperty } from '../store/property';
 import { applyFontAccentFromServer } from '../lib/fontAccent';
 import { applyBrandColorFromServer } from '../lib/brandColor';
+import { resetAppearanceEdited } from '../lib/appearanceGuard';
 import type { Property, PropertyImage, Booking, BlockedDate } from '../types';
 import { ImageGallery } from '../components/ImageGallery';
 import { PropertyDetails } from '../components/PropertyDetails';
@@ -129,11 +130,19 @@ function handleStripeRedirect() {
   });
 }
 
-export function CustomerSite({ onSiteNameChange, isEditing: externalIsEditing, registerSaveAll, onPropertyLoaded, scrapedProperty, scrapedImages, urlSlug: urlSlugProp }: {
+export function CustomerSite({ onSiteNameChange, isEditing: externalIsEditing, registerSaveAll, onPropertyLoaded, onHasChanges, scrapedProperty, scrapedImages, urlSlug: urlSlugProp }: {
   onSiteNameChange?: (name: string) => void;
   isEditing?: boolean;
   registerSaveAll?: (fn: () => Promise<void>) => boolean;
   onPropertyLoaded?: (ownerId: string | null, propertyId: string | null) => void;
+  // Reports dirty-field edits up to App.tsx's hasChanges state, same as
+  // Home.tsx -- this is what makes the nav's pulsing "Save Now" button (the
+  // only thing that actually flushes dirtyFieldsRef via registerSaveAll)
+  // appear at all. CustomerSite never received this prop before, so even
+  // after trackDirty started accumulating edits, nothing ever triggered the
+  // flush: clicking plain "Save" just closed edit mode via onToggleEdit,
+  // which never calls handleSaveAll/saveAllRef.current().
+  onHasChanges?: (hasChanges: boolean) => void;
   scrapedProperty?: Partial<Property> | null;
   scrapedImages?: { id: string; url: string; position: number }[];
   urlSlug?: string;
@@ -273,6 +282,13 @@ export function CustomerSite({ onSiteNameChange, isEditing: externalIsEditing, r
   //   3. slug (useParams)      — ALWAYS undefined when basename=/props/<slug> is active
   // ═══════════════════════════════════════════════════════════════════════════════
   useEffect(() => {
+    // David 2026-10-22: reset the "user has made a manual appearance pick"
+    // guard every time this effect (re)runs for a (possibly new) slug --
+    // without this, a font/color picked while editing a DIFFERENT property
+    // earlier in this same browser tab stayed flagged "edited" forever,
+    // silently blocking THIS property's own saved brand_color/font_accent
+    // from ever applying below. Each property's page load now starts fresh.
+    resetAppearanceEdited();
     async function loadProperty() {
       try {
         // ── Fast-path: use window.__PROPERTY_DATA__ if available (set by published HTML) ──
@@ -319,6 +335,24 @@ export function CustomerSite({ onSiteNameChange, isEditing: externalIsEditing, r
               if (imgErr || !imgRows) return;
               const bg = imgRows.filter((img: PropertyImage) => (img as any).is_background).slice(0, 2);
               if (bg.length > 0) setBackgroundImages(bg);
+              // David 2026-10-17: this fetch only ever used its result to populate
+              // backgroundImages, never the main gallery list -- so `images` stayed
+              // on the synthetic img-${i} ids derived from the baked, publish-time
+              // properties.images array FOREVER, even once real property_images rows
+              // existed from an earlier edit. That's what made handleImageUpdate's
+              // "promote the whole array into property_images" branch re-fire on
+              // every fresh page load an admin clicked a tag on -- it only checks
+              // whether the CLICKED image's id starts with "img-", not whether real
+              // rows already exist -- producing duplicate/triplicate rows per image
+              // across sessions ("I just re-clicked image placement assignments...
+              // every image I edited now has a new duplicate or triplicate"). Once
+              // real rows exist, switch the gallery over to them so later clicks use
+              // their real ids and go through the plain single-row UPDATE path
+              // instead. Skipped while actively editing so it can't clobber
+              // in-progress selections.
+              if (imgRows.length > 0 && !isEditing) {
+                setImages(imgRows as PropertyImage[]);
+              }
             }).catch(() => {});
           document.title = cached.name || cached.property_headline || cached.property_title || '@' + slug;
           onSiteNameChange?.(document.title);
@@ -335,19 +369,28 @@ export function CustomerSite({ onSiteNameChange, isEditing: externalIsEditing, r
             .catch(() => {});
           // David 2026-09-22: window.__PROPERTY_DATA__ is baked into this property's
           // HTML at PUBLISH time and never touched again -- every edit saved via
-          // handlePropertyUpdate (headline, description, price, bed/bath/guest counts)
-          // writes straight to the `properties` row, but this cached object -- what the
-          // fast path above renders from on every single page load -- keeps showing
-          // whatever was true when the page was last published. Confirmed live: DB had
-          // "West London House" while the baked headline still said "Welcome to your
-          // next Perfect" from an earlier publish. This is the actual root cause behind
-          // "I changed the headline and it didn't save" -- the save worked every time,
-          // the page just never re-checked. Fetch the live row in the background and
-          // correct the content fields once it lands (skipped if the admin is already
-          // editing, so an in-progress edit can't be clobbered by a slightly-stale
-          // correction landing mid-type).
+          // handlePropertyUpdate writes straight to the `properties` row, but this
+          // cached object -- what the fast path above renders from on every single
+          // page load -- keeps showing whatever was true when the page was last
+          // published. Confirmed live: DB had "West London House" while the baked
+          // headline still said "Welcome to your next Perfect" from an earlier
+          // publish. This is the actual root cause behind "I changed the headline
+          // and it didn't save" -- the save worked every time, the page just never
+          // re-checked. Fetch the live row in the background and correct the content
+          // fields once it lands (skipped if the admin is already editing, so an
+          // in-progress edit can't be clobbered by a slightly-stale correction
+          // landing mid-type).
+          //
+          // David 2026-10-17: the select() below originally listed only
+          // headline/title/description/price/bed/bath/guest counts, so the
+          // PropertyAmenities dropdowns (property_details, activities, local_area,
+          // getting_there) and amenities kept rendering the stale baked snapshot
+          // even after a successful save+republish -- this is what was reported as
+          // "updated the dropdown text and it did not stick" on ravenswortha14.
+          // Added those fields (plus property_intro) to the revalidation select so
+          // they get corrected the same way headline/description already were.
           supabase.from('properties')
-            .select('property_headline, property_title, title, name, description, price_per_night, bedrooms, beds, bathrooms, max_guests')
+            .select('property_headline, property_title, title, name, description, price_per_night, bedrooms, beds, bathrooms, max_guests, amenities, property_details, activities, local_area, getting_there, property_intro')
             .eq('id', cached.id)
             .single()
             .then(({ data: freshProp, error: freshErr }) => {
@@ -360,13 +403,29 @@ export function CustomerSite({ onSiteNameChange, isEditing: externalIsEditing, r
               });
             }).catch(() => {});
           // Fetch owner_id in background so isAdmin re-evaluates correctly
+          //
+          // David 2026-10-17: this was the actual reason the amenities (and
+          // property_details/activities/local_area/getting_there) correction
+          // fetch right above never visibly took effect, even once it was
+          // deployed. This callback rebuilt `property` straight from the
+          // ORIGINAL stale `cached` snapshot via setProperty(updated) --
+          // not a functional update merged onto the latest state -- so
+          // whichever of these two background fetches resolved LAST simply
+          // overwrote whatever the other one had just corrected. Since this
+          // one is a single-column query, it usually finishes after the
+          // bigger multi-field correction and silently reverted the page
+          // back to the stale baked content. Fixed to merge onto the
+          // current state the same way the correction fetch does, instead
+          // of discarding it.
           if (!cached.owner_id) {
             supabase.from('properties').select('owner_id').eq('id', cached.id).limit(1).single()
               .then(({ data: ownerData }) => {
                 if (ownerData?.owner_id) {
-                  const updated = { ...cached, owner_id: ownerData.owner_id } as Property;
-                  setProperty(updated);
-                  useProperty.getState().setActiveProperty(updated);
+                  setProperty(prev => {
+                    const updated = { ...(prev || cached), owner_id: ownerData.owner_id } as Property;
+                    useProperty.getState().setActiveProperty(updated);
+                    return updated;
+                  });
                   onPropertyLoaded?.(ownerData.owner_id, cached.id);
                 }
               }).catch(() => {});
@@ -586,6 +645,41 @@ export function CustomerSite({ onSiteNameChange, isEditing: externalIsEditing, r
     // edited as part of the same insert, then switch this property over to
     // the table (the source of truth) from here on.
     if (imageId.startsWith('img-')) {
+      // David 2026-10-17: this branch used to promote unconditionally on
+      // every click whose id still had the synthetic "img-N" shape -- but
+      // that shape comes back on every fresh page load (the fast path
+      // always derives it from the baked properties.images array), with no
+      // check for whether property_images had ALREADY been promoted in an
+      // earlier session. Result: every edit session after the first
+      // re-inserted the entire image array as brand-new rows -- duplicate,
+      // sometimes triplicate+ copies per image -- and silently reset every
+      // OTHER image's tags back to the i===0 default pattern, wiping out
+      // whatever featured/background/main choices had been made earlier.
+      // Fix: check for real rows first. If they already exist, update the
+      // one matching row directly (exactly like the non-"img-" path below)
+      // instead of re-promoting the whole array.
+      const { data: existingRows } = await supabase
+        .from('property_images')
+        .select('*')
+        .eq('property_id', property.id)
+        .order('position');
+      if (existingRows && existingRows.length > 0) {
+        const idx = parseInt(imageId.replace('img-', ''), 10);
+        const currentImages: string[] = property.images || [];
+        const targetUrl = currentImages[idx];
+        const target = existingRows.find((r: any) => r.url === targetUrl) || existingRows[idx];
+        if (!target) {
+          console.error('[handleImageUpdate] Could not match synthetic id to an existing property_images row; skipping rather than risk a duplicate insert.');
+          setImages(existingRows as PropertyImage[]);
+          return;
+        }
+        await supabase.from('property_images').update(updates).eq('id', target.id);
+        const next = existingRows.map((r: any) => r.id === target.id ? { ...r, ...updates } : r);
+        setImages(next as PropertyImage[]);
+        setBackgroundImages((next as PropertyImage[]).filter(img => (img as any).is_background).slice(0, 2));
+        return;
+      }
+
       const idx = parseInt(imageId.replace('img-', ''), 10);
       const currentImages: string[] = property.images || [];
       if (idx < 0 || idx >= currentImages.length) return;
@@ -638,11 +732,28 @@ export function CustomerSite({ onSiteNameChange, isEditing: externalIsEditing, r
   const imageGallerySaveRef = useRef<(() => Promise<void>) | null>(null);
   const handleRegisterSaveHandler = (fn: () => Promise<void>) => { imageGallerySaveRef.current = fn; return true; };
 
+  // Accumulate dropdown-section text edits (Property Details/Activities/Local
+  // Area/Getting There) here; cleared after each Save All. Same pattern as
+  // Home.tsx's dirtyFieldsRef/trackDirty -- CustomerSite never had this wired
+  // up, so PropertyAmenities' CollapsibleSections had nowhere to send their
+  // trackDirty() calls and those edits silently never reached the database.
+  const dirtyFieldsRef = useRef<Partial<Property>>({});
+  const trackDirty = useCallback((updates: Partial<Property>) => {
+    Object.assign(dirtyFieldsRef.current, updates);
+    onHasChanges?.(true);
+  }, [onHasChanges]);
+
   // Register saveAll so Layout Save button flushes image gallery changes
+  // and any accumulated dropdown-section text edits.
   useEffect(() => {
     if (!registerSaveAll) return;
     registerSaveAll(async () => {
       if (imageGallerySaveRef.current) await imageGallerySaveRef.current();
+      const dirty = dirtyFieldsRef.current;
+      if (Object.keys(dirty).length > 0) {
+        await handlePropertyUpdate(dirty);
+        dirtyFieldsRef.current = {};
+      }
     });
   }, [registerSaveAll]);
 
@@ -735,8 +846,9 @@ export function CustomerSite({ onSiteNameChange, isEditing: externalIsEditing, r
             <PropertyAmenities
               property={property}
               isEditing={isEditing}
-              onHasChanges={undefined}
+              onHasChanges={isAdmin ? onHasChanges : undefined}
               onUpdate={isAdmin ? handlePropertyUpdate : async () => {}}
+              trackDirty={isAdmin ? trackDirty : undefined}
             />
             <div id="calendar-section" className="amenities-content pb-5">
               <BookingCalendar
@@ -783,7 +895,8 @@ export function CustomerSite({ onSiteNameChange, isEditing: externalIsEditing, r
               class (same system as the auth modal / booking modal) instead
               of a bordered header strip, and the panel uses the same
               .modal-panel-light padding as the booking modal. */}
-          <div className="sb-panel-bg rounded-xl shadow-2xl max-w-[400px] w-full max-h-[90vh] overflow-y-auto modal-panel-light">
+          {/* David 2026-10-18: dropped max-h-[90vh] overflow-y-auto here -- same fix as the Booking Confirmed modal. This panel scrolling internally stranded the floating .popup-close X above the fold once review text pushed the form past the viewport; the surrounding fixed overlay already scrolls the whole modal, so the inner scroll was redundant and the actual cause. */}
+          <div className="sb-panel-bg rounded-xl shadow-2xl max-w-[400px] w-full modal-panel-light">
             <button
               onClick={() => setShowReviewModal(false)}
               aria-label="Close"

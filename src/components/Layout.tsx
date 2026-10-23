@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Share, User, X } from 'lucide-react';
+import { Share, User, X, Check } from 'lucide-react';
 import { useAuth } from '../store/auth';
 import { useProperty } from '../store/property';
 import ColorPicker from './ColorPicker';
@@ -121,16 +121,19 @@ export function Layout({ children, isEditing, onToggleEdit, hasChanges, onSaveCh
   };
 
   return (
-    // David: double scrollbar on the right, present on every page load
-    // regardless of sidebar state -- root cause is here, not the sidebar.
-    // `overflow-x-hidden` with no overflow-y set makes the CSS spec compute
-    // overflow-y as `auto` on this element too (a UA cannot leave one axis
-    // `visible` while the other is not). Any child bleeding even 1px past
-    // this div's bottom (normal with min-h-screen + flex-col) then makes
-    // *this div* its own scroll container, with its own scrollbar, right
-    // next to the real document scrollbar. `overflow-y-visible` forces
-    // vertical scrolling back onto the document only.
-    <div className="min-h-screen flex flex-col overflow-x-hidden overflow-y-visible">
+    // David 2026-10-23: the overflow-x-hidden/overflow-y-visible pairing
+    // that used to live here never actually worked -- confirmed live via
+    // devtools that this div's COMPUTED overflow-y was still "auto", not
+    // "visible". The CSS spec forces exactly that whenever overflow-x and
+    // overflow-y differ and one of them is `visible` on the SAME element,
+    // so there was no combination of utility classes on this one div that
+    // could satisfy both "clip horizontal overflow" and "never become its
+    // own scroll container" at once. Real fix: overflow-x:hidden moved to
+    // html/body (src/index.css) -- the actual document scrolling element,
+    // where it's harmless -- and this div now sets no overflow property at
+    // all, so min-h-screen content running a few px past 100vh (normal)
+    // can never turn it into a second scrollbar next to the real one.
+    <div className="min-h-screen flex flex-col">
       <header className="site-nav-header header-transparent">
         <nav className="site-nav-shell">
           <a href={window.location.pathname} className="site-nav-brand">
@@ -216,11 +219,11 @@ export function Layout({ children, isEditing, onToggleEdit, hasChanges, onSaveCh
       {showPublishWelcome && (
         <div className="popup-backdrop" style={{ background: 'rgba(0,0,0,0.85)', zIndex: 99999 }} onClick={(e) => { if (e.target === e.currentTarget) setShowPublishWelcome(false); }}>
           <div className="popup-modal" style={{ maxWidth: 420, alignItems: 'center', textAlign: 'center', padding: '36px 40px' }} onClick={e => e.stopPropagation()}>
-            <h1 style={{ fontSize: '1.4rem', fontWeight: 700, marginBottom: 14, color: '#fff', textTransform: 'none', letterSpacing: 0 }}>
-              Welcome to {siteName || 'your site'}
+            <h1 style={{ marginBottom: 14 }}>
+              Your Site Is Published!
             </h1>
             <p style={{ color: 'rgba(255,255,255,0.65)', fontSize: '0.9rem', marginBottom: 24, lineHeight: 1.5 }}>
-              Continue designing your site via the Edit button in the top nav, and add your site details in the sidebar — where you can also publish your site and republish it with updates.
+              Edit the details in sidebar sections. Add your payout bank account, full property address and social accounts to be ready to take bookings and get paid.
             </p>
             <button
               onClick={() => setShowPublishWelcome(false)}
@@ -270,7 +273,19 @@ export function Layout({ children, isEditing, onToggleEdit, hasChanges, onSaveCh
             >
               {displaySiteUrl}
             </div>
-            {linkCopied && <p className="cs-share-copied">Link copied!</p>}
+            {/* David 2026-10-21: "when you click the link in the share popup, have it
+                automatically copy the url contents to clipboard, show a system
+                notification once copied" -- tapping the box already copied the URL
+                (handleCopySiteUrl above), it just surfaced as a small line of text
+                sitting under the box, easy to miss on a phone. Floating toast instead:
+                pinned over the popup so it reads the way a native "Copied" notification
+                would, instead of a push-down text line. */}
+            {linkCopied && (
+              <div className="cs-share-toast" role="status">
+                <Check className="h-4 w-4" />
+                <span>Copied to clipboard</span>
+              </div>
+            )}
           </div>
         </div>
       )}

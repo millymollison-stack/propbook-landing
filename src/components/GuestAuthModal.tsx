@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { X, Loader } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { createGuestProfile } from '../services/guestService';
+import { AccountEmailService } from '../services/accountEmailService';
 
 interface GuestAuthModalProps {
   isOpen: boolean;
@@ -18,6 +19,7 @@ export function GuestAuthModal({ isOpen, onClose, propertyId, onSuccess }: Guest
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [welcomeEmailSent, setWelcomeEmailSent] = useState(false);
 
   if (!isOpen) return null;
 
@@ -46,6 +48,18 @@ export function GuestAuthModal({ isOpen, onClose, propertyId, onSuccess }: Guest
 
         // Associate this user with the property as a guest
         await createGuestProfile(propertyId, { name: name.trim(), email: email.trim() });
+
+        // David 2026-10-19: informational "you're in our system, here's
+        // how to find us again" email -- not a verification step, and
+        // never blocks signup. Awaited (not fire-and-forget) only so the
+        // success screen below can honestly say whether it actually went
+        // out instead of assuming it did.
+        const sent = await AccountEmailService.sendGuestSignupEmail({
+          email: email.trim(),
+          fullName: name.trim(),
+          propertyId,
+        });
+        setWelcomeEmailSent(sent);
       } else {
         if (!email.trim()) throw new Error('Email is required');
         if (!password) throw new Error('Password is required');
@@ -65,7 +79,7 @@ export function GuestAuthModal({ isOpen, onClose, propertyId, onSuccess }: Guest
       setTimeout(() => {
         onSuccess?.();
         onClose();
-      }, 1200);
+      }, mode === 'signup' ? 1800 : 1200);
     } catch (err: any) {
       setError(err.message || 'An error occurred');
     } finally {
@@ -102,6 +116,9 @@ export function GuestAuthModal({ isOpen, onClose, propertyId, onSuccess }: Guest
               <p className="body-on-light font-medium">
                 {mode === 'signup' ? 'Account created!' : 'Welcome back!'}
               </p>
+              {mode === 'signup' && welcomeEmailSent && (
+                <p className="body-on-light mt-1 text-sm">We've sent a confirmation to {email.trim()}.</p>
+              )}
               <p className="body-on-light mt-1">Redirecting...</p>
             </div>
           ) : (

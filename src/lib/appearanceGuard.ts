@@ -17,3 +17,19 @@ export function markAppearanceEdited() {
 export function hasAppearanceBeenEdited() {
   return edited;
 }
+
+// David 2026-10-22: "the font and color is decided by the admin and should
+// then be displayed with that color and font for everyone... not something
+// that is effected by who is looking at the site." Without this, `edited`
+// stayed true for the rest of the browser tab's life once ANYONE touched
+// the picker on ANY property (most often the owner, while building their
+// own site) -- so navigating to a different property in the same tab, or
+// just reloading later, could permanently block that OTHER property's own
+// saved font/color from ever applying, leaving whatever was last manually
+// picked stuck on screen instead. Call this once, before applying a
+// property's saved appearance, whenever a page starts loading a (possibly
+// different) property -- it only protects an in-progress, unsaved pick for
+// the remainder of THAT property's current view, never across a switch.
+export function resetAppearanceEdited() {
+  edited = false;
+}

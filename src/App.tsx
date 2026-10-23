@@ -196,8 +196,19 @@ function AppContent() {
 
   useEffect(() => {
     initialize();
-    loadBrandColor();
-    loadFontAccent();
+    // David 2026-10-22: these two restore THIS BROWSER's last-used editor
+    // pick from localStorage -- useful for resuming an in-progress edit on
+    // /app, but wrong on a public property page, where the only source of
+    // truth is that property's own saved brand_color/font_accent (applied
+    // separately, per-property, inside CustomerSite/Home). Running them
+    // unconditionally let an unrelated earlier edit on this device --
+    // on ANY property -- flash in and bleed into whatever a guest saw
+    // before the real per-property value loaded a moment later.
+    const onPropertyPage = window.location.pathname.startsWith('/props/') || !!(window as any).__PROPERTY_DATA__;
+    if (!onPropertyPage) {
+      loadBrandColor();
+      loadFontAccent();
+    }
     // Only clear stale onboarding session data when NOT returning from Stripe.
     // popup_scraped_data and popup_website_desc must survive the Stripe redirect
     // round-trip so migration has the user's scraped text and description.
@@ -318,10 +329,15 @@ function AppContent() {
     host_name?: string;
   }) => {
     setSiteName(imported.title.startsWith('@') ? imported.title : '@' + imported.title);
-    // description = first 24 words (hero-image overlay teaser, via ImageGallery.tsx).
+    // David 2026-10-21: "The intro copy should be limited to only be 12 words so it
+    // works on Mobile." Was 24 -- cut to 12 here and in ImageGallery.tsx's matching
+    // live-edit limiter + GetSite.tsx's extractFirst12Words (same cap, independently
+    // implemented in each place since this teaser gets produced from three different
+    // entry points: the onboarding scrape, a live edit on the hero overlay, and here).
+    // description = first 12 words (hero-image overlay teaser, via ImageGallery.tsx).
     // property_intro = full original text (below-photos section, via PropertyDetails.tsx).
     // Read the full original from sessionStorage so re-edits always have the untruncated text to
-    // work from, then apply the 24-word limit for the teaser.
+    // work from, then apply the 12-word limit for the teaser.
     let fullDesc = imported.description || '';
     // GetSite.tsx's onImported(...) calls never include a `location` field — there is no
     // location input anywhere in the onboarding popup, location only ever comes from the
@@ -342,15 +358,21 @@ function AppContent() {
         if (!resolvedLocation && scraped?.location) resolvedLocation = scraped.location;
       }
     } catch { /* use imported.description as fallback */ }
-    // 24-word limit for the hero-overlay teaser
+    // 12-word limit for the hero-overlay teaser. David 2026-10-22: add an
+    // ellipsis when the cut lands mid-sentence (same rule as GetSite.tsx's
+    // extractFirst12Words and ImageGallery.tsx's capIntroWords).
     const words = fullDesc.trim().split(/\s+/);
-    const propertyIntro24 = words.length > 24 ? words.slice(0, 24).join(' ') : fullDesc;
+    let propertyIntro12 = fullDesc;
+    if (words.length > 12) {
+      const truncated = words.slice(0, 12).join(' ');
+      propertyIntro12 = /[.!?]$/.test(truncated) ? truncated : `${truncated}…`;
+    }
     setScrapedProperty(prev => ({
       title: imported.title,
       // property_headline: user's edited Property Headline input — respect it
       property_headline: imported.property_headline || imported.title,
       property_intro: fullDesc,
-      description: propertyIntro24,
+      description: propertyIntro12,
       location: resolvedLocation || (prev as any)?.location || '',
       price_per_night: imported.price || null,
       max_guests: imported.guests || null,
@@ -406,12 +428,12 @@ function AppContent() {
              before useParams() sees it. window.location.pathname still has the full path, so App.tsx
              extracts it and passes urlSlug to CustomerSite. Debug: set window.__FORCE_SLUG__ in console. */}
         <Routes>
-          <Route path="/" element={(window as any).__PROPERTY_DATA__ ? (() => { const pathname = typeof window < 'u' ? window.location.pathname : ''; const slugMatch = pathname.match(/\/props\/([^/]+)/); const urlSlug = slugMatch?.[1]; return <CustomerSite onSiteNameChange={setSiteName} isEditing={isEditing} registerSaveAll={(fn) => { saveAllRef.current = fn; return true; }} onPropertyLoaded={(ownerId) => setCurrentPropertyOwnerId(ownerId)} scrapedProperty={scrapedProperty} scrapedImages={scrapedImages} urlSlug={urlSlug} />; })() : (<Home onOpenLogin={() => setShowLogin(true)} isEditing={isEditing} onHasChanges={setHasChanges} registerSaveAll={(fn) => { saveAllRef.current = fn; return true; }} onSiteNameChange={setSiteName} onOpenSidebar={() => setSidebarOpen(true)} forceOpenOnboarding={showOnboarding} onOnboardingClose={() => setShowOnboarding(false)} scrapedProperty={scrapedProperty} scrapedImages={scrapedImages} />)} />
+          <Route path="/" element={(window as any).__PROPERTY_DATA__ ? (() => { const pathname = typeof window < 'u' ? window.location.pathname : ''; const slugMatch = pathname.match(/\/props\/([^/]+)/); const urlSlug = slugMatch?.[1]; return <CustomerSite onSiteNameChange={setSiteName} isEditing={isEditing} registerSaveAll={(fn) => { saveAllRef.current = fn; return true; }} onPropertyLoaded={(ownerId) => setCurrentPropertyOwnerId(ownerId)} onHasChanges={setHasChanges} scrapedProperty={scrapedProperty} scrapedImages={scrapedImages} urlSlug={urlSlug} />; })() : (<Home onOpenLogin={() => setShowLogin(true)} isEditing={isEditing} onHasChanges={setHasChanges} registerSaveAll={(fn) => { saveAllRef.current = fn; return true; }} onSiteNameChange={setSiteName} onOpenSidebar={() => setSidebarOpen(true)} forceOpenOnboarding={showOnboarding} onOnboardingClose={() => setShowOnboarding(false)} scrapedProperty={scrapedProperty} scrapedImages={scrapedImages} />)} />
           <Route path="/auth/confirm" element={<EmailConfirmation />} />
           <Route path="/admin" element={user?.role === 'admin' ? <AdminDashboard /> : <Navigate to="/" replace />} />
           <Route path="/property-admin" element={user ? <PropertyAdmin /> : <Navigate to="/login" replace />} />
                   <Route path="/pay/:bookingId" element={<PaymentPage />} />
-          <Route path="/props/:slug" element={<CustomerSite onSiteNameChange={setSiteName} isEditing={isEditing} registerSaveAll={(fn) => { saveAllRef.current = fn; return true; }} onPropertyLoaded={(ownerId) => setCurrentPropertyOwnerId(ownerId)} scrapedProperty={scrapedProperty} scrapedImages={scrapedImages} urlSlug={undefined} />} />
+          <Route path="/props/:slug" element={<CustomerSite onSiteNameChange={setSiteName} isEditing={isEditing} registerSaveAll={(fn) => { saveAllRef.current = fn; return true; }} onPropertyLoaded={(ownerId) => setCurrentPropertyOwnerId(ownerId)} onHasChanges={setHasChanges} scrapedProperty={scrapedProperty} scrapedImages={scrapedImages} urlSlug={undefined} />} />
           <Route path="/saas-admin" element={user?.role === 'saas_admin' ? <SaasAdminDashboard /> : <Navigate to="/" replace />} />
           <Route path="/guest/account" element={<GuestAccount />} />
         </Routes>
@@ -452,14 +474,32 @@ function AppContent() {
           onSwitchToLogin={() => { setShowSignup(false); setShowLogin(true); }}
         />
       )}
-      {/* AdminSidebar — shown when user owns the current property OR is an admin */}
-      {user && (isViewingOwnProperty || user.role === 'admin') && (
+      {/* David 2026-10-20: "I would prefer it if we did not offer the choice
+          to stay on the site and edit someone else's site... have them only
+          see the site as if they were a guest visiting. So only guest
+          sidebar and No edit button." -- the `|| user.role === 'admin'`
+          bypass here let ANY admin-role account (every property owner's
+          account is role:'admin', not just platform staff -- see
+          AdminSidebarBundle's isAdmin comment) edit ANY other owner's
+          property just by landing on its page and dismissing the "Property
+          conflict" modal's "stay here and keep editing" option. Gating
+          purely on isViewingOwnProperty (unchanged, independent ownership
+          check) removes that: a non-owner, admin-role or not, now always
+          gets GuestSidebar -- view-only, no PropertySection/edit UI. This
+          also makes AdminSidebarBundle's "Property conflict" modal, its
+          "Not Your Property" lock screen, and its isAccessDenied/migration-
+          mode banner unreachable (AdminSidebar only ever mounts for the
+          real owner now) -- left in place as dead code rather than ripped
+          out in this same pass, since isAccessDenied threads through
+          several other branches in that file that weren't audited here. */}
+      {/* AdminSidebar — shown only when user owns the current property */}
+      {user && isViewingOwnProperty && (
         <AdminSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} onPropertyLoaded={setSiteName} onOpenOnboarding={() => setShowOnboarding(true)} showGetSite={showGetSite} setShowGetSite={setShowGetSite} />
       )}
 
-      {/* GuestSidebar — shown when user is logged in but doesn't own this property (and not admin) */}
-      {user && !isViewingOwnProperty && user.role !== 'admin' && (
-        <GuestSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} currentSlug={location.pathname.replace('/props/', '')} onOpenGetSite={() => setShowGetSite(true)} onOpenLogin={() => setShowLogin(true)} />
+      {/* GuestSidebar — shown whenever user is logged in but doesn't own this property, admin-role accounts included */}
+      {user && !isViewingOwnProperty && (
+        <GuestSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} currentSlug={(window as any).__PROPERTY_DATA__?.slug || ''} onOpenGetSite={() => setShowGetSite(true)} onOpenLogin={() => setShowLogin(true)} />
       )}
 
 
@@ -467,7 +507,7 @@ function AppContent() {
 
       {/* GetSite popup — shown when guest clicks 'Get your own booking website' in sidebar */}
       {showGetSite && (
-        <GetSite onClose={() => setShowGetSite(false)} onImported={handleGetSiteImported} onSiteNameChange={setSiteName} onSiteCreated={handleSiteCreated} />
+        <GetSite onClose={() => setShowGetSite(false)} onImported={handleGetSiteImported} onSiteNameChange={setSiteName} onSiteCreated={handleSiteCreated} onOpenLogin={() => setShowLogin(true)} />
       )}
     </>
   );
